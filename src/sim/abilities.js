@@ -130,6 +130,8 @@ export function castActive(game, t, idx, manual) {
   const a = st.def;
   if (st.cd > 0) { if (manual) game.emit('error', `${a.name} is on cooldown`); return false; }
   if (t.mana < a.mana) { if (manual) game.emit('error', 'Not enough mana'); return false; }
+  // A link autocast only fires while there is no live link; manual casts can relink.
+  if (!manual && a.effect.kind === 'link' && t.linkTo && game.towers.has(t.linkTo)) return false;
   const target = pickTarget(game, t, a);
   if (!target) { if (manual) game.emit('error', 'No valid target'); return false; }
   t.mana -= a.mana;

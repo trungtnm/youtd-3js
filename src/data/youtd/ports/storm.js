@@ -378,7 +378,7 @@ export const PORTS = {
     },
     // A player-chosen link upstream. Re-casting resets the link, so it is not cast automatically.
     actives: (row) => [autocast(row, 'dimlink', '🔗', 'Links the strongest allied tower nearby to the collector. The collector banks the spell damage that tower deals and releases it as flux. Cast it once; re-casting restarts the link.', 'tower',
-      { kind: 'link', fx: 'storm' }, { auto: false, anytime: true })],
+      { kind: 'link', fx: 'storm' }, { anytime: true })],
   },
 
   lightning_totem: {
