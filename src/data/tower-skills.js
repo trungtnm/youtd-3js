@@ -199,13 +199,13 @@ export const TOWER_SKILLS = {
 // Human-readable line for a proc/charge passive.
 export function describeSkill(p) {
   if (p.type === 'charge') return `${p.name}: gains +${Math.round(p.rate * 100)}% damage per second without attacking (max +${Math.round(p.cap * 100)}%), spent on the next shot.`;
-  const when = p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range', buffed: 'buff received' }[p.on]}`
+  const when = p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', damage: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range', buffed: 'buff received' }[p.on]}`
     : p.on === 'periodic' ? `${p.chance != null && p.chance < 1 ? `${pctText(p.chance)} chance every` : 'Every'} ${p.icd}s${p.needCreeps ? ' in combat' : ''}`
     : `${pctText(p.chance ?? 1)}${p.chancePerLevel ? ` (+${pctText(p.chancePerLevel)}/lvl)` : ''} ${{
-      attack: 'on attack', hit: 'on hit', kill: 'on kill', enter: 'when a creep enters range', crit: 'on crit',
+      attack: 'on attack', hit: 'on hit', damage: 'on hit', kill: 'on kill', enter: 'when a creep enters range', crit: 'on crit',
       cast: 'after casting', death: 'when a creep dies in range', buffed: 'when buffed by another tower' }[p.on]}`;
   const cond = (p.onCrit ? ', on crits' : '') + (p.manaAbove != null ? `, while above ${p.manaAbove} mana` : '')
-    + (p.attacks ? `, ${p.attacks.join('/')} attackers only` : '') + (p.elements ? `, ${p.elements.join('/')} carriers only` : '') + (p.minLevel ? `, from level ${p.minLevel}` : '') + (p.manaCost ? `, costs ${p.manaCost} mana` : '')
+    + (p.towerCast ? ' on a tower' : '') + (p.attacks ? `, ${p.attacks.join('/')} attackers only` : '') + (p.elements ? `, ${p.elements.join('/')} carriers only` : '') + (p.minLevel ? `, from level ${p.minLevel}` : '') + (p.manaCost ? `, costs ${p.manaCost} mana` : '')
     + (p.sizes ? ` vs ${p.sizes.join('/')}` : '') + (p.armors ? ` vs ${p.armors.join('/')} armor` : '')
     + (p.hpBelow != null ? ` below ${pctText(p.hpBelow)} health` : '') + (p.hpAbove != null ? ` above ${pctText(p.hpAbove)} health` : '')
     + (p.cond ? ` vs ${p.cond} creeps` : '') + (p.races ? ` vs ${p.races.join('/')}` : '') + (p.icd && p.on !== 'periodic' ? `, ${p.icd}s cooldown` : '');
@@ -291,7 +291,18 @@ export function describeEffect(e) {
     case 'mana': return `${(e.amount || 0) < 0 ? 'drains' : 'restores'} ${e.pct ? pct(e.pct) : e.fromOverkill ? `${e.fromOverkill}x overkill as` : Math.abs(e.amount)} mana${e.self ? '' : ' to towers nearby'}.`;
     case 'gold': return `grants ${e.amount}${e.perWave ? ` + ${e.perWave}/wave` : ''} gold.`;
     case 'shareXp': return `${e.amount} experience to ${e.count} nearby towers.`;
-    case 'xp': return `grants ${e.amount} experience${e.perLevel ? ` (+${pctText(e.perLevel)} per level)` : ''}.`;
+    case 'xp': return `grants ${e.amount} experience${e.toCastTarget ? ' to the target tower' : ''}${e.perLevel ? ` (+${pctText(e.perLevel)} per level)` : ''}.`;
+    case 'modifyHit': {
+      const parts = [];
+      if (e.mult != null) parts.push(`the hit deals x${e.mult}`);
+      if (e.healthMult) parts.push(`the hit deals x${e.healthMult[1]} against creeps at full health, falling to x${e.healthMult[0]} as they near death`);
+      if (e.regenMult) parts.push("the hit is multiplied by 2 plus the carrier's mana regeneration bonus");
+      if (e.floor) parts.push("the hit deals at least the carrier's attack damage, whatever the armor");
+      if (e.toSpell) parts.push(`${pctText(e.toSpell)} of the hit is dealt as spell damage instead`);
+      return `${parts.join('; ')}.`;
+    }
+    case 'drainCreepMana': return `drains ${e.amount}${e.amountPerLevel ? ` (+${e.amountPerLevel} per level${e.perLevelByCd ? ' x base attack cooldown' : ''})` : ''} mana from the target${e.rangeExp ? ', less for long-range towers' : ''}. Warded creeps lose their ward below 10 mana.`;
+    case 'restoreMana': return `${e.chance != null ? `${pctText(e.chance)} chance to restore` : 'restores'} the carrier's mana to its level ${e.every || 5}s earlier if it has dropped since.`;
     case 'grow': return `permanently grows the item: ${fmtMod(e.stat, e.amount)}${e.cap != null ? ` (up to ${fmtMod(e.stat, e.cap)})` : ''}${e.min != null ? ` (down to ${fmtMod(e.stat, e.min)})` : ''}.`;
     case 'multi': return e.effects.map(describeEffect).filter(Boolean).map((t, i) => (i ? t.charAt(0).toUpperCase() + t.slice(1) : t)).join(' ');
     default: return '';

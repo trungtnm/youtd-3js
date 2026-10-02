@@ -50,6 +50,7 @@ for (const row of YT_ITEMS) {
     effect: kind === 'consumable' ? CONSUMABLES[row.script] || {} : undefined,
     procs: port?.procs, aura: port?.aura, reveal: port?.reveal,
     staticMods: port?.mods, attackType: port?.attackType,
+    attackManaPct: port?.attackManaPct,
   };
 }
 
@@ -61,7 +62,9 @@ for (const i of ITEM_LIST) ITEMS_BY_RARITY[i.rarity].push(i);
 export function describeMods(mods) {
   return Object.entries(mods).map(([k, v]) => {
     const sign = v >= 0 ? '+' : '';
-    return isFlatMod(k) ? `${sign}${+v.toFixed(2)} ${modLabel(k)}` : `${sign}${+(v * 100).toFixed(1)}% ${modLabel(k)}`;
+    // debuffDur on a tower is the duration of debuffs it receives.
+    const label = k === 'debuffDur' ? 'duration of debuffs received' : modLabel(k);
+    return isFlatMod(k) ? `${sign}${+v.toFixed(2)} ${label}` : `${sign}${+(v * 100).toFixed(1)}% ${label}`;
   });
 }
 
@@ -78,6 +81,7 @@ export function describeItem(item) {
   const lines = describeLevelMods(item.levelMods);
   if (item.staticMods) lines.push(...describeMods(item.staticMods));
   if (item.attackType) lines.push(`Changes the carrier's attack type to ${item.attackType}.`);
+  if (item.attackManaPct) lines.push(`Each attack costs ${+(item.attackManaPct * 100).toFixed(1)}% of the carrier's max mana; without that much mana the attack fizzles, so towers without mana cannot attack.`);
   if (item.aura) {
     const a = item.aura;
     const per = a.valuePerLevel ? ` (${describeMods({ [a.stat]: a.valuePerLevel })[0]} per level)` : '';

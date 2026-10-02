@@ -3,6 +3,7 @@
 // the same building blocks.
 
 import { RARITIES } from '../data/constants.js';
+import { UNIT } from '../data/youtd/ports/helpers.js';
 
 // ------------------------------------------------------------------ tower buffs
 
@@ -138,7 +139,8 @@ export function castActive(game, t, idx, manual) {
   st.cd = a.cd * (1 - (t.stats.cdr || 0));
   game.emit('cast', { tower: t, active: a, x: target.x, z: target.z });
   applyEffect(game, t, a.effect, target);
-  runProcs(game, t, 'cast', { creep: target.creep });
+  // targetTower: the ally a tower-targeted cast was aimed at (for procs that reward it).
+  runProcs(game, t, 'cast', { creep: target.creep, targetTower: a.target === 'tower' ? target.tower : null });
   return true;
 }
 
@@ -179,6 +181,7 @@ function procAllowed(game, t, p, ctx) {
   if (p.notOwnKill && ctx.killer === t) return false;
   if (p.attacks && !p.attacks.includes(t.stats.attackType || t.def.attack)) return false;
   if (p.elements && !p.elements.includes(t.def.element)) return false;
+  if (p.towerCast && !ctx.targetTower) return false;
   return true;
 }
 
@@ -317,7 +320,10 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       if (e.element) targets = targets.filter((o) => o.def.element === e.element);
       if (e.pick === 'random' && targets.length) targets = [targets[Math.floor(game.rng() * targets.length)]];
       for (const o of targets) {
-        const dur = (e.dur + (e.durPerLevel || 0) * t.level) * (1 + (t.stats.buffDur || 0));
+        let dur = (e.dur + (e.durPerLevel || 0) * t.level) * (1 + (t.stats.buffDur || 0));
+        // Debuff duration (e.g. Forcefield) shortens buffs that only lower the receiver's stats.
+        if (o.stats.debuffDur && harmfulMods(e.mods)) dur *= Math.max(0, 1 + o.stats.debuffDur);
+        if (dur <= 0) continue;
         const runtime = e.scaleBy ? 1 + e.scaleBy.per * scaleValue(game, t, e.scaleBy.kind, target, e.scaleBy) : 1;
         addTowerBuff(game, o, e.key || e.label, scaleMods(e.mods, lvlScale * runtime), dur, e.label, e.maxStacks || 1);
         if (!e.quiet) game.emit('buffFx', { tower: o, kind: fx });
@@ -349,7 +355,58 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       break;
     }
     case 'xp': {
-      game.giveXp(t, e.amount * lvlScale);
+      // toCastTarget: the experience goes to the tower a cast was aimed at.
+      const who = e.toCastTarget ? ctx.targetTower : t;
+      if (who && game.towers.has(who.uid)) game.giveXp(who, e.amount * lvlScale);
+      break;
+    }
+    case 'modifyHit': {
+      // Changes the attack hit that is about to land (trigger 'damage'). ctx.hit.damage is
+      // the pre-armor amount; YouTD scripts work on the amount after armor, so the attack
+      // multiplier converts between the two where it matters.
+      const hit = ctx.hit, c = target.creep;
+      if (!hit || !c?.alive) break;
+      if (e.mult != null) hit.damage *= e.mult;
+      if (e.healthMult) hit.damage *= e.healthMult[0] + (e.healthMult[1] - e.healthMult[0]) * (c.hp / c.maxHp);
+      // YouTD's mana regeneration percent starts at 100%, so the default factor is 2.
+      if (e.regenMult) hit.damage *= Math.max(0, 2 + (t.stats.manaRegen || 0));
+      if (e.floor || e.toSpell) {
+        const m = game.damageMultiplier(t, c, false);
+        if (e.floor && m > 0) hit.damage = Math.max(hit.damage, ((t.stats.dmgMin + t.stats.dmgMax) / 2) / m);
+        if (e.toSpell) { hit.spell += hit.damage * e.toSpell * Math.max(0, m); hit.damage *= 1 - e.toSpell; }
+      }
+      break;
+    }
+    case 'drainCreepMana': {
+      // Creep mana only exists on creeps whose specials run on it (see spawnCreep).
+      const c = target.creep;
+      if (!c?.alive || !(c.mana > 0)) break;
+      // perLevelByCd: the per-level part grows with the tower's base attack cooldown.
+      // rangeExp: long-range towers drain less, by (rangeRef / range)^... as in YouTD.
+      let amount = e.amount + (e.amountPerLevel || 0) * t.level * (e.perLevelByCd ? t.def.cd : 1);
+      if (e.rangeExp) amount *= (e.rangeRef || 55) / Math.pow(Math.max(1, t.def.range * UNIT), e.rangeExp);
+      c.mana = Math.max(0, c.mana - amount);
+      game.emit('spellChain', { tower: t, points: [{ x: t.x, z: t.z, y: 3 }, { x: c.x, z: c.z }], fx });
+      break;
+    }
+    case 'restoreMana': {
+      // Remembers the carrier's mana on each tick; when it has dropped since, a chance
+      // restores it to the remembered level. The memory lives on the item, so a new
+      // carrier starts from its own mana (YouTD sets it on pickup).
+      const it = ctx.item;
+      if (!it || !t.maxMana) break;
+      // A stale memory (item moved, or held in the stash) starts over like a fresh pickup.
+      if (it.manaMemo?.uid !== t.uid || game.time - it.manaMemo.at > (e.every || 5) * 1.5) {
+        it.manaMemo = { uid: t.uid, mana: t.mana, at: game.time };
+        break;
+      }
+      it.manaMemo.at = game.time;
+      const cap = t.stats.maxMana ?? t.maxMana;
+      if (t.mana < it.manaMemo.mana && game.rng() < (e.chance ?? 1) * (1 + (t.stats.trigger || 0))) {
+        t.mana = Math.min(cap, it.manaMemo.mana);
+        game.emit('proc', { tower: t, name: e.label || 'Restore Mana', x: t.x, z: t.z, fx });
+        game.emit('buffFx', { tower: t, kind: 'mana' });
+      } else it.manaMemo.mana = t.mana;
       break;
     }
     case 'killInstant': {
@@ -446,6 +503,12 @@ export function applyEffect(game, t, e, target, ctx = {}) {
     }
     default: break;
   }
+}
+
+// True when every stat a buff changes goes down (a debuff on the receiving tower).
+function harmfulMods(mods) {
+  for (const k in mods) if (mods[k] >= 0) return false;
+  return true;
 }
 
 function scaleMods(mods, k) {
