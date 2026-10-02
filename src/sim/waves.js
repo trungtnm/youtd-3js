@@ -7,7 +7,7 @@ export const SPECIALS = {
   armored:    { id: 'armored',    name: 'Armored',      css: '#ccd', desc: 'Much higher armor.', min: 8 },
   regen:      { id: 'regen',      name: 'Regenerating', css: '#7f7', desc: 'Regenerates 1.2% health per second.', min: 10 },
   shielded:   { id: 'shielded',   name: 'Shielded',     css: '#8cf', desc: 'A barrier absorbs damage equal to 30% of health.', min: 12 },
-  warded:     { id: 'warded',     name: 'Warded',       css: '#c9f', desc: 'Immune to arcane attacks; spells deal 40% damage.', min: 16 },
+  warded:     { id: 'warded',     name: 'Warded',       css: '#c9f', desc: 'Immune to arcane attacks and spells deal 40% damage while it has 10+ mana.', min: 16 },
   rich:       { id: 'rich',       name: 'Rich',         css: '#fd5', desc: 'Drops double gold.', min: 4 },
   wise:       { id: 'wise',       name: 'Wise',         css: '#9cf', desc: 'Grants double experience; may drop tomes.', min: 4 },
   splitter:   { id: 'splitter',   name: 'Splitter',     css: '#fa7', desc: 'Splits into two lesser creeps on death.', min: 14, noSize: ['mass', 'boss', 'challenge'] },

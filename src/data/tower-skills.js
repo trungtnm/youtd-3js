@@ -198,6 +198,7 @@ export const TOWER_SKILLS = {
 
 // Human-readable line for a proc/charge passive.
 export function describeSkill(p) {
+  if (p.on === 'equip' || p.on === 'unequip') return `${p.name} (when ${p.on === 'equip' ? 'equipped' : 'unequipped'}): ${describeEffect(p.effect)}`;
   if (p.type === 'charge') return `${p.name}: gains +${Math.round(p.rate * 100)}% damage per second without attacking (max +${Math.round(p.cap * 100)}%), spent on the next shot.`;
   const when = p.everyWaves ? `once every ${p.everyWaves} waves, on the first ${p.on}`
     : p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', damage: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range', buffed: 'buff received' }[p.on]}`
@@ -312,6 +313,12 @@ export function describeEffect(e) {
       return `one at random: ${e.effects.map((s, i) => `(${i + 1}) ${part(s)}`).join('; ')}.`;
     }
     case 'paceReward': return `when attacking a creep of a newer wave within ${e.window}s of its last attack, grants gold equal to the seconds left${e.xpRatio ? ` and ${e.xpRatio}x that as experience` : ''}.`;
+    case 'itemXp': return e.amount ? `takes back up to ${e.amount} experience from the tower (it can lose levels) and stores it in the item.` : `grants the tower the experience stored in the item${e.start ? ` (${e.start} when new)` : ''}.`;
+    case 'duplicateItem': return `${e.start ? `starts with ${e.start} charges and ` : ''}loses a charge per wave level while carried; at zero it creates a copy of itself with ${e.growth} more charges (onto the carrier if a slot is free, else the stash) and recharges.`;
+    case 'buyItem': return `if a charge is ready and you have ${e.cost} gold, spends it on a random item of wave level ${e.minWave}-${e.maxWave} (uncommon, ${pctText(e.rare)} rare, ${pctText(e.unique)} unique). Starts with 1 charge and gains one per ${e.levelsPerCharge} wave levels, up to ${e.maxCharges}.`;
+    case 'moveItem': return `the item jumps to a random other tower within ${+e.radius.toFixed(1)} that has a free slot, or returns to the stash.`;
+    case 'copyItems': return "copies every other item on the tower: their effects apply again without using slots (autocasts excluded). The copies vanish when this item is removed.";
+    case 'jumpTower': return `teleports the tower to the free tile within ${+e.range.toFixed(1)} that covers the most creeps; it gains ${Object.entries(e.mods).map(([k, v]) => fmtMod(k, v)).join(', ')} and returns after ${e.dur}s.`;
     case 'multi': return e.effects.map(describeEffect).filter(Boolean).map((t, i) => (i ? t.charAt(0).toUpperCase() + t.slice(1) : t)).join(' ');
     default: return '';
   }

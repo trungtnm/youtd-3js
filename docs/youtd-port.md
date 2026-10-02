@@ -54,18 +54,18 @@ Status at the last update:
 | | Total | Data-only or ported | Pending |
 |---|---|---|---|
 | Towers | 690 | 690 | 0 |
-| Items | 315 | 294 | 21 |
+| Items | 315 | 315 | 0 |
 
-The 21 pending items need features this game does not model (moving, copying or
-buying items, moving towers, creep mana, wave-clear-time rewards, changing the
-triggering hit itself); they are listed with reasons in
-`plans/reports/porter-items-261002-0809-item-ports.md`.
-
-Ports were done in three passes. Phase 2 replaced most phase-1 approximations
+Ports were done in four passes. Phase 2 replaced most phase-1 approximations
 with exact mechanics using the engine primitives below; phase 3 added the
 remaining primitives (item rarity locks, overkill, tower links, mana per attack,
 attack type overrides, item marks, stacking armor, chance riders) and finished
-the last tower scripts. What remains approximate
+the last tower scripts; phase 4 ported the last 21 items, which needed new
+mechanics (item state and equip hooks, item copies and purchases, tower moves,
+hit modification, creep mana, wave counters, item interest). Item ports for
+phase 4 live in `item-ports-inventory.js`, `item-ports-hits.js` and
+`item-ports-waves.js`; their reports are
+`plans/reports/porter-items-{inventory,hits,waves}-261002-phase4.md`. What remains approximate
 (typical values where the engine cannot measure the real one, counters that
 should shrink with level, a few dropped riders) is listed per element in the
 "Phase 2" section of `plans/reports/porter-<element>-261002-0809-tower-ports.md`.
@@ -109,6 +109,29 @@ should shrink with level, a few dropped riders) is listed per element in the
   creep aura `xpBonusPerLevel`. Gold spending never goes below zero.
 - Towers with a YouTD mana value get a mana pool even without autocasts.
   Experience removal never goes below zero. On-hit procs also fire on the killing blow.
+- Item instances (inventory items): procs with `on: 'equip'` / `'unequip'` run once
+  when an item joins or leaves a tower (equip, unequip, swap, sell, rarity-lock
+  ejection, item moves; `hidden` keeps a hook out of the description). Item ports may
+  return `state` (per-instance state kept on the item, read with `game.itemState`) and
+  `requires: 'corner'`. Item proc cooldowns travel with the item, and periodic procs with
+  `waitFirst` start a full cooldown on pickup. An effect that returns `false` (nothing to
+  do) retries after at most 1s. Kinds: `itemXp` (experience stored on the item, taken back
+  exactly on unequip, levels included), `duplicateItem`, `buyItem`, `moveItem`,
+  `copyItems` (copies apply without slots and without autocast procs), `jumpTower`
+  (moves the tower body; its tile stays reserved; `towerMoved` event).
+- Hit modification: trigger `damage` runs before the main hit lands, with effect
+  `modifyHit` (`mult`, `healthMult`, `regenMult`, `floor`, `toSpell`). Only towers
+  with such a proc build the per-hit context. It changes the main hit only, not bounces.
+- Casts: the `cast` context carries `targetTower`; filter `towerCast`; `xp` option
+  `toCastTarget`. Mana: `restoreMana`, item field `attackManaPct` (attacks spend max
+  mana and fizzle without it), and `debuffDur` on towers shortens buffs whose stat
+  changes are all negative.
+- Creep mana: warded creeps have a mana pool (YouTD per-size values) and keep their
+  ward only at 10+ mana; `drainCreepMana` lowers it.
+- Waves and economy: proc filter `everyWaves` (counter stored on the item), effect
+  kinds `pick` (one random sub-effect) and `paceReward`, `dropItem` with `quality` and
+  `count`, item `interest: { pct, perCost }`, and the debuff rider `xpGranted` (stacking
+  extra experience granted on death).
 
 Upstream script bugs that the ports reinterpret: Gryphon Rider's Hammer Fall
 deals 0 damage upstream (ported as 1.5x attack damage), and Storm Battery's

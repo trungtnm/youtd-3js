@@ -51,6 +51,10 @@ for (const row of YT_ITEMS) {
     procs: port?.procs, aura: port?.aura, reveal: port?.reveal,
     staticMods: port?.mods, attackType: port?.attackType, interest: port?.interest,
     attackManaPct: port?.attackManaPct,
+    // Per-instance starting state, equip requirement, and the procs a copy of this item
+    // runs (copies made by another item keep everything except autocasts).
+    state: port?.state, requires: port?.requires,
+    copyProcs: port?.procs?.filter((p) => !row.autocasts.some((a) => p.name.startsWith(a.name))),
   };
 }
 
@@ -96,7 +100,8 @@ export function describeItem(item) {
     lines.push(`Interest rate on banked gold ${parts.join(' and ')}.`);
   }
   if (item.reveal) lines.push(`True sight: reveals invisible creeps within ${item.reveal.radius.toFixed(1)}.`);
-  for (const p of item.procs || []) lines.push(describeSkill(p));
+  if (item.requires === 'corner') lines.push('Only a tower on a corner tile (two or more unbuildable sides) can carry it.');
+  for (const p of item.procs || []) if (!p.hidden) lines.push(describeSkill(p));
   if (item.pending.length) lines.push(`Special: ${item.pending.join(', ')} (effect not yet ported).`);
   if (item.kind === 'oil') lines.push('Drag onto a tower to consume permanently.');
   return lines;
