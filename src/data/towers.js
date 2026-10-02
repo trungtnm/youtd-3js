@@ -114,7 +114,8 @@ export function describeAbility(a) {
     case 'crit': return `Critical strike: ${p(a.chance)} chance for x${a.mult.toFixed(2)} damage.`;
     case 'slow': return `Slows by ${p(a.pct)} for ${a.dur}s.`;
     case 'stun': return `${p(a.chance)} chance to stun for ${a.dur}s.`;
-    case 'aura': return `Aura: ${a.element ? `${a.element} ` : ''}${a.rarities ? `${a.rarities.join('/')} ` : ''}towers within ${(+a.radius).toFixed(1)} gain ${describeStatMod(a.stat, a.value)}${a.valuePerLevel ? ` (${describeStatMod(a.stat, a.valuePerLevel)} per level)` : ''}${a.minLevel ? `, from level ${a.minLevel}` : ''}.`;
+    case 'aura': if (a.selfOnly) return `This tower gains ${describeStatMod(a.stat, a.value)}${a.valuePerLevel ? ` (${describeStatMod(a.stat, a.valuePerLevel)} per level)` : ''}${a.minLevel ? `, from level ${a.minLevel}` : ''}.`;
+      return `Aura: ${a.element ? `${a.element} ` : ''}${a.rarities ? `${a.rarities.join('/')} ` : ''}towers within ${(+a.radius).toFixed(1)} gain ${describeStatMod(a.stat, a.value)}${a.valuePerLevel ? ` (${describeStatMod(a.stat, a.valuePerLevel)} per level)` : ''}${a.minLevel ? `, from level ${a.minLevel}` : ''}.`;
     case 'creepAura': {
       const parts = [];
       if (a.slow) parts.push(`slowed ${p(a.slow)}`);
@@ -122,8 +123,12 @@ export function describeAbility(a) {
       if (a.curse) parts.push(`take +${p(a.curse)} damage`);
       if (a.vulnSpell) parts.push(`take +${p(a.vulnSpell)} spell damage`);
       if (a.vulnElement) parts.push(`take +${p(a.vulnElement.pct)} damage from ${a.vulnElement.el}`);
+      if (a.xpBonus) parts.push(`grant +${p(a.xpBonus)}${a.xpBonusPerLevel ? ` (+${(a.xpBonusPerLevel * 100).toFixed(1)}%/lvl)` : ''} experience when they die`);
       return `Aura: creeps within ${(+a.radius).toFixed(1)} ${parts.join(', ')}.`;
     }
+    case 'itemRarityLock': return `Only holds ${a.rarity} items; others return to the stash.`;
+    case 'attackOverride': return `Attack type becomes ${a.attack}${a.minLevel ? ` from level ${a.minLevel}` : ''}.`;
+    case 'manaPerAttack': return `${a.cost ? `Each attack costs ${a.cost} mana and stops when empty` : ''}${a.cost && a.gain ? '; ' : ''}${a.gain ? `each attack restores ${a.gain} mana` : ''}.`;
     case 'levelBonus': return `At level ${a.level}: ${Object.entries(a.mods).map(([k, v]) => describeStatMod(k, v)).join(', ')}.`;
     case 'proc': case 'charge': return describeSkill(a);
     default: return a.desc || a.type;

@@ -80,15 +80,19 @@ export const PORTS = {
 
   crimson_wyrm: {
     passives: () => {
-      // Every 8-12 attacks (fewer at high level) it hurls fireballs at random creeps in range; a fourth from level 10.
+      // Every 8-12 attacks (about 10; 9 from level 15 and 8 at 25) it hurls fireballs at random creeps in range; a fourth from level 10.
       const fireball = { kind: 'bolts', count: 3, interval: 0.15, flat: 3750, flatPerLevel: 150, radius: R(250), range: R(950), fx: 'fire' };
+      // Exact level steps from upstream: every 10th attack, 9th from level 15, 8th from level 25.
+      const every = { every: 10, everySteps: [[15, 9], [25, 8]] };
       return [
-        proc('Flaming Inferno', 'attack', { every: 9 }, fireball),
-        proc('Flaming Inferno', 'attack', { every: 9, minLevel: 10, key: 'inferno4', silent: true }, { ...fireball, count: 1 }),
-        // Hoarded bounty grows both attack and spell damage (up to +1800% at a full hoard), kept on upgrade.
+        proc('Flaming Inferno', 'attack', every, fireball),
+        proc('Flaming Inferno', 'attack', { ...every, minLevel: 10, key: 'inferno4', silent: true }, { ...fireball, count: 1 }),
+        // Each kill pays gold into the hoard; every 50 gold hoarded is +1% attack and spell damage
+        // (up to +1800% at a full hoard of 90000), kept on upgrade.
         proc("Dragon's Hoard", 'kill', { chance: 1, silent: true }, { kind: 'multi', effects: [
-          { kind: 'growSelf', stat: 'damage', amount: 0.003, cap: 18 },
-          { kind: 'growSelf', stat: 'spell', amount: 0.003, cap: 18 },
+          { kind: 'gold', amount: -15 },
+          { kind: 'growSelf', stat: 'damage', amount: 15 / 5000, cap: 18 },
+          { kind: 'growSelf', stat: 'spell', amount: 15 / 5000, cap: 18 },
         ] }),
       ];
     },
@@ -108,12 +112,14 @@ export const PORTS = {
 
   little_phoenix: {
     passives: (row) => {
-      const [count, armor, eruptPerStack, eruptAdd] = at([[1, 0.5, 50, 1], [2, 0.6, 156, 3.9], [3, 0.7, 308, 8.8]], row);
+      const [count, armor, armorAdd, eruptPerStack, eruptAdd] = at([[1, 0.5, 0.01, 50, 1], [2, 0.6, 0.015, 156, 3.9], [3, 0.7, 0.02, 308, 8.8]], row);
       const mult = +(eruptPerStack / avgDmg(row)).toFixed(4);
       return [
         proc('Twin Attack', 'attack', { chance: 1, silent: true }, { kind: 'barrage', count, mult: 1, fx: 'fire' }),
         proc('Twin Attack', 'attack', { chance: 1, minLevel: 15, key: 'twin15', silent: true }, { kind: 'barrage', count: 1, mult: 1, fx: 'fire' }),
-        { type: 'shred', armor, maxStacks: 50, dur: 5, desc: `Phoenixfire: each hit strips ${armor} armor for 5s, stacking.` },
+        // Phoenixfire: every hit strips more armor for 5s, stacking, and the loss per hit grows with level.
+        proc('Phoenixfire', 'hit', { chance: 1, silent: true }, {
+          kind: 'debuff', armorStack: { armor, armorPerLevel: armorAdd, max: 50, key: 'phoenixfire' }, debuffDur: 5, quiet: true, fx: 'fire' }),
         // The original erupts when the stacks expire; each stack's share is dealt on hit instead.
         proc('Phoenix Explosion', 'hit', { chance: 1, silent: true }, { kind: 'attackDamage', mult, perLevel: eruptAdd / eruptPerStack, radius: R(200), quiet: true, fx: 'fire' }),
       ];
@@ -121,20 +127,21 @@ export const PORTS = {
   },
 
   the_omnislasher: {
-    // Ten slashes per attack; every slash makes the creep permanently take +4% more physical attack damage.
+    // Ten slashes per attack; every slash makes the creep permanently take +4% more attack damage from physical towers.
     passives: () => [proc('Omnislash', 'hit', { chance: 1, silent: true }, {
-      kind: 'debuff', stackVuln: { pct: 0.4, max: 250, attack: 'physical', permanent: true, key: 'omnislash' }, quiet: true, fx: 'fire' })],
+      kind: 'debuff', stackVuln: { pct: 0.4, max: 250, attack: 'physical', attacksOnly: true, permanent: true, key: 'omnislash' }, quiet: true, fx: 'fire' })],
   },
 
   caged_fire: {
     passives: (row) => {
-      const [armor, armorAdd, dmg, add] = at([[3, 0.12, 20, 0.8], [6, 0.24, 40, 1.6]], row);
+      const [armor, armorAdd, ramp, rampAdd, dmg, add] = at([[1, 0.04, 0.5, 0.02, 20, 0.8], [2, 0.08, 1, 0.04, 40, 1.6]], row);
       return [
-        // Armor loss ramps up every second a creep stays inside; the value averages about 4s of exposure.
+        // Creeps inside the cage lose armor at once...
         { type: 'creepAura', slow: 0, armor, armorPerLevel: armorAdd, radius: R(900) },
-        // Every second inside the cage adds a stack to the burn, so damage ramps up linearly.
+        // ...and every second inside adds a stack to both the armor loss and the burn, so both ramp up linearly.
         proc('Melt', 'periodic', { icd: 1, needCreeps: true, silent: true }, {
-          kind: 'debuff', radius: R(900), dot: { dps: dmg, dpsPerLevel: add, dur: 1.5, maxStacks: 300, key: 'melt' }, quiet: true, fx: 'fire' }),
+          kind: 'debuff', radius: R(900), dot: { dps: dmg, dpsPerLevel: add, dur: 1.5, maxStacks: 300, key: 'melt' },
+          armorStack: { armor: ramp, armorPerLevel: rampAdd, max: 300, key: 'melt' }, debuffDur: 1.5, quiet: true, fx: 'fire' }),
       ];
     },
   },
@@ -147,9 +154,9 @@ export const PORTS = {
         proc('Red Flame', 'attack', { chance: 0.1 }, { kind: 'attackDamage', mult: flame, perLevel: flameAdd / flame, fx: 'fire' }),
         // Green flames roll the attack crit chance, which on average is one per crit.
         proc('Green Flame', 'crit', { chance: 1 }, { kind: 'spellDamage', mult: flame, perLevel: flameAdd / flame, fx: 'fire' }),
-        // Every 8 flames of one colour pulse through everything nearby.
-        proc('Red Pulse', 'attack', { every: 80 }, { kind: 'spellDamage', mult: pulse, perLevel: pulseAdd / pulse, radius: R(900), fx: 'fire' }),
-        proc('Green Pulse', 'crit', { chance: 0.125 }, { kind: 'attackDamage', mult: pulse, perLevel: pulseAdd / pulse, radius: R(900), fx: 'fire' }),
+        // Every 8 flames of one colour (7 from level 15, 6 at 25) pulse through everything nearby.
+        proc('Red Pulse', 'attack', { every: 80, everySteps: [[15, 70], [25, 60]] }, { kind: 'spellDamage', mult: pulse, perLevel: pulseAdd / pulse, radius: R(900), fx: 'fire' }),
+        proc('Green Pulse', 'crit', { every: 8, everySteps: [[15, 7], [25, 6]] }, { kind: 'attackDamage', mult: pulse, perLevel: pulseAdd / pulse, radius: R(900), fx: 'fire' }),
         proc('Twin Disciplines', 'crit', { chance: 1, silent: true }, {
           kind: 'towerBuff', key: 'disciplines', label: 'Twin Disciplines', mods: { crit, spellCrit: crit }, dur: 7, maxStacks: 10, quiet: true }),
       ];
@@ -267,10 +274,11 @@ export const PORTS = {
     },
     actives: (row) => [autocast(row, 'intenseHeat', '♨', 'Pours all its mana into a heatwave: every creep in range takes 7 (+0.2 per level) spell damage per mana point and gains a Lingering Flame stack, and towers nearby gain crit chance.', 'self',
       { kind: 'multi', effects: [
+        // +0.05% crit chance per 15 mana; applied before the mana is spent.
+        { kind: 'towerBuff', key: 'intenseHeat', label: 'Intense Heat', center: 'self', radius: R(350),
+          mods: { crit: 0.0005 / 15, spellCrit: 0.0005 / 15 }, scaleBy: { kind: 'mana', per: 1 }, dur: 4, quiet: true },
         { kind: 'spellDamage', flat: 7, flatPerLevel: 0.2, scaleBy: { kind: 'mana', per: 1 }, spendMana: 1, radius: R(1000),
           dot: { dps: 100, dpsPerLevel: 2, dur: 10, maxStacks: 200, key: 'lingering' }, fx: 'fire' },
-        // Crit bonus scales with the mana spent; this is the value for half a full pool.
-        { kind: 'towerBuff', key: 'intenseHeat', label: 'Intense Heat', center: 'self', radius: R(350), mods: { crit: 0.05, spellCrit: 0.05 }, dur: 4, quiet: true },
       ] })],
   },
 
@@ -301,13 +309,17 @@ export const PORTS = {
   },
 
   embershell_turtle_hatchling: {
-    // Every attack costs 1 mana and it stops when dry: with 1 mana/s regen it sustains about one attack in four.
-    passives: () => [{ type: 'miss', base: 0.75, perLevel: 0, desc: 'Overheat: runs out of steam, so only about one attack in four lands.' }],
+    // Every attack costs 1 mana and it stops attacking when dry, so its regen sets the sustained attack rate.
+    passives: () => [{ type: 'manaPerAttack', cost: 1, desc: 'Overheat: each attack burns 1 mana; with none left it waits for mana to return.' }],
   },
 
   the_fire_lord: {
     passives: () => [
       proc('Hellfire', 'attack', { chance: 0.25, chancePerLevel: 0.002 }, { kind: 'towerBuff', key: 'hellfire', label: 'Hellfire', mods: { multishot: 4 }, dur: 7.5, durPerLevel: 0.2, fx: 'fire' }),
+      // One more Hellfire target at level 15 and another at 25. Rolled on their own with the same chance and
+      // duration, so the average target count matches the original.
+      ...[15, 25].map((lv) => proc('Hellfire', 'attack', { chance: 0.25, chancePerLevel: 0.002, minLevel: lv, key: `hellfire${lv}`, silent: true },
+        { kind: 'towerBuff', key: `hellfire${lv}`, label: 'Hellfire', mods: { multishot: 1 }, dur: 7.5, durPerLevel: 0.2, quiet: true })),
       proc('Liquid Fire', 'hit', { chance: 1, silent: true }, {
         kind: 'debuff', dot: { dps: 500, dpsPerLevel: 50, dur: 5, key: 'liquidFire' },
         stackVuln: { pct: 0.10, pctPerLevel: 0.004, max: 1, element: 'fire', key: 'liquidFire' }, debuffDur: 5, debuffDurPerLevel: 0.1, quiet: true, fx: 'fire' }),
@@ -320,8 +332,9 @@ export const PORTS = {
 
   meteor_totem: {
     passives: () => [
-      // Torture echoes 8% (+0.1% per level) of big attack hits as spell damage: about that much damage taken.
-      proc('Torture', 'hit', { chance: 1, silent: true }, { kind: 'debuff', curse: 0.08, cursePerLevel: 0.001, debuffDur: 2.5, debuffDurPerLevel: 0.05, quiet: true, fx: 'fire' }),
+      // Torture echoes 8% (+0.1% per level) of attack hits on the creep as extra damage (the 500-damage floor is dropped).
+      proc('Torture', 'hit', { chance: 1, silent: true }, {
+        kind: 'debuff', stackVuln: { pct: 0.08, pctPerLevel: 0.001, max: 1, attacksOnly: true, key: 'torture' }, debuffDur: 2.5, debuffDurPerLevel: 0.05, quiet: true, fx: 'fire' }),
       // One more meteor for every 5 levels.
       ...[5, 10, 15, 20, 25].map((lv) => proc('Attraction', 'cast', { chance: 1, minLevel: lv, key: `attraction${lv}`, silent: true },
         { kind: 'bolts', count: 1, flat: 200, flatPerLevel: 8, radius: R(220), range: R(1000), fx: 'fire' })),

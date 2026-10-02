@@ -135,3 +135,27 @@ level-based stack relief (polar_bear_cub).
 - `giveXp` level-ups call `computeStats` but not `recalcAll`. Aura `valuePerLevel` and aura `minLevel` therefore stay at the build-time level until something else triggers `recalcAll` (seen as `buffDur` 0.25 on a level-19 Frozen Well).
 - The `mana` effect caps at `o.maxMana` (the base pool), not `stats.maxMana`.
 - Remaining primitive gaps: `slowDurPerLevel`, `dot.durPerLevel`, `mana.amountPerLevel`, a describable mana-drain effect, chance-gated stun/slow riders, and periodic procs that roll once per `icd` window.
+
+## Phase 3
+
+File changed: `src/data/youtd/ports/ice.js` only. Validation: 0 ice towers pending, every ice
+ability description renders, and the full ice roster (91 towers, max level, 180s) runs with no
+exceptions and no non-finite stats. A probe on Genis Sage over 140s showed 6 Magic Boost casts
+(20 windows x 30%), and a max-level Sea Turtle fills its pool through `manaPerAttack`.
+
+### Now exact
+
+- icy_skulls: slow duration grows +0.1/0.2/0.3/0.4s per level by tier (`slowDurPerLevel`).
+- the_frozen_wyrm: the Freezing Breath slow lasts 4s +0.24s per level.
+- ice_battery: Frost and the Battery Overload missiles slow for 9s +0.3s per level.
+- tundra_stalker: Ice Claw's DoT and slow both last 5s +0.2s per level (`dot.durPerLevel`, `slowDurPerLevel`). The DPS growth is back to the upstream +2/4/8/16/24 per level, since the duration is no longer folded into it.
+- sea_turtle: mana per attack is the `manaPerAttack` passive with the upstream per-level growth (64/128/192, +2.56/5.12/7.68 per level).
+- genis_sage: Magic Boost is a 30% roll once per 7s window (it no longer waits for creeps in range, as upstream). Speed Cast after Magic Boost is an extra 4.5% roll per 7s window (30% x 15%).
+- cold_troll: each Blizzard wave rolls the per-tier slow chance (30-45%) and stun chance (10-25%, 0.25-1s stun) per creep through `slowChance`/`stunChance`.
+
+### Still approximate
+
+- cold_troll: the slow and stun chances do not grow per level (+1% and +0.1% upstream), because the rider chances are flat.
+- sea_turtle: the leak of 1.75% of current mana per second is still dropped. The `mana` effect drains flat amounts or a share of max mana, not of current mana.
+- genis_sage: the Speed Cast roll after Magic Boost is independent of whether Magic Boost fired. The periodic description reads "Every 7s" and does not show the 30% chance (the describer omits the chance on periodic procs).
+- Unchanged from Phase 2 (no phase-3 primitive fits): fisherman (net-expiry trigger, Fresh Fish DPS share), taita (slow per stack, Frost Bolt chance and stack scaling), young_northern_troll (slow-% scaling), ebonfrost_crystal (halved hits, stored icicles, mana-scaled freeze), projectile fans and lines (safirons, tidewater, genis Aqua Edge), icy_spirit falloff, lich_king exit damage and Icy Curse, frosty_rock escalating chance, chilled_spire re-freeze rule, igloo 900 range, small_ice_mine bonus crit on the nova.

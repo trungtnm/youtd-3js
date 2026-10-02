@@ -199,12 +199,13 @@ export const TOWER_SKILLS = {
 // Human-readable line for a proc/charge passive.
 export function describeSkill(p) {
   if (p.type === 'charge') return `${p.name}: gains +${Math.round(p.rate * 100)}% damage per second without attacking (max +${Math.round(p.cap * 100)}%), spent on the next shot.`;
-  const when = p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range' }[p.on]}`
-    : p.on === 'periodic' ? `Every ${p.icd}s${p.needCreeps ? ' in combat' : ''}`
+  const when = p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range', buffed: 'buff received' }[p.on]}`
+    : p.on === 'periodic' ? `${p.chance != null && p.chance < 1 ? `${pctText(p.chance)} chance every` : 'Every'} ${p.icd}s${p.needCreeps ? ' in combat' : ''}`
     : `${pctText(p.chance ?? 1)}${p.chancePerLevel ? ` (+${pctText(p.chancePerLevel)}/lvl)` : ''} ${{
       attack: 'on attack', hit: 'on hit', kill: 'on kill', enter: 'when a creep enters range', crit: 'on crit',
-      cast: 'after casting', death: 'when a creep dies in range' }[p.on]}`;
-  const cond = (p.onCrit ? ', on crits' : '') + (p.minLevel ? `, from level ${p.minLevel}` : '') + (p.manaCost ? `, costs ${p.manaCost} mana` : '')
+      cast: 'after casting', death: 'when a creep dies in range', buffed: 'when buffed by another tower' }[p.on]}`;
+  const cond = (p.onCrit ? ', on crits' : '') + (p.manaAbove != null ? `, while above ${p.manaAbove} mana` : '')
+    + (p.attacks ? `, ${p.attacks.join('/')} attackers only` : '') + (p.elements ? `, ${p.elements.join('/')} carriers only` : '') + (p.minLevel ? `, from level ${p.minLevel}` : '') + (p.manaCost ? `, costs ${p.manaCost} mana` : '')
     + (p.sizes ? ` vs ${p.sizes.join('/')}` : '') + (p.armors ? ` vs ${p.armors.join('/')} armor` : '')
     + (p.hpBelow != null ? ` below ${pctText(p.hpBelow)} health` : '') + (p.hpAbove != null ? ` above ${pctText(p.hpAbove)} health` : '')
     + (p.cond ? ` vs ${p.cond} creeps` : '') + (p.races ? ` vs ${p.races.join('/')}` : '') + (p.icd && p.on !== 'periodic' ? `, ${p.icd}s cooldown` : '');
@@ -224,28 +225,42 @@ const fmtMod = (k, v) => k === 'critMult' ? `${sign(v)}x${+Math.abs(v).toFixed(M
 export const describeStatMod = fmtMod;
 const ordinal = (n) => { const m = n % 100; return `${n}${m >= 11 && m <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`; };
 
+const SCALE_NAMES = { mana: 'mana', gold: '√gold', livesLost: 'portal % lost', towers: 'tower', towersInRange: 'tower in range', goldLinear: 'gold owned', towerCost: 'gold invested in the tower', maxMana: 'max mana', elementTowers: 'same-element tower', wave: 'wave', creepsInRange: 'creep in range', targetMissingHp: '100% missing health', kills: 'kill' };
+
 export function describeEffect(e) {
   const pct = (x) => `${+(x * 100).toFixed(Math.abs(x) < 0.01 ? 1 : 0)}%`;
   const riders = [];
   if (e.stun) riders.push(`stun ${e.stun}s`);
-  if (e.slow) riders.push(`slow ${pct(e.slow)}${e.slowPerLevel ? ` (+${+(e.slowPerLevel * 100).toFixed(2)}% per level)` : ''}${e.slowDur ? ` for ${e.slowDur}s` : ''}`);
+  if (e.slow) riders.push(`slow ${pct(e.slow)}${e.slowPerLevel ? ` (+${+(e.slowPerLevel * 100).toFixed(2)}% per level)` : ''}${e.slowDur ? ` for ${e.slowDur}s` : ''}${e.slowDurPerLevel ? ` (+${e.slowDurPerLevel}s/lvl)` : ''}`);
   if (e.burn) riders.push(`burn ${pct(e.burn)}/s`);
   if (e.armor) riders.push(`${e.armor > 0 ? '-' : '+'}${Math.abs(e.armor)} armor`);
   if (e.curse) riders.push(`+${pct(e.curse)} damage taken`);
   if (e.vulnSpell) riders.push(`+${pct(e.vulnSpell)} spell damage taken`);
   if (e.vulnElement) riders.push(`+${pct(e.vulnElement.pct)} damage taken from ${e.vulnElement.el} towers`);
-  if (e.mark) riders.push(`marked: +${pct(e.mark.bounty)} bounty, attackers may gain experience`);
-  if (e.dot) riders.push(`${e.dot.dps}${e.dot.dpsPerLevel ? ` (+${e.dot.dpsPerLevel}/lvl)` : ''} spell damage per second for ${e.dot.dur}s${(e.dot.maxStacks || 1) > 1 ? `, stacks ${e.dot.maxStacks}x` : ''}`);
-  if (e.stackVuln) riders.push(`+${pct(e.stackVuln.pct)} damage taken${e.stackVuln.element ? ` from ${e.stackVuln.element}` : ''}${e.stackVuln.spellOnly ? ' from spells' : ''} per stack (max ${e.stackVuln.max || 1})`);
+  if (e.mark) {
+    const m = [];
+    if (e.mark.bounty) m.push(`+${pct(e.mark.bounty)} bounty`);
+    if (e.mark.xpChance) m.push('attackers may gain experience');
+    if (e.mark.itemChance) m.push(`+${pct(e.mark.itemChance)} item chance`);
+    if (e.mark.itemQuality) m.push(`+${pct(e.mark.itemQuality)} item quality`);
+    riders.push(`marked: ${m.join(', ')}`);
+  }
+  if (e.dot) riders.push(`${e.dot.dps}${e.dot.dpsPerLevel ? ` (+${e.dot.dpsPerLevel}/lvl)` : ''} spell damage per second for ${e.dot.dur}s${e.dot.durPerLevel ? ` (+${e.dot.durPerLevel}s/lvl)` : ''}${(e.dot.maxStacks || 1) > 1 ? `, stacks ${e.dot.maxStacks}x` : ''}`);
+  if (e.stackVuln) riders.push(`+${pct(e.stackVuln.pct)} damage taken${e.stackVuln.element ? ` from ${e.stackVuln.element}` : ''}${e.stackVuln.spellOnly ? ' from spells' : ''}${e.stackVuln.attacksOnly ? ' from attacks' : ''} per stack (max ${e.stackVuln.max || 1})`);
   if (e.armorPct) riders.push(`${e.armorPct > 0 ? '-' : '+'}${pct(Math.abs(e.armorPct))} armor`);
   if (e.armorPerLevel) riders.push(`armor loss +${e.armorPerLevel}/lvl`);
+  if (e.armorStack) riders.push(`-${e.armorStack.armor} armor per stack (max ${e.armorStack.max || 1})`);
+  if (e.stunChance != null) riders.push(`${pctText(e.stunChance)} stun chance`);
+  if (e.slowChance != null) riders.push(`${pctText(e.slowChance)} slow chance`);
+  if (e.fromLinked) riders.push(`+${pctText(e.fromLinked)} of the linked tower's banked spell damage`);
+  if (e.fromOverkill) riders.push(`+${e.fromOverkill}x overkill damage`);
   if (e.cursePerLevel) riders.push(`damage taken +${pctText(e.cursePerLevel)}/lvl`);
   if (e.stunPerLevel) riders.push(`stun +${e.stunPerLevel}s/lvl`);
   if (e.pushBack) riders.push(`pushes back ${+e.pushBack.toFixed(1)}`);
   if (e.pctHp) riders.push(`+${pct(e.pctHp)} of current health`);
   if (e.pctMaxHp) riders.push(`+${pct(e.pctMaxHp)} of max health`);
   if (e.manaMult) riders.push(`+${e.manaMult}x current mana`);
-  if (e.scaleBy) riders.push(`${e.scaleBy.per >= 0 ? '+' : '-'}${pctText(Math.abs(e.scaleBy.per))} per ${{ mana: 'mana', gold: '√gold', livesLost: 'portal % lost', towers: 'tower', elementTowers: `${'same-element'} tower`, wave: 'wave', creepsInRange: 'creep in range', targetMissingHp: '100% missing health', kills: 'kill' }[e.scaleBy.kind] || e.scaleBy.kind}`);
+  if (e.scaleBy) riders.push(`${e.scaleBy.per >= 0 ? '+' : '-'}${pctText(Math.abs(e.scaleBy.per))} per ${SCALE_NAMES[e.scaleBy.kind] || e.scaleBy.kind}`);
   if (e.delay) riders.push(`after ${e.delay}s`);
   const r = riders.length ? ` (${riders.join(', ')})` : '';
   const area = e.radius ? ` in a ${+e.radius.toFixed(1)} radius` : '';
@@ -262,18 +277,23 @@ export function describeEffect(e) {
     case 'killInstant': return 'kills the creep instantly.';
     case 'bolts': return noDamage ? `${e.count} strikes on random creeps${area}${r}.` : `${e.count} strikes on random creeps for ${amount} ${e.attack ? 'attack' : 'spell'} damage each${area}${r}.`;
     case 'growSelf': return `permanently gains ${fmtMod(e.stat, e.amount)}${e.cap != null ? ` (max ${fmtMod(e.stat, e.cap)})` : ''}.`;
+    case 'stealXp': return `steals ${e.amount} experience from a random nearby tower.`;
+    case 'dropItem': return `creates ${/^[aeiou]/.test(e.rarity || 'common') ? 'an' : 'a'} ${e.rarity || 'common'} item${e.uniqueChance ? ` (${pctText(e.uniqueChance)} unique)` : ''}.`;
+    case 'resetGrow': case 'resetGrowSelf': return `resets its ${STAT_NAMES[e.stat] || e.stat} growth.`;
+    case 'nextSpellCrit': return `the next ${e.count || 1} spell${(e.count || 1) > 1 ? 's' : ''} always crit.`;
+    case 'link': return 'links to an allied tower and banks its spell damage.';
     case 'transferXp': return `gives ${e.amount} of its experience to up to ${e.count || 5} nearby towers.`;
     case 'debuff': return `${riders.join(', ')}${area}.`;
     case 'chainSpell': return `bolt hitting ${e.count + 1} creeps for ${amount} spell damage${r}.`;
     case 'zone': return `field for ${e.dur}s dealing ${amount} spell damage per second${area}${r}.`;
     case 'barrage': return `fires ${e.count} extra attacks at x${(e.mult || 1).toFixed(1)} damage.`;
-    case 'towerBuff': return `${e.radius ? 'towers nearby gain' : 'gains'} ${Object.entries(e.mods).map(([k, v]) => fmtMod(k, v)).join(', ')}${e.dur >= 600 ? ' permanently' : ` for ${e.dur}s`}${e.maxStacks ? ` (stacks ${e.maxStacks}x)` : ''}.`;
-    case 'mana': return `restores ${e.pct ? pct(e.pct) : e.amount} mana${e.self ? '' : ' to towers nearby'}.`;
+    case 'towerBuff': return `${e.radius ? 'towers nearby gain' : 'gains'} ${Object.entries(e.mods).map(([k, v]) => fmtMod(k, v)).join(', ')}${e.scaleBy ? `, scaled ${e.scaleBy.per >= 0 ? '+' : '-'}${pctText(Math.abs(e.scaleBy.per))} per ${SCALE_NAMES[e.scaleBy.kind] || e.scaleBy.kind}` : ''}${e.dur >= 600 ? ' permanently' : ` for ${e.dur}s`}${e.maxStacks ? ` (stacks ${e.maxStacks}x)` : ''}.`;
+    case 'mana': return `${(e.amount || 0) < 0 ? 'drains' : 'restores'} ${e.pct ? pct(e.pct) : e.fromOverkill ? `${e.fromOverkill}x overkill as` : Math.abs(e.amount)} mana${e.self ? '' : ' to towers nearby'}.`;
     case 'gold': return `grants ${e.amount}${e.perWave ? ` + ${e.perWave}/wave` : ''} gold.`;
     case 'shareXp': return `${e.amount} experience to ${e.count} nearby towers.`;
     case 'xp': return `grants ${e.amount} experience${e.perLevel ? ` (+${pctText(e.perLevel)} per level)` : ''}.`;
     case 'grow': return `permanently grows the item: ${fmtMod(e.stat, e.amount)}${e.cap != null ? ` (up to ${fmtMod(e.stat, e.cap)})` : ''}${e.min != null ? ` (down to ${fmtMod(e.stat, e.min)})` : ''}.`;
-    case 'multi': return e.effects.map(describeEffect).join(' ');
+    case 'multi': return e.effects.map(describeEffect).filter(Boolean).map((t, i) => (i ? t.charAt(0).toUpperCase() + t.slice(1) : t)).join(' ');
     default: return '';
   }
 }

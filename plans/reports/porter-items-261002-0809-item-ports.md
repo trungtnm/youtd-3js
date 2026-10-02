@@ -234,3 +234,69 @@ Kept on the 1s buff emulation on purpose: `sword_of_reckoning`, `sword_of_decay`
 ### Unresolved questions
 
 - Should the engine `aura` stack across different sources (as YouTD does for different aura types) instead of keeping the strongest per stat? If so, the remaining buff-emulated auras can move to `aura`.
+
+## Phase 3
+
+Status: 102 of 123 scripted equipment items ported (11 new), 21 still skipped.
+Only `src/data/youtd/item-ports.js` was changed.
+
+Validation:
+- `describeItem` runs for every item; `pending items 21`, all listed below.
+- Runtime check: `ok towers 48 kills 56 nonfinite 0 stash 6`.
+- A targeted run put each new or changed item on its own tower for 14 waves: no non-finite stats, no negative experience. Direct calls through `runProcs` / `applyEffect` confirmed the new mechanics. Backpack adds an item to the stash once per 150s. Crit Blade grows to +40% crit and resets on a crit. Magic Hammer queues one forced spell crit per 5 casts. Magic Conductor reacts to a buff from another tower. Spider Broach sets an `itemQuality` mark. Silver Armor gives +0.0001 damage per gold of cost. Ritual Talisman buffs one random tower in range. Mindleecher steals experience every 30s.
+
+### Newly ported (11)
+
+| Script | Port |
+|---|---|
+| backpack | Kill proc with a 150s cooldown (the autocast cooldown): `dropItem` uncommon, 2% unique. Upstream rolls the rarity like a regular drop, using the carrier's item quality. The fixed rarity sits near the mid-game average. |
+| silver_armor | Silent 1s self buff: +0.01% damage per gold of tower cost (`scaleBy: towerCost`). It refreshes every second, so upgrades count. |
+| magic_hammer | `cast` proc, `every: 5`: `nextSpellCrit` 1. Exact. |
+| magic_conductor | `buffed` proc: +20% (+0.5%/lvl) attack speed for 10s. Upstream reacts to any spell aimed at the carrier; here it reacts to any buff from another tower, which includes periodic buff auras. |
+| staff_of_essence | `attackType: 'essence'` (all armor multipliers 1.0, the same as dividing out the armor factor). Exact apart from essence ignoring the warded rule for arcane. |
+| lich_mask, brimstone_helmet | `attackType: 'decay'` / `'elemental'`. Upstream converts hits only when charge reaches 100, gaining 50 + level per attack: half the hits at level 0, all from level 50. Modeled as a full conversion. |
+| medallion_of_opulence | 20% x speed on attack: spell damage of 1 + 10% of the player's gold (`scaleBy: goldLinear`). |
+| crit_blade | Attack proc `grow` +2% crit (max 40%); `crit` proc `resetGrow`. Upstream checks the attack's crits before growing; here growth comes first and the hit that crits resets it. |
+| spider_broach | 15% x speed on hit: mark `{ itemQuality: 0.4 }` for 5s (+0.1s/lvl). The +1%/lvl quality is dropped (marks have no per-level values). |
+| mindleecher | Every 30s: `stealXp` 37.5 (the average of the random 15–60) from a random tower within 450/94. |
+
+### Approximations tightened
+
+| Item | Phase 2 | Phase 3 |
+|---|---|---|
+| magnetic_field, sword_of_reckoning, sword_of_decay, mana_stone | 1s buff emulation | Real `aura` (buff duration +10%; +12% (+0.24%/lvl) vs undead / feral; +7.5% mana regen). Exact. |
+| haunted_hand | 1s self buff | Self-only `aura`, +10% (+1%/lvl) vs arcane. |
+| essence_of_rot | tower penalty by 1s buff | Tower penalty is a real `aura`: -20% (+0.2%/lvl) attack speed within 350/94. The creep part stays a periodic debuff because item defs cannot carry `creepAura`. |
+| enchanted_knives, never-ending_keg, unyielding_maul, even_more_magical_hammer | 1s self buff | Fixed `mods` (+3 targets, -10% damage, -10% damage, +20% spell crit). Extra hammers now add up, as upstream. |
+| bloodthirsty_wheel_of_fortune | no lower bound | `grow` `min: -0.24`. Exact. |
+| ritual_talisman | buffed the carrier | One random tower within 450/94, carrier included (`pick: 'random'`). Both bonuses share one per-level factor, so damage is exact (+0.2%/lvl). Experience grows +0.4%/lvl instead of +0.8%. |
+| all item auras | merged by carrier family | Every item aura sets `key` to its script name. Different item auras on one stat now stack, and copies of one item count once. |
+
+Items still on buff emulation, because they need two aura stats: `the_divine_wings_of_tragedy` (damage part), `mighty_trees_acorns` (three stats), `bloody_key` (race part). `chameleons_soul` keeps per-element self buffs.
+
+### Still skipped (21)
+
+| Script | Reason |
+|---|---|
+| strange_item, pocket_emporium, distorted_idol, ball_lightning | Duplicate, buy, copy or move items. |
+| chrono_jumper | Moves the tower. |
+| spellbook_of_item_mastery | Needs a timer counted in waves (fires once per 15 waves); `icd` is in seconds and wave length depends on the player. |
+| golden_decoration | Changes the interest rate; only tower abilities feed `bonusInterest`. |
+| orb_of_souls, shining_rock, lunar_essence | Need pickup/drop hooks that move experience with the item. A one-time grant on equip could be repeated by moving the item. |
+| faithful_staff | Needs the cast's target tower. The `cast` context has only a creep, and no filter fires only on tower-targeted casts. |
+| elunes_bow | Raises the triggering hit to a damage floor. |
+| phase_gloves, optimists_preserved_face, sign_of_energy_infusion | Scale or split the triggering hit. |
+| wand_of_mana_zap | Creeps have no mana. |
+| pendant_of_promptness | The drain works (`mana` with a negative `pct`), but "stop attacking when empty" does not. Attack speed mods are additive, so a stall buff cannot cancel the item's own +75% without risking a zero or negative attack speed. Porting only the drain would give manaless towers +75% attack speed for free; upstream such towers never attack. |
+| circle_of_power | Restores mana to a level remembered on the previous tick. |
+| priest_figurine | Needs a creep mark for more experience granted on death; marks support `bounty`, `itemChance`, `itemQuality` and `xpChance` only. |
+| speed_demons_reward | Gold reward based on wave clear time. |
+
+Still approximate from earlier phases: `dooms_ensign` (no `armorPctPerLevel`), `pendant_of_mana_supremacy` (no per-level `pct` on `mana`), `currency_converter` (fixed 12s; a periodic `every` counts frames, not seconds), `basics_of_calculus` (experience goes to the carrier; no "random tower" experience effect), `purifying_gloves` (race-limited stun on chain hits), `fragmentation_round`, `soul_extractor`, `glaive_of_supreme_follow_up`, `liquid_gold`, `staff_of_the_wild_equus`, `arms_dealer`.
+
+### Description gaps (files outside this port)
+
+- `describeEffect` prints the mark rider as `+NaN% bounty, attackers may gain experience` for marks without `bounty` (`spider_broach`). It should list `itemChance` / `itemQuality`.
+- `scaleBy` text has no labels for `goldLinear`, `towerCost` or `maxMana` ("per goldLinear"). `towerBuff` descriptions ignore `scaleBy`. The Medallion and Silver Armor proc names carry the real formula meanwhile.
+- `describeItem` prints a self-only aura as "towers within 0.0" (`haunted_hand`). It should say "the carrier".
+- `dropItem` text says "a uncommon item".

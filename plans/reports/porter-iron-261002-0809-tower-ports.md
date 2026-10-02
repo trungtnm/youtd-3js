@@ -190,3 +190,62 @@ File changed: `src/data/youtd/ports/iron.js` only. Iron pending is still 0; ever
   - Energy Absorb casts
   - Release Energy with the mana drain
   - wooden trap CDR of 0.2 at level 15
+
+## Phase 3
+
+File changed: `src/data/youtd/ports/iron.js` only. Iron pending is still 0.
+
+### Replaced with phase-3 primitives
+
+- **rundown_iron_sentry**: Trespasser armor loss is now a real stacking `armorStack` (3/4/5 armor, +0.1/0.15/0.2 per level, up to 5 stacks, lasts for the creep's life). Stacks are shared by all sentries, as in the original.
+- **miner**:
+  - Goldrush attack speed now reads the live gold bank. A `towerBuff` `scaleBy: gold` gives 0.2 + 0.01 x (base + sqrt(gold) / divisor). The `TYPICAL_GOLD` constant is removed.
+  - Excavation now rolls its real 25% chance every 20s and pays the full 7.5/21/40 gold, rounded to whole coins.
+- **ball_lightning_accelerator**: Energy Absorb mana regen now counts towers. It gives +2 mana/s (+0.04 per level) per other tower: a buff scaled by `towers` (towers + 1 shares) plus a fixed -2 share offset buff.
+- **solar_collector**: `manaPerAttack { cost }` replaces the drain proc. The tower holds fire when its mana is below the cost, as in the original.
+- **marine**: the Frag Grenade stack uses `stackVuln.attacksOnly`. It amplifies attack damage only, which matches the original's attack-damage-received modifier.
+- **goblin_stronghold**: Clockwork Engineer and Probability Field go to one random other tower within 500 (`pick: 'random'`, `others`). They no longer buff the stronghold.
+- **small_ray_blaster**: Phaze is now a creep mark (`mark.itemChance` / `mark.itemQuality`) that pays off on death. It lasts 5/6s +0.1s per level.
+- **bronze_dragon_roost**: Bronzefication now has these parts:
+  - a 50% slow for 5s +0.1s per level (`slowDurPerLevel`)
+  - a +50% armor raise (negative `armorPct`)
+  - a +25% item quality mark, with the same duration
+- **particle_accelerator**: the stacks are now exact. Each attack permanently adds damage and attack speed (`growSelf`, v + 0.001 per level, no cap), and a kill wipes both (`resetGrowSelf`). This replaces the 15-stack, 4s refresh model.
+- **valor**: "We Will Not Fall" is ported. Every 15s, towers within 400 (not Valor) get damage and spell damage of 0.5% (+0.02% per level) per portal percent lost, through a `towerBuff` scaled by `livesLost`.
+
+### Still approximate
+
+- **ball_lightning Energy Absorb**: `scaleBy: towers` counts every tower on the map, not only those within 1000, so mana regen is too high when towers are spread out. manaMult is still flat 3x (no per-level growth).
+- **valor We Will Not Fall**: the scaled buff is base x (1 + lost), so it gives one extra lost percent (+0.5%) at full lives.
+- **valor**: Last Line of Defense is still not ported. It needs a second-entry trigger.
+- **small_ray_blaster**: a mark has no per-level value. It is one proc per 5-level step (0, 5, ... 25), and the highest unlocked step is applied last. The tooltip therefore lists six Phaze lines.
+- **bronze_dragon_roost**:
+  - armor raise and item quality stay at their level-0 values (+50% armor, +25% quality) and do not shrink or grow with level. A chance proc cannot be split into level steps without rolling once per step.
+  - the HP regen cut is not ported.
+- **marks overwrite**: a creep holds only one mark, so Small Ray and Bronze marks replace each other and other towers' bounty marks.
+- **particle_accelerator**: the 2s self-stun is still -80% attack speed. Growth carries through upgrades, while the original resets it on upgrade.
+- **miner**:
+  - Goldrush refreshes when it procs again; the original does not reapply while active.
+  - Nuggets still use a flat 45% chance instead of "while Goldrush is active".
+  - Gold per level is still dropped.
+- **Unchanged from Phase 2**: gatling, burrow, contraption, steam engine, bomb turret, wooden trap, helicopter, glaive, coin machine, rowing boat and xeno.
+
+### Description issue outside this file
+
+`describeEffect` in `src/data/tower-skills.js` prints marks as "marked: +NaN% bounty, attackers may gain experience" when the mark has only `itemChance`/`itemQuality`. The fix belongs in that file, which is not owned here.
+
+### Validation
+
+- `describeAbility` on all iron abilities: no errors; `pending 0`.
+- Full-roster sandbox run (180s): `ok towers 100 kills 56 nonfinite 0`.
+- Focused runs with towers next to the path confirmed:
+  - particle growth accumulates and resets
+  - the solar collector holds fire at low mana
+  - robot and emitter buffs land on a neighbouring tower
+  - Goldrush gives +40% attack speed at 10000 gold
+  - Small Ray and Bronze marks reach creeps
+  - Bronze raises armor (negative shred)
+  - Fragged stacks are attack-only
+  - trespasser stacks reach 2x with three sentries
+  - Energy Absorb gives +16 net regen with 9 towers
+  - We Will Not Fall gives +10.5% at 20 lives lost

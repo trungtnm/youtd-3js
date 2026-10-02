@@ -9,13 +9,12 @@ import { xpForLevel } from '../../constants.js';
 const R = (wc3) => Math.round((wc3 / UNIT) * 10) / 10;
 // Average base attack damage of the tower row.
 const avgDmg = (row) => (row.dmg[0] + row.dmg[1]) / 2;
-// Towers whose YouTD mana does not regenerate: the engine gives every pool a default
-// regeneration, so a -100% regeneration bonus from level 0 cancels it.
-const noRegen = { type: 'levelBonus', level: 0, mods: { manaRegen: -1 } };
 // Radius that reaches only the tower itself (tiles are 2 apart), for self effects
 // inside a multi whose target is another tower.
 const SELF = { center: 'self', radius: 0.01 };
 // Total experience a tower has banked when it starts level `lvl`.
+// Extra damage taken from attacks only (spells unaffected), as Dark Battery's corruption applies it.
+const corruption = (pct, pctPerLevel) => ({ stackVuln: { pct, pctPerLevel, max: 1, attacksOnly: true, key: 'corruption' } });
 const xpTotal = (lvl) => { let s = 0; for (let l = 0; l < lvl; l++) s += xpForLevel(l); return s; };
 
 export const PORTS = {
@@ -109,7 +108,7 @@ export const PORTS = {
         proc('Critical Mass', 'attack', { chance: 0.3, chancePerLevel: 0.003 }, { kind: 'attackDamage', mult, perLevel, fx: 'shadow' }),
         // A fresh corpse explodes over the creeps around it.
         proc('Corpse Explosion', 'death', { chance: 1, icd: 5 },
-          { kind: 'debuff', radius: R(500), slow: lvl / 1000, slowPerLevel: lvlAdd / 1000, slowDur: dur,
+          { kind: 'debuff', radius: R(500), slow: lvl / 1000, slowPerLevel: lvlAdd / 1000, slowDur: dur, slowDurPerLevel: 0.25 * lvlAdd,
             stackVuln: { pct: lvl / 1000, pctPerLevel: lvlAdd / 1000, max: 1, element: 'darkness', key: 'corpseExplosion' },
             debuffDur: dur, debuffDurPerLevel: 0.25 * lvlAdd, fx: 'shadow' }),
       ];
@@ -180,7 +179,7 @@ export const PORTS = {
   // Feared creeps are slowed and take more damage, but their armor rises.
   black_dragon_roost: {
     passives: () => [proc('Fear the Dark', 'hit', { chance: 0.2, chancePerLevel: 0.004 },
-      { kind: 'debuff', slow: 0.5, slowDur: 5, curse: 0.225, cursePerLevel: 0.009, armorPct: -0.4, debuffDur: 5, debuffDurPerLevel: 0.1, fx: 'shadow' })],
+      { kind: 'debuff', slow: 0.5, slowDur: 5, slowDurPerLevel: 0.1, curse: 0.225, cursePerLevel: 0.009, armorPct: -0.4, debuffDur: 5, debuffDurPerLevel: 0.1, fx: 'shadow' })],
   },
 
   shadow: {
@@ -194,9 +193,9 @@ export const PORTS = {
 
   essence_of_fury: {
     passives: (row) => {
-      const [dps, add] = at([[25, 1], [75, 3], [150, 6], [300, 12], [625, 25]], row);
+      const [dps, add, durAdd] = at([[25, 1, 0.1], [75, 3, 0.2], [150, 6, 0.3], [300, 12, 0.4], [625, 25, 0.5]], row);
       return [proc('Poisoned Heart', 'hit', { chance: 1, silent: true },
-        { kind: 'debuff', dot: { dps, dpsPerLevel: add, dur: 6, key: 'poisonheart' }, fx: 'shadow', quiet: true })];
+        { kind: 'debuff', dot: { dps, dpsPerLevel: add, dur: 6, durPerLevel: durAdd, key: 'poisonheart' }, fx: 'shadow', quiet: true })];
     },
   },
 
@@ -206,10 +205,11 @@ export const PORTS = {
       // Allies get +100% (+2%/level) mana regeneration for 3s after each cast; about half uptime.
       { type: 'aura', stat: 'manaRegen', value: 0.5, valuePerLevel: 0.01, radius: R(400) },
     ],
-    // The stored damage released at the end (75% +1%/level) is modelled as extra spell damage taken.
-    actives: (row) => [autocast(row, 'darkness', '🌘', 'Engulfs the strongest creep in darkness for 5s: 1000 spell damage per second (+40 per level), a 40% slow, and it takes 75% (+1% per level) more spell damage.', 'creep',
+    // Attacks are 95% absorbed; the damage stored during the darkness comes back as 75% (+1%/level)
+    // extra spell damage at the end, modelled as that much extra damage taken while it lasts.
+    actives: (row) => [autocast(row, 'darkness', '🌘', 'Engulfs the strongest creep in darkness for 5s: 1000 spell damage per second (+40 per level) and a 40% slow. Attacks deal 95% less to it, and all damage it takes is echoed for an extra 75% (+1% per level).', 'creep',
       { kind: 'debuff', dot: { dps: 1000, dpsPerLevel: 40, dur: 5, key: 'darkness' }, slow: 0.4, slowPerLevel: 0.006, slowDur: 5,
-        vulnSpell: 0.75, vulnSpellPerLevel: 0.01, debuffDur: 5, fx: 'shadow' }, { pick: 'strong' })],
+        stackVuln: { pct: -0.95, max: 1, attacksOnly: true, key: 'darkness' }, curse: 0.75, cursePerLevel: 0.01, debuffDur: 5, fx: 'shadow' }, { pick: 'strong' })],
   },
 
   lunar_emitter: {
@@ -230,7 +230,6 @@ export const PORTS = {
       const maxMana = row.mana || 50;
       const wither = [1, 2, 3, 4].map((delay) => ({ kind: 'spellDamage', flat: 0, pctHp: 0.05, bossPctMult: 1, delay, quiet: true }));
       return [
-        noRegen,
         // (0.025 + 0.001/level) x missing mana as extra damage, written as mult x (1 - mana/max).
         proc('Insatiable Hunger', 'hit', { chance: 1, silent: true },
           { kind: 'attackDamage', mult: 0.025 * maxMana, perLevel: 0.04, scaleBy: { kind: 'mana', per: -1 / maxMana }, fx: 'shadow', quiet: true }),
@@ -276,22 +275,22 @@ export const PORTS = {
     passives: (row) => {
       const [spell, spellAdd, atk, atkAdd] = at([[0.05, 0.002, 0.10, 0.004], [0.10, 0.003, 0.20, 0.008], [0.15, 0.006, 0.30, 0.012]], row);
       return [proc('Corruption', 'hit', { chance: 1, silent: true },
-        { kind: 'debuff', curse: atk, cursePerLevel: atkAdd, vulnSpell: spell, vulnSpellPerLevel: spellAdd, debuffDur: 9, debuffDurPerLevel: 0.3, fx: 'shadow', quiet: true })];
+        { kind: 'debuff', ...corruption(atk, atkAdd), vulnSpell: spell, vulnSpellPerLevel: spellAdd, debuffDur: 9, debuffDurPerLevel: 0.3, fx: 'shadow', quiet: true })];
     },
     // The overload turns all stored mana into missiles at 10 mana each, five per second.
     actives: (row) => {
       const [dmg, add, spell, spellAdd, atk, atkAdd] = at([[300, 12, 0.05, 0.002, 0.10, 0.004], [750, 30, 0.10, 0.003, 0.20, 0.008], [1800, 72, 0.15, 0.006, 0.30, 0.012]], row);
       return [autocast(row, 'overload', '🔋', `Discharges the battery: 10 missiles over 2s strike random creeps in range for ${dmg} spell damage each (+${add} per level) and corrupt them.`, 'self',
         { kind: 'bolts', count: 10, interval: 0.2, flat: dmg, flatPerLevel: add, range: R(1200), spendMana: 1,
-          curse: atk, cursePerLevel: atkAdd, vulnSpell: spell, vulnSpellPerLevel: spellAdd, debuffDur: 9, debuffDurPerLevel: 0.3, fx: 'shadow' })];
+          ...corruption(atk, atkAdd), vulnSpell: spell, vulnSpellPerLevel: spellAdd, debuffDur: 9, debuffDurPerLevel: 0.3, fx: 'shadow' })];
     },
   },
 
   small_frost_fire: {
     actives: (row) => {
-      const [dmg, add, slow, slowAdd] = at([[50, 2, 0.05, 0.002], [200, 8, 0.06, 0.004], [550, 24, 0.08, 0.006], [1000, 48, 0.10, 0.008], [1800, 96, 0.12, 0.010]], row);
-      return [autocast(row, 'soulchill', '❄', `Chills creeps around a target for ${dmg} spell damage (+${add} per level) and slows them ${Math.round(slow * 100)}% for 4s.`, 'creep',
-        { kind: 'spellDamage', flat: dmg, flatPerLevel: add, radius: R(250), slow, slowPerLevel: slowAdd, slowDur: 4, fx: 'shadow' }, { pick: 'first' })];
+      const [dmg, add, slow, slowAdd, durAdd] = at([[50, 2, 0.05, 0.002, 0.02], [200, 8, 0.06, 0.004, 0.04], [550, 24, 0.08, 0.006, 0.06], [1000, 48, 0.10, 0.008, 0.08], [1800, 96, 0.12, 0.010, 0.10]], row);
+      return [autocast(row, 'soulchill', '❄', `Chills creeps around a target for ${dmg} spell damage (+${add} per level) and slows them ${Math.round(slow * 100)}% for 4s (+${durAdd}s per level).`, 'creep',
+        { kind: 'spellDamage', flat: dmg, flatPerLevel: add, radius: R(250), slow, slowPerLevel: slowAdd, slowDur: 4, slowDurPerLevel: durAdd, fx: 'shadow' }, { pick: 'first' })];
     },
   },
 
@@ -330,7 +329,6 @@ export const PORTS = {
 
   soulflame_device: {
     passives: () => [
-      noRegen,
       proc('Soulfire', 'hit', { chance: 0.2, chancePerLevel: 0.004 },
         { kind: 'debuff', dot: { dps: 1000, dpsPerLevel: 40, dur: 5, maxStacks: 50, key: 'soulfire' }, fx: 'fire' }),
       // Burning creeps feed the device 5 mana when they die.
@@ -372,12 +370,11 @@ export const PORTS = {
     ],
   },
 
-  // The curse only raises damage from attacks upstream; here it raises all damage taken.
   lesser_skeletal_mage: {
     actives: (row) => {
       const vuln = at([0.15, 0.22, 0.29, 0.36], row);
-      return [autocast(row, 'darkcurse', '☠', `Curses the strongest creep: it takes ${Math.round(vuln * 100)}% (+0.6% per level) more damage for 5s (+0.1s per level).`, 'creep',
-        { kind: 'debuff', curse: vuln, cursePerLevel: 0.006, debuffDur: 5, debuffDurPerLevel: 0.1, fx: 'shadow' }, { pick: 'strong' })];
+      return [autocast(row, 'darkcurse', '☠', `Curses the strongest creep: it takes ${Math.round(vuln * 100)}% (+0.6% per level) more damage from attacks for 5s (+0.1s per level).`, 'creep',
+        { kind: 'debuff', stackVuln: { pct: vuln, pctPerLevel: 0.006, max: 1, attacksOnly: true, key: 'darkcurse' }, debuffDur: 5, debuffDurPerLevel: 0.1, fx: 'shadow' }, { pick: 'strong' })];
     },
   },
 
@@ -387,7 +384,7 @@ export const PORTS = {
       const coil = (stat) => ({ type: 'aura', stat, value: aura, valuePerLevel: auraAdd, radius: R(350) });
       return [
         proc('Cursed Attack', 'hit', { chance: 0.25, chancePerLevel: 0.01 },
-          { kind: 'spellDamage', flat: dmg, flatPerLevel: add, slow, slowDur: 4, vulnSpell: spell, debuffDur: 4, debuffDurPerLevel: 0.1, fx: 'shadow' }),
+          { kind: 'spellDamage', flat: dmg, flatPerLevel: add, slow, slowDur: 4, slowDurPerLevel: 0.1, vulnSpell: spell, debuffDur: 4, debuffDurPerLevel: 0.1, fx: 'shadow' }),
         coil('vsHumanoid'), coil('vsBrute'), coil('vsFeral'),
       ];
     },
@@ -424,7 +421,7 @@ export const PORTS = {
   plagued_crypt: {
     passives: () => {
       // Each repeat hit adds a stack worth half the base plague; the plague spreads through crowds.
-      const plague = { dps: 375, dpsPerLevel: 15, dur: 5 };
+      const plague = { dps: 375, dpsPerLevel: 15, dur: 5, durPerLevel: 0.2 };
       return [
         proc('Plague', 'hit', { chance: 1, silent: true }, { kind: 'multi', effects: [
           { kind: 'debuff', dot: { ...plague, maxStacks: 50, key: 'plagueStack' }, quiet: true },
@@ -437,12 +434,12 @@ export const PORTS = {
     },
   },
 
-  // Mana-fuelled strikes cost 80 mana each.
+  // Mana-fuelled strikes cost 80 mana each and deal (1 + 0.04/level) x the maximum mana,
+  // written as (1 + 0.04L) x (1 + max mana); the extra 1 mana is negligible.
   dreadlord: {
-    passives: (row) => {
-      const mana = row.mana || 1000;
+    passives: () => {
       return [
-        proc('Dreadlord Slash', 'hit', { chance: 1, manaCost: 80 }, { kind: 'spellDamage', flat: mana, flatPerLevel: mana * 0.04, fx: 'shadow' }),
+        proc('Dreadlord Slash', 'hit', { chance: 1, manaCost: 80 }, { kind: 'spellDamage', flat: 1, flatPerLevel: 0.04, scaleBy: { kind: 'maxMana', per: 1 }, fx: 'shadow' }),
         proc('Bloodsucker', 'kill', { chance: 1, silent: true }, { kind: 'multi', effects: [
           { kind: 'growSelf', stat: 'attackSpeed', amount: 0.005 },
           { kind: 'growSelf', stat: 'manaFlat', amount: 10, cap: 2010 },
@@ -467,10 +464,14 @@ export const PORTS = {
     },
   },
 
-  // Fires an arcane orb with each attack that costs 100 mana and deals (6 + 0.1/level) x its
-  // mana as spell damage. Kills grow the mana pool; nearby towers sometimes get mana back.
+  // Sleeps, banking mana, until another tower buffs it; then it wakes for 5s and fires an
+  // arcane orb with each attack that costs 100 mana and deals (6 + 0.1/level) x its mana as
+  // spell damage. Kills grow the mana pool; nearby towers sometimes get mana back.
   harby: {
     passives: () => [
+      // Asleep: zero targets, so it does not attack. A buff from another tower wakes it.
+      { type: 'levelBonus', level: 0, mods: { multishot: -1 } },
+      proc('Grotesque Awakening', 'buffed', { chance: 1 }, { kind: 'towerBuff', key: 'harbyAwake', label: 'Awake', mods: { multishot: 1 }, dur: 5, fx: 'arcane' }),
       // Damage uses the mana before the 100 is spent: (6 + 0.1L) x (mana left + 100).
       proc('Arcane Orb', 'attack', { chance: 1, manaCost: 100 }, { kind: 'spellDamage', flat: 600, flatPerLevel: 10, scaleBy: { kind: 'mana', per: 0.01 }, fx: 'arcane' }),
       proc('Arcane Replenish', 'attack', { chance: 0.1, chancePerLevel: 0.004 }, { kind: 'mana', self: true, pct: 0.12 }),

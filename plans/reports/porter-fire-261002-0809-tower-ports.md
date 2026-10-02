@@ -129,3 +129,46 @@ This phase reworked `src/data/youtd/ports/fire.js` only, using the new engine pr
 - **Meteor Totem Torture.** Still `curse`, which applies to all damage, instead of an echo of attack hits of 500 or more.
 - **Not portable yet.** Embershell's mana-gated attacks (no attack-gating primitive). Inflamed Stone's Spellfire stat conversion. Shaman's crit-to-experience aura (still +xp%). Ash Geyser's per-level ignite growth and regen cut. Fenced Flames depending on a nearby common tower's damage. Crimson Wyrm's gold cost for the hoard.
 - **Descriptions.** `describeSkill` prints "undefined" for `every` procs on `enter`/`crit`. To avoid this, the ports use equivalent chances (1/8).
+
+## Phase 3
+
+This phase changed `src/data/youtd/ports/fire.js` only. Fire `pending` is still 0. Both validation commands pass: 106 towers, nonfinite 0. The force-apply check (`scratchpad/fire-force.mjs`) also passes.
+
+### Now exact, or closer
+
+- **embershell_turtle_hatchling (all tiers).** The flat 75% miss is gone. It now uses `manaPerAttack { cost: 1 }`: each attack spends 1 mana, and the tower waits when its pool is empty, as in the original.
+- **the_fire_lord.** Hellfire now gives +1 target at level 15 and another +1 at level 25. These are separate `minLevel` procs with the same chance and duration as the main proc, so the average number of targets matches the original. They are not synchronised with the main buff.
+- **crimson_wyrm.**
+  - The fireball counter is now 10 attacks on average, shrinking with level (`everyPerLevel: -0.061`, `everyMin: 8`), which gives 10, then 9, then 8 at level 25.
+  - Dragon's Hoard now costs gold: each kill spends 15 gold (`gold` effect with a negative amount) and turns it into damage and spell damage at the original rate of +1% per 50 gold. The cap is still +1800%, which is a 90000-gold hoard.
+- **servant_of_the_twin_flames.** Both pulse counters now shrink with level. Green Pulse is now a deterministic every-8th-crit counter going down to 6 (it was a 1-in-8 chance). Red Pulse is every 80 attacks going down to 60.
+- **the_omnislasher.** The vulnerability is now limited to attacks (`stackVuln.attacksOnly`), so spells from physical towers no longer benefit.
+- **meteor_totem.** Torture is now an attack-only vulnerability of 8% (+0.1%/lvl) for 2.5s (+0.05s/lvl), replacing the all-damage `curse`.
+- **caged_fire.** Armor loss now ramps the way the original does. On entry the creep loses 1 armor (+0.04/lvl), or 2 (+0.08/lvl) at tier 2. Each second inside then adds an `armorStack` of 0.5 (+0.02/lvl), or 1 (+0.04/lvl) at tier 2. This replaces the static 4-second average.
+- **little_phoenix.** Phoenixfire now uses `armorStack` with per-level growth (+0.01, +0.015 or +0.02 per level by tier), up to 50 stacks, refreshed for 5s on every hit.
+- **the_furnace.** The Intense Heat crit buff now scales with the mana spent: +0.05% crit and spell crit per 15 mana, using `scaleBy: mana` on the buff. The buff is applied before the damage spends the mana.
+
+### Still approximate
+
+- Linear `everyPerLevel` cannot reproduce the original step at level 15. Crimson Wyrm and Green Pulse use the smaller count from level 9 instead of from level 15. Red Pulse is a straight line from 80 to 60 (68 at level 15, where the original is 70).
+- The level-10 4th fireball still has its own counter.
+- **Hoard.**
+  - The cost is a fixed 15 gold per kill, not 75% of the creep's bounty, because the proc cannot read the bounty.
+  - Gold is still spent after the hoard is full.
+  - `addGold` does not clamp at zero, so gold can go slightly negative when it is nearly empty, and `stats.goldEarned` is reduced.
+- **Torture.** The 500-damage minimum is dropped. The echo is a damage-taken multiplier rather than a separate spell hit.
+- **Still not portable:**
+  - Red Flame chance from spell crit (there is no `chanceFrom`).
+  - Ash Geyser's per-level ignite growth and regen cut. The `burn` rider has no per-level growth.
+  - Inflamed Stone's Spellfire conversion and its per-level mana threshold. `manaCost` and `manaAbove` are fixed values.
+  - Shaman's crit-to-experience aura.
+  - Fenced Flames' dependence on a common tower's damage.
+  - Furnace's Flames of the Forge share.
+  - Burning Watchtower's stacks from other fire towers.
+  - Fire Star's stack-scaled burn.
+  - Demonic Fire's on-damaged hook.
+  - Phoenix eruption on expiry.
+
+Status: DONE_WITH_CONCERNS
+Summary: Phase 3 primitives now replace nine fire approximations: Embershell mana-gated attacks, Hellfire level targets, shrinking Wyrm and Twin Flames counters, the Hoard gold cost, attack-only Omnislash and Torture, the ramping Caged Fire and Phoenixfire armor loss, and the mana-scaled Intense Heat. Validations pass.
+Concerns/Blockers: The Hoard spends gold through `addGold`, which does not clamp at 0 and reduces `goldEarned`. Linear level counters cannot match the original level-15 step exactly.

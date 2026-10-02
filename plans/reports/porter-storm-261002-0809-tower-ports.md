@@ -193,3 +193,69 @@ Validation:
 - A bolts `countPerLevel`.
 - An item-rarity lock.
 - Damage tracking per tower with links.
+
+## Phase 3
+
+File changed: `src/data/youtd/ports/storm.js` (only). All 31 storm scripts are now ported. Storm towers pending: 0.
+
+Validation:
+- Description check: no exceptions, `pending 0`.
+- Full-roster sandbox run: `ok towers 98 kills 56 nonfinite 0`. A 12-wave run of the roster, with the link cast, also had no non-finite stats or mana.
+- Scratch tests (scratchpad `p3-storm.mjs`, `p3-temple.mjs`):
+  - Link: the cast links the strongest ally, and its 5000 spell damage is banked (attack damage is not). Nothing is released before 10 s. After 10 s, a level-60 collector releases 85% of the bank as one energy hit (3745 after armor), and the bank empties.
+  - Temple overkill: another tower's kill with 2000 overkill gives +8000 mana at level 60 (x4). The temple's own kill gives 0, and the next frame pays out again.
+  - Temple storm: the first bolt at 20000 mana and level 60 deals 34000 (mana x 1.7). On a creep that cannot die, it drains to about 800 mana in 4 s and stops.
+  - Rarity lock: a common item equips on the tier-1 tower and an uncommon one is rejected. After the upgrade to tier 2 (uncommon), the common item is back in the stash.
+
+### New ports
+
+- `ruined_wind_tower`: `itemRarityLock` per tier (common, uncommon, rare, unique). Upstream ejects items of other rarities on each attack. The lock rejects them on equip and returns them on upgrade, so the tower ends up holding the same items.
+- `cloudy_temple_of_absorption`:
+  - Cloud of Absorption: a `death` proc turns overkill into mana, x1 at level 0.
+  - Cloudy Thunderstorm: a periodic proc (0.4 s, `manaAbove: 1000`) fires a bolt at a random creep within 1000 for mana x (0.5 + 0.02/lvl). The damage uses `flat: 0.5, flatPerLevel: 0.02, scaleBy: mana x1`, which is (0.5 + 0.02 L) x (1 + mana) and so exact to within one point of mana.
+- `dimensional_flux_collector`:
+  - The `attackOverride` passive makes its damage energy.
+  - The Dimensional Link active uses the `link` effect and targets the strongest ally within 800.
+  - Dimensional Flux is a periodic proc (1 s) that fires a `bolts` attack at a random creep within 800. It deals `fromLinked` x bank after `linkAfter: 10`.
+
+### Phase-2 approximations replaced
+
+- the_conduit Absorb Energy now restores +1 mana per level (`amountPerLevel`).
+- lightning_generator Chain Lightning now triggers on attack, as upstream (it was on hit).
+
+### Approximations in the new ports
+
+- **Level scaling in steps.** `fromOverkill` and `fromLinked` have no per-level field. Both use one proc per level step, listed highest first. The procs share a `key` and a cooldown, so only the highest unlocked step fires.
+  - Temple: x1, then +0.5 at levels 5, 15, 25 and so on. This stays within 0.25 of the exact 1 + 0.05/lvl.
+  - Collector: 25%, then 35% at level 5, 45% at 15, and so on up to 85% at 55. This stays within 5 points of the exact 25% + 1%/lvl.
+  - Each step shows as its own line in the tooltip.
+- **Temple storm drain.** Upstream drains mana by (damage taken)² / health x a size factor. The port spends a fixed 30% of the current mana per bolt.
+- **Temple storm trigger.** Upstream charges to full mana, or uses a manual cast, then unloads until 1000. The port fires whenever mana is above 1000. Because the drain is proportional, total damage per mana is the same. Only the timing differs. The two manual actives (Thunderstorm and Adjust Threshold) are dropped.
+- **Temple income from its own kills.** Upstream ignores creeps hit by the storm. Without that rule the storm feeds itself: in testing, its overkill on weak creeps refilled more mana than each bolt spent. The port ignores every kill the temple makes:
+  - A `kill` proc sets the shared absorb key for 0.001 s, so the death proc that follows is skipped.
+  - Upstream's income from the temple's own attack kills is also lost. That income is small.
+  - The 0.001 s cooldown also skips other deaths in range in the same frame. A 25-wave run had no same-frame deaths in range.
+- **Ranges.** Overkill is collected within the tower's 900 range, not the aura's 1000, because `deathRange` is not configurable. Banked damage counts all spell damage from the linked ally, not only damage to creeps within 2150.
+- **Collector details:**
+  - The bank is released once per second, not once per attack. Bonus attack speed does not speed it up.
+  - The hit cannot crit (upstream uses multicrit).
+  - If no creep is within 800 when the proc fires, that second's bank is lost.
+  - Before the link is ready, it fires a 0-damage bolt.
+- **Link is cast manually (`auto: false`).** The link effect resets the bank and link timer on every cast. An auto-cast (cooldown 1 s) would relink every second and never fire. Upstream it is also a player-targeted spell, but here the player cannot choose the ally: the cast always links the strongest one.
+
+### Still not replaced (no fitting primitive yet)
+
+- Zeus and Ancient Energy Converter folded bolt counts: no `countPerLevel`.
+- Zeus's boss-only stun chance: `stunChance` applies to all creeps.
+- Phantom: no `towerBuff.procs` and no `maxLevel`.
+- Zealot: there is no filter on neighbour gold cost or count, and max stacks do not grow with level.
+- spell_collector, chaining_storm, storm_coil and arcane_storm still assume typical runtime counts and distances.
+- The extra spell crit on charged_obelisk and red_ball: no per-hit bonus to spell crit.
+- the_conduit zero attack damage: a -100% damage bonus would also stop its on-hit procs, because `hit` procs need damage above 0.
+
+### Engine requests
+
+1. `fromOverkillPerLevel` on `mana` and `fromLinkedPerLevel` on `fromLinked`. These would replace the stepped procs with one exact proc each.
+2. A death-proc filter `notOwnKill`, or a way to skip creeps hit by the tower's own effects. This would remove the cooldown trick and the same-frame skip.
+3. Make `link` a no-op when relinking the same ally, or skip the auto-cast while a live link exists. The collector could then auto-cast.
+4. Configurable `deathRange` (the temple's is 1000).

@@ -1,18 +1,21 @@
 // Ported item behaviors, keyed by YouTD 2 item script name (MIT, see third_party/youtd2).
-// Each entry is a function (row) => ({ procs?, aura?, reveal? }) using this game's ability engine:
+// Each entry is a function (row) => ({ procs?, aura?, reveal?, mods?, attackType? }) using this game's ability engine:
 // - procs: same shape as tower procs ({ type: 'proc', name, on, chance, effect, ... })
-// - aura: { stat, value, valuePerLevel?, radius, element?, self?, selfOnly? } shared with
+// - aura: { key, stat, value, valuePerLevel?, radius, element?, self?, selfOnly? } shared with
 //   towers near the carrier (the per-level part uses the carrier's level)
 // - reveal: { radius } true sight for invisible creeps
+// - mods: fixed stat bonuses (or drawbacks) on the carrier while it holds the item
+// - attackType: replaces the carrier's attack type
 //
 // Conventions used here:
 // - YouTD chances written as `chance * base attack speed` use `noAsAdjust: false`,
 //   which makes the engine scale the chance by the tower's attack cooldown.
-// - The engine `aura` keeps only the strongest aura per stat on each tower. YouTD
-//   stacks different aura types, so items whose aura must stack (or that need a
-//   second stat) use a silent 1s periodic buff that lasts 1.5s instead. The same
-//   self-targeted buff (radius 0) carries fixed bonuses and drawbacks on the carrier.
-// - Creep auras are emulated the same way with a periodic debuff around the carrier.
+// - Different auras stack; copies of one aura (same `key`) count once. Every item aura
+//   sets `key` to its script name so it never merges with another source's aura.
+//   An item has a single `aura`, so a second aura stat uses a silent 1s periodic buff
+//   that lasts 1.5s instead.
+// - Creep auras are emulated with a periodic debuff around the carrier (item defs
+//   cannot carry a `creepAura`).
 // - Item autocasts become periodic procs with the autocast cooldown.
 
 import { UNIT, proc } from './ports/helpers.js';
@@ -44,27 +47,28 @@ export const ITEM_PORTS = {
   plain_staff: () => ({}),
 
   // ---------------------------------------------------------------- tower auras
-  cruel_torch: () => ({ aura: { stat: 'crit', value: 0.035, valuePerLevel: 0.0008, radius: 300 / UNIT } }),
-  war_drum: () => ({ aura: { stat: 'attackSpeed', value: 0.075, valuePerLevel: 0.001, radius: 200 / UNIT } }),
-  flag_of_the_allegiance: () => ({ aura: { stat: 'attackSpeed', value: 0.05, valuePerLevel: 0.001, radius: 1000 / UNIT } }),
-  libram_of_grace: () => ({ aura: { stat: 'xp', value: 0.1, valuePerLevel: 0.004, radius: 150 / UNIT } }),
+  cruel_torch: () => ({ aura: { key: 'cruel_torch', stat: 'crit', value: 0.035, valuePerLevel: 0.0008, radius: 300 / UNIT } }),
+  war_drum: () => ({ aura: { key: 'war_drum', stat: 'attackSpeed', value: 0.075, valuePerLevel: 0.001, radius: 200 / UNIT } }),
+  flag_of_the_allegiance: () => ({ aura: { key: 'flag_of_the_allegiance', stat: 'attackSpeed', value: 0.05, valuePerLevel: 0.001, radius: 1000 / UNIT } }),
+  libram_of_grace: () => ({ aura: { key: 'libram_of_grace', stat: 'xp', value: 0.1, valuePerLevel: 0.004, radius: 150 / UNIT } }),
   the_divine_wings_of_tragedy: () => ({
-    aura: { stat: 'attackSpeed', value: 0.15, radius: 250 / UNIT },
+    aura: { key: 'the_divine_wings_of_tragedy', stat: 'attackSpeed', value: 0.15, radius: 250 / UNIT },
     procs: [buffAura('Divine Wings', 'divine-wings', 250, { damage: 0.15 })],
   }),
   mighty_trees_acorns: () => ({
     procs: [buffAura('Charitable Roots', 'acorns', 300, { trigger: 0.02, manaPct: 0.02, spell: 0.02 }, 0.2)],
   }),
-  magnetic_field: () => ({ procs: [buffAura('Magnetic Field', 'magnetic-field', 200, { buffDur: 0.1 })] }),
-  sword_of_reckoning: () => ({ procs: [buffAura('Holy Wrath', 'reckoning', 200, { vsUndead: 0.12 }, 0.02)] }),
-  sword_of_decay: () => ({ procs: [buffAura('Rot', 'decay', 200, { vsFeral: 0.12 }, 0.02)] }),
+  // The -15% debuff duration part has no target: towers receive no debuffs here.
+  magnetic_field: () => ({ aura: { key: 'magnetic_field', stat: 'buffDur', value: 0.1, radius: 200 / UNIT } }),
+  sword_of_reckoning: () => ({ aura: { key: 'sword_of_reckoning', stat: 'vsUndead', value: 0.12, valuePerLevel: 0.0024, radius: 200 / UNIT } }),
+  sword_of_decay: () => ({ aura: { key: 'sword_of_decay', stat: 'vsFeral', value: 0.12, valuePerLevel: 0.0024, radius: 200 / UNIT } }),
   bloody_key: () => ({
-    aura: { stat: 'dpsAdd', value: 100, valuePerLevel: 6, radius: 200 / UNIT },
+    aura: { key: 'bloody_key', stat: 'dpsAdd', value: 100, valuePerLevel: 6, radius: 200 / UNIT },
     procs: [buffAura('Bestial Rage', 'bloody-key', 200, { vsHumanoid: 0.12, vsBrute: 0.12 }, 0.02)],
   }),
   haunted_hand: () => ({
     // The original also redirects attacks to random creeps; only the bonus is kept.
-    procs: [buffAura('Haunting', 'haunted-hand', 0, { vsArcane: 0.1 }, 0.1)],
+    aura: { key: 'haunted_hand', stat: 'vsArcane', value: 0.1, valuePerLevel: 0.01, radius: 0, selfOnly: true },
   }),
 
   // ---------------------------------------------------------------- creep auras
@@ -73,9 +77,9 @@ export const ITEM_PORTS = {
   essence_of_rot: () => ({
     procs: [
       creepAura('Presence of Rot', 800, { curse: 0.2, cursePerLevel: 0.004 }),
-      // Drawback: nearby towers attack slower, the carrier included.
-      buffAura('Stench of Rot', 'rot-penalty', 350, { attackSpeed: -0.2 }, -0.01),
     ],
+    // Drawback: nearby towers attack slower, the carrier included.
+    aura: { key: 'essence_of_rot', stat: 'attackSpeed', value: -0.2, valuePerLevel: 0.002, radius: 350 / UNIT },
   }),
 
   // ---------------------------------------------------------------- on attack / on hit
@@ -117,8 +121,8 @@ export const ITEM_PORTS = {
   mana_stone: () => ({
     procs: [
       proc('Mana Spark', 'attack', { every: 3, silent: true }, { kind: 'mana', self: true, pct: 0.01 }),
-      buffAura('Mana Flow', 'mana-stone', 200, { manaRegen: 0.075 }),
     ],
+    aura: { key: 'mana_stone', stat: 'manaRegen', value: 0.075, radius: 200 / UNIT },
   }),
   bartucs_spirit: () => ({
     procs: [proc("Bartuc's Spirit", 'attack', { every: 10 }, { kind: 'spellDamage', flat: 2000, flatPerLevel: 80, radius: 300 / UNIT, fx: 'shadow' })],
@@ -230,6 +234,16 @@ export const ITEM_PORTS = {
   chameleon_glaive: () => ({
     procs: [proc('Launch Glaive', 'attack', { chance: 0.4, chancePerLevel: 0.004 }, { kind: 'attackDamage', mult: 1, fx: 'nature' })],
   }),
+  medallion_of_opulence: () => ({
+    // Spell damage equal to 10% of the player's gold (1 + 0.1 x gold).
+    procs: [proc('Greed Is Good (10% of your gold as damage)', 'attack', { chance: 0.2, noAsAdjust: false }, {
+      kind: 'spellDamage', flat: 1, scaleBy: { kind: 'goldLinear', per: 0.1 }, fx: 'gold' })],
+  }),
+  spider_broach: () => ({
+    // Marked creeps roll their drops with +40% item quality (the +1%/lvl part is dropped).
+    procs: [proc('Silver Threads (+40% item quality on death)', 'hit', { chance: 0.15, noAsAdjust: false, silent: true }, {
+      kind: 'debuff', mark: { itemQuality: 0.4 }, debuffDur: 5, debuffDurPerLevel: 0.1, quiet: true })],
+  }),
   stasis_trap: () => ({
     // Every 8s: stuns 3 random creeps within 1000 range (1s from level 25).
     procs: [
@@ -266,12 +280,25 @@ export const ITEM_PORTS = {
     ] })],
   }),
   even_more_magical_hammer: () => ({
-    // Every 5th spell hit crits: modeled as +20% spell crit chance.
-    procs: [buffAura('Magical Weapon', 'more-magic-hammer', 0, { spellCrit: 0.2 })],
+    // Every 5th spell hit crits: modeled as +20% spell crit chance (extra hammers add up, as upstream).
+    mods: { spellCrit: 0.2 },
+  }),
+  magic_hammer: () => ({
+    procs: [proc('Magic Weapon', 'cast', { every: 5 }, { kind: 'nextSpellCrit', count: 1, fx: 'arcane' })],
+  }),
+  magic_conductor: () => ({
+    // Fires whenever another tower buffs the carrier (the original: whenever a spell targets it).
+    procs: [proc('Conduct Magic', 'buffed', {}, {
+      kind: 'towerBuff', key: 'conduction', label: 'Conduct Magic', mods: { attackSpeed: 0.2 }, perLevel: 0.025, dur: 10, fx: 'storm' })],
   }),
 
   // ---------------------------------------------------------------- fixed bonuses and drawbacks on the carrier
-  enchanted_knives: () => ({ procs: [buffAura('Multishot', 'enchanted-knives', 0, { multishot: 3 })] }),
+  enchanted_knives: () => ({ mods: { multishot: 3 } }),
+  silver_armor: () => ({
+    // +0.01% damage per gold the carrier cost (refreshed every second, so upgrades count).
+    procs: [tick('Polished Armor (+0.01% damage per gold of tower cost)', 1, { kind: 'towerBuff', key: 'silver-armor', label: 'Polished Armor',
+      mods: { damage: 0.0001 }, scaleBy: { kind: 'towerCost', per: 1 }, dur: 1.5 })],
+  }),
   chameleons_soul: () => {
     // The bonus depends on the carrier's element.
     const forms = [
@@ -282,13 +309,28 @@ export const ITEM_PORTS = {
       { kind: 'towerBuff', key: 'chameleon-soul', label: 'Transform', element: el, mods, dur: 1.5 })) };
   },
   // Drawbacks: 10% of attacks deal no damage, modeled as -10% attack damage.
-  'never-ending_keg': () => ({ procs: [buffAura('Drunk!', 'keg-drunk', 0, { damage: -0.1 })] }),
-  unyielding_maul: () => ({ procs: [buffAura('Miss', 'maul-miss', 0, { damage: -0.1 })] }),
+  'never-ending_keg': () => ({ mods: { damage: -0.1 } }),
+  unyielding_maul: () => ({ mods: { damage: -0.1 } }),
+
+  // ---------------------------------------------------------------- attack type overrides
+  // Removes the armor-type multiplier, which is what essence attacks do.
+  staff_of_essence: () => ({ attackType: 'essence' }),
+  // The original converts every hit once enough charge builds up: half the hits at level 0,
+  // all of them from level 50. Modeled as a full conversion.
+  lich_mask: () => ({ attackType: 'decay' }),
+  brimstone_helmet: () => ({ attackType: 'elemental' }),
 
   // ---------------------------------------------------------------- growth on kill (stored on the item)
   workbench: () => ({
     // Unbounded in the original; capped here at +1000% item quality.
     procs: [proc('Craftsmanship (+0.15% item quality per kill)', 'kill', { silent: true }, { kind: 'grow', stat: 'itemQuality', amount: 0.0015, cap: 10 })],
+  }),
+  crit_blade: () => ({
+    // +2% crit per attack up to +40%; a crit resets the bonus.
+    procs: [
+      proc('Critical Accumulation (+2% crit per attack)', 'attack', { silent: true }, { kind: 'grow', stat: 'crit', amount: 0.02, cap: 0.4 }),
+      proc('Critical Accumulation (reset on crit)', 'crit', { silent: true }, { kind: 'resetGrow', stat: 'crit' }),
+    ],
   }),
   soul_collectors_scythe: () => ({
     procs: [proc('Soul Reaping (+0.005 crit damage per kill)', 'kill', { silent: true }, { kind: 'grow', stat: 'critMult', amount: 0.005, cap: 3 })],
@@ -296,8 +338,8 @@ export const ITEM_PORTS = {
   bloodthirsty_wheel_of_fortune: () => ({
     // 25% per kill: two times in three +4% item chance (max +48%), otherwise -4%.
     procs: [
-      proc('Fortune Rises (+4% item chance)', 'kill', { chance: 0.1667 }, { kind: 'grow', stat: 'itemFind', amount: 0.04, cap: 0.48, fx: 'gold' }),
-      proc('Fortune Falls (-4% item chance)', 'kill', { chance: 0.0833 }, { kind: 'grow', stat: 'itemFind', amount: -0.04, cap: 0.48, fx: 'shadow' }),
+      proc('Fortune Rises (+4% item chance)', 'kill', { chance: 0.1667 }, { kind: 'grow', stat: 'itemFind', amount: 0.04, cap: 0.48, min: -0.24, fx: 'gold' }),
+      proc('Fortune Falls (-4% item chance)', 'kill', { chance: 0.0833 }, { kind: 'grow', stat: 'itemFind', amount: -0.04, cap: 0.48, min: -0.24, fx: 'shadow' }),
     ],
   }),
 
@@ -316,6 +358,11 @@ export const ITEM_PORTS = {
   soul_extractor: () => ({
     // Each kill stuns 2 creeps in range for 1.5s (the original stores 2 charges spent on the next hits).
     procs: [proc('Soul Extraction', 'kill', {}, { kind: 'bolts', count: 2, flat: 0, stun: 1.5, fx: 'shadow' })],
+  }),
+  backpack: () => ({
+    // Every 150s the next kill drops an extra item. The original rolls the rarity like a
+    // regular drop; a fixed uncommon (2% unique) stands in for that roll.
+    procs: [proc('Search For Item', 'kill', { icd: 150 }, { kind: 'dropItem', rarity: 'uncommon', uniqueChance: 0.02, fx: 'gold' })],
   }),
   arms_dealer: () => ({
     // 25% when a boss comes into range: 25 gold + 1 per wave (the tower level part is dropped).
@@ -357,14 +404,19 @@ export const ITEM_PORTS = {
       { kind: 'xp', amount: -10 },
     ] })],
   }),
+  mindleecher: () => ({
+    // The original steals 15-60 at random; the average is used.
+    procs: [proc('Siphon Knowledge', 'periodic', { icd: 30 }, { kind: 'stealXp', amount: 37.5, radius: 450 / UNIT, fx: 'shadow' })],
+  }),
   magic_link: () => ({
     procs: [proc('Transfer Experience', 'periodic', { icd: 60 }, { kind: 'transferXp', radius: 1200 / UNIT, amount: 30, count: 1 })],
   }),
   ritual_talisman: () => ({
-    procs: [proc('Shamanistic Ritual', 'periodic', { icd: 10, needCreeps: true }, { kind: 'multi', effects: [
-      { kind: 'towerBuff', key: 'ritual-xp', label: 'Ritual', mods: { xp: 0.2 }, perLevel: 0.04, dur: 10, fx: 'nature' },
-      { kind: 'towerBuff', key: 'ritual-dmg', label: 'Ritual', mods: { damage: 0.1 }, perLevel: 0.02, dur: 10, quiet: true },
-    ] })],
+    // One random tower within 450 (the carrier included) gets both bonuses. The shared per-level
+    // factor is exact for damage (+0.2%/lvl); experience grows +0.4%/lvl instead of +0.8%.
+    procs: [proc('Shamanistic Ritual', 'periodic', { icd: 10, needCreeps: true }, {
+      kind: 'towerBuff', key: 'ritual', label: 'Ritual', radius: 450 / UNIT, pick: 'random',
+      mods: { xp: 0.2, damage: 0.1 }, perLevel: 0.02, dur: 10, fx: 'nature' })],
   }),
   scroll_of_strength: () => ({
     // 10 charges regained at 3 per 40s: modeled as one boost every 13s.

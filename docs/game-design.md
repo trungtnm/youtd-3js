@@ -63,15 +63,15 @@ highest-level tower (`src/data/boss-spoils.js`).
 ## Balance targets
 
 Measured with the balance bot focusing about 10 towers in two elements
-(`CAP=10 node tools/balance.js`), after the second porting pass (684 of 690
-tower scripts ported, see [youtd-port.md](youtd-port.md)):
+(`CAP=10 node tools/balance.js`), after the third porting pass (all 690 tower
+scripts ported, see [youtd-port.md](youtd-port.md)):
 
 | Difficulty | Bot reaches |
 |---|---|
-| Beginner | wave ~95 |
-| Medium | waves ~43-54 (fire/storm, ice/astral, iron/darkness, nature/fire) |
-| Hard | wave ~39 |
-| Extreme | wave ~30 |
+| Beginner | wave ~86 |
+| Medium | waves ~45-57 (fire/storm, ice/astral, iron/darkness, nature/fire) |
+| Hard | wave ~43 |
+| Extreme | wave ~29 |
 
 The bot builds first tiers and upgrades, ignores armor matchups and never casts
 manually, so human players should reach further. Many ports are still

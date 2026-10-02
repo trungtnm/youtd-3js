@@ -52,13 +52,11 @@ export const PORTS = {
     },
   },
 
-  // Illuminate makes hit creeps worth more experience; modelled as an experience aura
-  // over the ruin's attack range, where its targets die.
+  // Illuminate makes the creeps the ruin hits worth more experience for 5 seconds. The ruin
+  // hits whatever is in its range, so creeps inside that range grant the bonus when they die.
+  // (The engine's creep aura has no per-level growth; the base value is used.)
   minor_magic_ruin: {
-    passives: (row) => {
-      const [value, valuePerLevel] = at([[0.05, 0.002], [0.1, 0.004], [0.15, 0.006], [0.2, 0.008], [0.25, 0.01], [0.3, 0.012]], row);
-      return [{ type: 'aura', stat: 'xp', value, valuePerLevel, radius: row.range / UNIT }];
-    },
+    passives: (row) => [{ type: 'creepAura', xpBonus: at([0.05, 0.1, 0.15, 0.2, 0.25, 0.3], row), xpBonusPerLevel: at([0.002, 0.004, 0.006, 0.008, 0.01, 0.012], row), radius: row.range / UNIT }],
   },
 
   time_manipulator: {
@@ -202,10 +200,14 @@ export const PORTS = {
   // The original only affects invisible creeps, and YouTD 2 left that code disabled.
   astral_lantern: {},
 
-  // The missile passes through creeps around the target, hitting all of them in full.
-  // Choosing missile modifications (player-driven autocasts) is not ported.
+  // The missile passes through creeps around the target, hitting all of them in full, and
+  // grows by 2% per level. Upstream the missile deals spell damage; the engine has no spell
+  // attack type, so it stays an attack. Choosing missile modifications is not ported.
   sorceress: {
-    passives: () => [{ type: 'splash', rings: [{ radius: 150 / UNIT, pct: 1 }], radius: 150 / UNIT, pct: 1, desc: 'Magic Missile: each attack also hits every creep near the target in full.' }],
+    passives: () => [
+      { type: 'splash', rings: [{ radius: 150 / UNIT, pct: 1 }], radius: 150 / UNIT, pct: 1, desc: 'Magic Missile: each attack also hits every creep near the target in full.' },
+      { type: 'aura', key: 'magicMissile', stat: 'damage', value: 0, valuePerLevel: 0.02, radius: 0, selfOnly: true },
+    ],
   },
 
   owl_of_wisdom: {
@@ -273,7 +275,8 @@ export const PORTS = {
 
   library_of_alexandria: {
     passives: (row) => [
-      { type: 'aura', stat: 'xp', value: 0.3, valuePerLevel: 0.01, radius: auraRadius(row, 900) },
+      // Divine Research: creeps near the library grant 30% more experience when they die.
+      { type: 'creepAura', xpBonus: 0.3, radius: auraRadius(row, 900) },
       proc('Divine Knowledge', 'periodic', { icd: 5, silent: true }, { kind: 'shareXp', radius: 500 / UNIT, amount: 2, count: 1 }),
     ],
     actives: (row) => [autocast(row, 'teachings', '📖', 'Teaches a nearby tower: it gains double experience for 10 seconds (longer with level). The library learns a little too.', 'tower',
@@ -283,8 +286,15 @@ export const PORTS = {
   },
 
   // Extract Experience: towers damaging the marked creep sometimes learn from it.
-  // Channel Energy (reacting to spells cast on the princess) is not ported.
+  // Channel Energy: each spell another tower casts on the princess adds a damage stack
+  // (up to 15). Stacks share one timer here instead of expiring one by one, and the
+  // caster's +1 experience is not ported.
   princess_of_light: {
+    passives: (row) => {
+      const [k, dur] = at([[0.15, 10], [0.2, 12]], row);
+      return [proc('Channel Energy', 'buffed', { chance: 1, silent: true },
+        { kind: 'towerBuff', key: 'channelEnergy', label: 'Channel Energy', mods: { damage: k }, perLevel: 0.005 / k, dur, durPerLevel: 0.1, maxStacks: 15, fx: 'holy', quiet: true })];
+    },
     actives: (row) => [autocast(row, 'extract', '✨', 'Marks a creep for 10 seconds; towers hitting it have a 33% chance to gain experience (up to 10 times).', 'creep',
       { kind: 'debuff', mark: { bounty: 0, xpChance: 0.33 }, debuffDur: 10, fx: 'holy' })],
   },
@@ -297,10 +307,19 @@ export const PORTS = {
     },
   },
 
+  // At level 25 every smite also strips armor for good (less from bosses). The armor loss
+  // rolls separately with the same 55% odds as the smite.
   lesser_priest: {
     passives: (row) => {
       const [dmg, add] = at([[10, 18], [35, 63], [90, 162], [190, 342], [380, 648]], row);
-      return [proc('Smite', 'hit', { chance: 0.05, chancePerLevel: 0.02 }, { kind: 'spellDamage', flat: dmg, flatPerLevel: add, fx: 'holy' })];
+      const [armor, armorBoss] = at([[0.6, 0.2], [0.9, 0.3], [1.2, 0.4], [1.5, 0.5], [1.8, 0.6]], row);
+      const shred = (key, cond, amount) => proc('Holy Erosion', 'hit', { key, chance: 0.05, chancePerLevel: 0.02, minLevel: 25, cond, silent: true },
+        { kind: 'debuff', armorStack: { key: 'smite', armor: amount, max: 999 }, debuffDur: Infinity, quiet: true });
+      return [
+        proc('Smite', 'hit', { chance: 0.05, chancePerLevel: 0.02 }, { kind: 'spellDamage', flat: dmg, flatPerLevel: add, fx: 'holy' }),
+        shred('smiteArmor', 'notBoss', armor),
+        shred('smiteArmorBoss', 'boss', armorBoss),
+      ];
     },
   },
 
@@ -326,7 +345,7 @@ export const PORTS = {
       const dmg = at([500, 1000], row);
       return [proc('Blessed Weapon', 'hit', { chance: 0.15 }, { kind: 'multi', effects: [
         { kind: 'spellDamage', flat: dmg, flatPerLevel: 50, fx: 'holy' },
-        { kind: 'mana', self: true, amount: 2 }] })];
+        { kind: 'mana', self: true, amount: 2, amountPerLevel: 0.1 }] })];
     },
     actives: (row) => {
       const k = at([0.4, 0.8], row);

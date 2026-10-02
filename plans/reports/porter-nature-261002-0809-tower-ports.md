@@ -141,3 +141,37 @@ File changed: `src/data/youtd/ports/nature.js` only. The `pulseAura`/`pseudoAura
 - `nature pending 0`; `describeAbility` runs on all nature abilities.
 - Full-roster sandbox run: `ok towers 89 kills 56 nonfinite 0`.
 - Scratch per-family runs at level 25 with 300x creep health: every proc, autocast, `enter`/`crit`/`cast` trigger, `levelBonus` (Forest Amazon 4 targets) and `growSelf` fired; no non-finite stats.
+
+## Phase 3
+
+File changed: `src/data/youtd/ports/nature.js` only. `nature pending 0`.
+
+### Replaced approximations
+
+- forest_protectress: Meld is now a real build-up (`growSelf` +18% +1%/lvl damage every 1s, capped at 12 builds) that Wrath spends (`resetGrowSelf` in a `multi` with the AoE). Wrath slow lasts 1.5s +0.04s/lvl (`slowDurPerLevel`).
+- magic_mushroom: Rapid Growth is a real 40% roll every 20s (a failed periodic roll now waits out its `icd`), with `chancePerLevel: 0.016` standing in for the period that shrinks 0.4s per level (same growth rate at levels 0 and 25).
+- nature_sprites: Nature's Gift picks its main stat from the target's element (astral xp, darkness spell, nature crit, fire damage, ice buff duration, storm attack speed, iron item chance; each base and per-level value from upstream, x1/1.5/2 per tier) through element-filtered `towerBuff`s. The random second stat is kept as its expectation (1/6 of each other stat). Buff key now matches the autocast id, so already-gifted towers are skipped as targets.
+- Per-level durations (`slowDurPerLevel`, `dot.durPerLevel`): forest_archer roots (+0.2s/lvl), mud_golem smash slow (+0.012s/lvl), cute_small_spider poison (+0.05s/lvl), poison_battery poison and slow on hit and on orbs (+0.3s/lvl), cenarion Leaf Storm slow (+0.04s/lvl).
+- Aura stacking: no data change needed. Each nature aura already has its own name (used as key) and tiers share it, so Cenarion's -20% attack speed now adds to other attack speed auras instead of replacing them.
+
+### Still approximate
+
+- Wrath chance is a flat 27% per hit (the average of the original 5%-per-second ramp); Meld ticks every 1s instead of every attack cooldown / 2.2. Growth caps (protectress, bonk, mushroom) assume growths gained at level 25.
+- nature_sprites: the second stat is an expected value, not a random pick; the secondary stats share the main stat's per-level ratio.
+- magic_mushroom Fungus Strike: still every 14th hit (not bound to the trance cast), does not zero the attack's own damage, and its +20% spell crit bonus is not modelled.
+- Unchanged from phase 2 (no primitive fits): aura-carried procs from other towers (sacred_altar, skink, mud_golem); tower-centred bursts on attack/hit triggers (mud_golem, razorboar); air filter on area effects; forest_troll multicrit at 15/25 and its flat attack speed from level 15 (needs a buff that switches with level range); greyfang double crit roll at 25; mud_golem 800 range at 25; bonk grow-count gates and per-grow damage; garden_of_eden lifeforce counter; razorboar 1.11^stacks thorns (a `stackVuln` would also boost other towers); obelisk per-hit stack expiry; huntress next-attack speed + forced crit; regenerating_well per-level and same-family mana; morphling stances; coconut scatter and per-creep stun cooldown; greyfang line shards; Strike the Unprepared health scaling.
+
+### Engine notes
+
+- `describeEffect` for `multi` joins sentences, so a trailing `resetGrowSelf` renders as "... for 1.5s). resets its damage growth." (lowercase after a period).
+- `hit` procs only run when the creep survives the hit, so at high damage Wrath (and its reset) rarely fires against weak waves.
+
+### Validation
+
+- `nature pending 0`; `describeAbility` runs on all nature abilities.
+- Full-roster sandbox run: `ok towers 89 kills 56 nonfinite 0`.
+- Scratch run (protectress, sprites, mushroom, spider, battery at max level, 3000x creep health, 300s): 56 Wraths each reset Meld (max 5.16 = cap), mushroom growth accrues, Nature's Gift applied element-matched mods; no non-finite stats.
+
+Status: DONE
+Summary: Replaced the nature approximations that phase-3 primitives cover (protectress Meld/Wrath reset, mushroom chance-based growth, element-matched Nature's Gift, five per-level slow/DoT durations); both validations pass.
+Concerns/Blockers: Remaining approximations need primitives not in phase 3 (aura-carried procs, tower-centred hit bursts, level-range buffs, tower counters).

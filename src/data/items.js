@@ -49,6 +49,7 @@ for (const row of YT_ITEMS) {
     levelMods, mods: baseMods(levelMods), pending,
     effect: kind === 'consumable' ? CONSUMABLES[row.script] || {} : undefined,
     procs: port?.procs, aura: port?.aura, reveal: port?.reveal,
+    staticMods: port?.mods, attackType: port?.attackType,
   };
 }
 
@@ -75,10 +76,13 @@ export function describeItem(item) {
     return lines.length ? lines : ['Use: no effect.'];
   }
   const lines = describeLevelMods(item.levelMods);
+  if (item.staticMods) lines.push(...describeMods(item.staticMods));
+  if (item.attackType) lines.push(`Changes the carrier's attack type to ${item.attackType}.`);
   if (item.aura) {
     const a = item.aura;
     const per = a.valuePerLevel ? ` (${describeMods({ [a.stat]: a.valuePerLevel })[0]} per level)` : '';
-    lines.push(`Aura: ${a.element ? `${a.element} ` : ''}towers within ${a.radius.toFixed(1)} gain ${describeMods({ [a.stat]: a.value })[0]}${per}.`);
+    lines.push(a.selfOnly ? `The carrier gains ${describeMods({ [a.stat]: a.value })[0]}${per}.`
+      : `Aura: ${a.element ? `${a.element} ` : ''}towers within ${a.radius.toFixed(1)} gain ${describeMods({ [a.stat]: a.value })[0]}${per}.`);
   }
   if (item.reveal) lines.push(`True sight: reveals invisible creeps within ${item.reveal.radius.toFixed(1)}.`);
   for (const p of item.procs || []) lines.push(describeSkill(p));

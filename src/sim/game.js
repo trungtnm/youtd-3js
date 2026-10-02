@@ -140,7 +140,11 @@ export class Game extends Emitter {
     const oldSlots = tower.items;
     tower.def = next;
     tower.items = new Array(next.slots).fill(null);
-    oldSlots.forEach((it, i) => { if (it) tower.items[i] = it; });
+    const lock = next.abilities.find((a) => a.type === 'itemRarityLock');
+    oldSlots.forEach((it, i) => {
+      if (!it) return;
+      if (lock && ITEMS[it.id].rarity !== lock.rarity) this.addItem(it); else tower.items[i] = it;
+    });
     initAbilities(tower);
     this.recalcAll();
     this.emit('towerUpgraded', tower);
@@ -244,6 +248,8 @@ export class Game extends Emitter {
       this.emit('error', open < 6 ? `Open item slots are full — slot ${open + 1} unlocks at wave ${this.slotUnlockWave(open)}` : 'No free item slot');
       return false;
     }
+    const lock = tower.def.abilities.find((a) => a.type === 'itemRarityLock');
+    if (lock && def.rarity !== lock.rarity) { this.emit('error', `${tower.def.name} only holds ${lock.rarity} items`); return false; }
     if (def.rarity === 'unique' && tower.items.some((it, i) => it && i !== slot && ITEMS[it.id].rarity === 'unique')) {
       this.emit('error', 'A tower can carry only one unique item');
       return false;
@@ -351,7 +357,7 @@ export class Game extends Emitter {
     const add = (mods) => { for (const [k, v] of Object.entries(mods)) m[k] = (m[k] || 0) + v; };
     const lvl0 = t.level;
     addLevelMods(m, t.def.levelMods || [], lvl0);
-    for (const it of t.items) if (it) { addLevelMods(m, ITEMS[it.id].levelMods, lvl0); if (it.bound) add(it.bound); }
+    for (const it of t.items) if (it) { addLevelMods(m, ITEMS[it.id].levelMods, lvl0); if (it.bound) add(it.bound); if (ITEMS[it.id].staticMods) add(ITEMS[it.id].staticMods); }
     addLevelMods(m, t.oilMods || [], lvl0);
     if (t.buffs?.length) add(buffMods(t));
     for (const id of t.perks) add(PERKS[id].mods);
@@ -384,6 +390,11 @@ export class Game extends Emitter {
       manaFlat: m.manaFlat || 0, manaPct: m.manaPct || 0, manaRegenFlat: m.manaRegenFlat || 0,
     };
     s.cd = t.def.cd / s.attackSpeed;
+    // Attack type can be overridden by an item or an ability (last one wins).
+    s.attackType = null;
+    for (const a of t.def.abilities) if (a.type === 'attackOverride' && (!a.minLevel || t.level >= a.minLevel)) s.attackType = a.attack;
+    for (const it of t.items) if (it && ITEMS[it.id].attackType) s.attackType = ITEMS[it.id].attackType;
+
     s.flatDamage += (m.dpsAdd || 0) * t.def.cd;
     if (t.maxMana) s.maxMana = (t.maxMana + s.manaFlat) * (1 + s.manaPct);
     s.dmgMin = t.def.damage[0] * s.damageMult + s.flatDamage;
@@ -689,7 +700,7 @@ export class Game extends Emitter {
             if (a.curse) c.auraCurse = Math.max(c.auraCurse || 0, a.curse + (a.cursePerLevel || 0) * lv);
             if (a.vulnSpell) c.auraVulnSpell = Math.max(c.auraVulnSpell || 0, a.vulnSpell + (a.vulnSpellPerLevel || 0) * lv);
             if (a.vulnElement) { c.auraVulnEl ||= {}; c.auraVulnEl[a.vulnElement.el] = Math.max(c.auraVulnEl[a.vulnElement.el] || 0, a.vulnElement.pct); }
-            if (a.xpBonus) c.auraXp = Math.max(c.auraXp || 0, a.xpBonus);
+            if (a.xpBonus) c.auraXp = Math.max(c.auraXp || 0, a.xpBonus + (a.xpBonusPerLevel || 0) * lv);
             c.auraT = 0.3;
           }
         } else if (a.type === 'nova' || a.type === 'meteor') {
@@ -704,6 +715,8 @@ export class Game extends Emitter {
       if (t.def.canAttack === false) continue;
       t.timer -= dt;
       if (t.timer > 0) continue;
+      const mpa = t.def.abilities.find((a) => a.type === 'manaPerAttack');
+      if (mpa && mpa.cost && (t.mana || 0) < mpa.cost) { t.timer = 0; continue; }
       const targets = this.findTargets(t, s.targets);
       if (!targets.length) { t.timer = 0; t.beam = null; t.beamRamp = 1; t.idle = (t.idle || 0) + dt; continue; }
       const charge = t.def.abilities.find((a) => a.type === 'charge');
@@ -724,6 +737,10 @@ export class Game extends Emitter {
           else { t.beam = target.uid; t.beamRamp = 1; }
           this.resolveHit(t, target, base * t.beamRamp, { x: target.x, z: target.z });
         } else this.fireAt(t, target, base);
+      }
+      if (mpa) {
+        const cap = t.stats.maxMana ?? t.maxMana ?? 0;
+        t.mana = Math.max(0, Math.min(cap, (t.mana || 0) - (mpa.cost || 0) + (mpa.gain || 0) + (mpa.gainPerLevel || 0) * t.level));
       }
       runProcs(this, t, 'attack', { creep: first });
     }
@@ -760,8 +777,9 @@ export class Game extends Emitter {
       m = 1 + s.spell;
       if (c.specials.includes('warded')) m *= 0.4;
     } else {
-      if (t.def.attack === 'arcane' && c.specials.includes('warded')) return 0;
-      m = DAMAGE_MATRIX[t.def.attack][c.armorType] * (1 - ARMOR_REDUCTION(this.effectiveArmor(c)));
+      const attack = t.stats.attackType || t.def.attack;
+      if (attack === 'arcane' && c.specials.includes('warded')) return 0;
+      m = DAMAGE_MATRIX[attack][c.armorType] * (1 - ARMOR_REDUCTION(this.effectiveArmor(c)));
     }
     for (const a of t.def.abilities) {
       if (a.type === 'bonusVs') {
@@ -784,6 +802,7 @@ export class Game extends Emitter {
         if (v.element && v.element !== t.def.element) continue;
         if (v.attack && v.attack !== t.def.attack) continue;
         if (v.spellOnly && !spell) continue;
+        if (v.attacksOnly && spell) continue;
         m *= 1 + v.stacks * v.pct;
       }
     }
@@ -807,7 +826,9 @@ export class Game extends Emitter {
     }
     const dealt = this.damage(t, c, dmg, { crit });
     this.applyOnHit(t, c, dealt > 0 ? dmg : 0, true);
-    if (dealt > 0 && c.alive) runProcs(this, t, 'hit', { creep: c, damage: dmg, crit });
+    // On-hit procs fire for every damaging hit, including the killing blow; single-target
+    // effects skip dead creeps on their own, area effects still hit the neighbours.
+    if (dealt > 0) runProcs(this, t, 'hit', { creep: c, damage: dmg, crit });
     if (crit && c.alive) runProcs(this, t, 'crit', { creep: c, damage: dmg, crit });
     for (const a of t.def.abilities) {
       if (a.type === 'strike' && c.alive && this.rng() < a.chance) {
@@ -959,7 +980,11 @@ export class Game extends Emitter {
     const mult = opts.pure ? 1 : this.damageMultiplier(t, c, !!opts.spell);
     if (mult <= 0) { this.emit('immune', c); return 0; }
     let dmg = amount * mult;
-    if (opts.spell && t && this.rng() < t.stats.spellCrit) { dmg *= 1.5 + (t.stats.spellCritMult || 0); opts = { ...opts, crit: true }; }
+    const forcedCrit = opts.spell && t && t.nextSpellCrit > 0;
+    if (forcedCrit) t.nextSpellCrit--;
+    if (opts.spell && t && (forcedCrit || this.rng() < t.stats.spellCrit)) { dmg *= 1.5 + (t.stats.spellCritMult || 0); opts = { ...opts, crit: true }; }
+    // Spell damage from a linked tower is banked on the tower that linked it.
+    if (opts.spell && t?.linkedBy) { const lk = this.towers.get(t.linkedBy); if (lk && lk.linkTo === t.uid) lk.linkBank = (lk.linkBank || 0) + dmg; }
     if (c.shield > 0) {
       const absorbed = Math.min(c.shield, dmg);
       c.shield -= absorbed;
@@ -972,6 +997,7 @@ export class Game extends Emitter {
 
   applyRaw(t, c, dmg, opts = {}) {
     if (!c.alive || dmg <= 0) return;
+    const hpBefore = c.hp;
     c.hp -= dmg;
     this.stats.damage += dmg;
     if (t) {
@@ -983,10 +1009,10 @@ export class Game extends Emitter {
       }
     }
     if (opts.crit || opts.big) this.emit('damageText', { x: c.x, z: c.z, amount: dmg, crit: !!opts.crit, spell: !!opts.spell });
-    if (c.hp <= 0) this.kill(c, t);
+    if (c.hp <= 0) this.kill(c, t, Math.max(0, dmg - hpBefore));
   }
 
-  kill(c, killer) {
+  kill(c, killer, overkill = 0) {
     if (!c.alive) return;
     c.alive = false;
     c.hp = 0;
@@ -1021,7 +1047,7 @@ export class Game extends Emitter {
     }
     if (killer && this.towers.has(killer.uid)) {
       killer.kills++;
-      runProcs(this, killer, 'kill', { creep: c });
+      runProcs(this, killer, 'kill', { creep: c, overkill });
       for (const a of killer.def.abilities) {
         if (a.type === 'killStack') { killer.killStacks = Math.min(a.max, killer.killStacks + a.pct); this.computeStats(killer); }
         if (a.type === 'tomeOnKill' && this.rng() < a.chance) { this.tomes++; this.emit('tomeDrop', { x: c.x, z: c.z }); }
@@ -1034,7 +1060,7 @@ export class Game extends Emitter {
     // 'death' procs fire for any creep dying within the tower's range, whoever killed it.
     for (const t of this.towers.values()) {
       if (!t.hasDeathProcs) continue;
-      if ((c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= t.stats.range ** 2) runProcs(this, t, 'death', { creep: c });
+      if ((c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= (t.deathRange || t.stats.range) ** 2) runProcs(this, t, 'death', { creep: c, overkill, killer });
     }
     if (c.size === 'boss' || c.size === 'challenge') this.offerSpoils(c);
 
@@ -1168,7 +1194,7 @@ export class Game extends Emitter {
 
   rollDrops(c, killer) {
     const size = SIZES[c.size];
-    const find = 1 + (killer ? killer.stats.itemFind : 0);
+    const find = 1 + (killer ? killer.stats.itemFind : 0) + (c.mark?.itemChance || 0);
     const chance = 0.035 * find;
     let rolls = size.drops;
     let found = 0;
@@ -1177,7 +1203,7 @@ export class Game extends Emitter {
       found++;
       const lv = c.level;
       const q = this.rng();
-      const quality = 1 + (killer ? killer.stats.itemQuality : 0);
+      const quality = 1 + (killer ? killer.stats.itemQuality : 0) + (c.mark?.itemQuality || 0);
       const uniqueP = (0.01 + lv * 0.0004) * quality, rareP = (0.06 + lv * 0.0012) * quality, uncP = 0.26 + lv * 0.0015;
       let rarity = 'common';
       if (q < uniqueP) rarity = 'unique';

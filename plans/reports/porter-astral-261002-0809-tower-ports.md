@@ -147,3 +147,48 @@ The `pseudoAura` helper (silent 2s tower-buff pulse) is removed. Every aura is n
   2 +0.2/lvl) and on `mana` gains (Sun Crusader 2 +0.1/lvl) is not supported; these use the base value.
 - Small fixed bonuses at level 25 (Lunar stun 0.4s, Snake Charm duration doubling, Lunar vulnerability at 15) are dropped.
 - Holy Energy's tower stun and Glimmer of Hope (towers carry no debuffs) are still not ported.
+
+## Phase 3
+
+File changed: `src/data/youtd/ports/astral.js` only. Astral towers with pending abilities: still 0.
+Both validation commands ran with no exceptions: the `describeAbility` check, and the full-roster
+sandbox run (96 towers, nonfinite 0). I also ran a separate sandbox check with creeps at 10,000x HP and the
+test towers kept next to the lead creep. In that run, Lesser Priest stacked 39 armor-loss stacks on one creep,
+creeps reached `auraXp` 0.3, Princess of Light reached 15 Channel Energy stacks (from the Serpent Ward's Snake Charm), and Sun Crusader gained mana as expected.
+
+### Now exact or closer
+
+- Minor Magic Ruin (Illuminate) and Library of Alexandria (Divine Research) are now creep-side
+  "experience granted" bonuses (`creepAura.xpBonus`, applied on kill). Before, they were xp auras on towers.
+  Illuminate covers the ruin's attack range, which is where its 5s on-hit debuff lands. Divine Research covers 900, as upstream.
+  The trade-off is that `creepAura` has no per-level growth, so both use their base value (ruin 5..30%, library 30%).
+- Lesser Priest: at level 25 each hit has a 55% chance to apply a permanent `armorStack` (-0.6..1.8 armor per stack,
+  -0.2..0.6 vs bosses, effectively uncapped at 999 stacks). This roll is separate from the Smite roll, with the same odds.
+- Princess of Light: Channel Energy is ported with the `buffed` trigger. Each buff another tower casts on her adds
+  a +15/20% (+0.5%/lvl) damage stack, up to 15 stacks, for 10/12s (+0.1s/lvl).
+- Sun Crusader: Blessed Weapon now restores 2 mana (+0.1/lvl), using `mana.amountPerLevel`.
+- Sorceress: the missile now gains +2% damage per level (a selfOnly damage aura), as upstream.
+
+### Checked, not applicable or still approximate
+
+- Sorceress spell attack: `attackOverride` only swaps the attack type in the armor matrix, and there is no spell
+  type. Faking it with a 100% `miss` plus an on-attack spell proc would print "miss" on every attack, so the
+  missile stays an arcane splash attack.
+- Time Manipulator's xp-to-spell-damage exchange (every 10s: at 700+ exp spend 50 for +5% spell damage permanently,
+  else +2 exp) still needs a proc filter on the tower's own experience. Without that filter, `growSelf` would grant
+  spell damage from the start, so it stays as +2 xp every 10s.
+- Item chance/quality marks and `manaPerAttack`: no astral script uses them. The mana costs of Astral Rift and
+  Nortrom are per-proc and already use `manaCost`.
+- Channel Energy: the stacks share one timer, not a timer each. The caster's +1 xp is not ported, because there is no
+  effect that targets `ctx.from`. `buffed` also fires for radius buffs, while upstream fires only for targeted spells.
+- Unchanged from Phase 2: Maledict, Purify, Mana Distortion, the Owl's experience-scaled damage, the Mana-Touched
+  Drake spend ratio per level (`spendMana` has no per-level field), the library's `shareXp` per-level amount, the Solar
+  Emitter `vulnElement` per-level growth, the level-15/25 step bonuses (Lunar Sentinel, Serpent Ward, Witch Doctor wards),
+  and the Extract Experience amount and per-level count (game.js hardcodes 1 xp and 10 uses).
+
+### Engine/UI follow-ups (outside my file)
+
+- `describeAbility` in `src/data/towers.js` gives an empty text for `creepAura.xpBonus` ("Aura: creeps within 7.4 ."),
+  so the ruin and the library now show a blank aura line. Add `if (a.xpBonus) parts.push(...)`.
+- A `selfOnly` aura is described as "towers within 0.0 gain ...". Storm already uses this pattern.
+- `creepAura.xpBonusPerLevel` would restore the per-level growth for Illuminate and Divine Research.

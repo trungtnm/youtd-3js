@@ -53,17 +53,19 @@ Status at the last update:
 
 | | Total | Data-only or ported | Pending |
 |---|---|---|---|
-| Towers | 690 | 684 | 6 |
-| Items | 315 | 283 | 32 |
+| Towers | 690 | 690 | 0 |
+| Items | 315 | 294 | 21 |
 
-Pending towers need engine features that do not exist yet: the Ruined Wind
-family (returning held items to the stash), Cloudy Temple of Absorption
-(overkill damage reported on death) and Dimensional Flux Collector (per-tower
-damage tracking and tower links). The 32 pending items are listed with reasons in
+The 21 pending items need features this game does not model (moving, copying or
+buying items, moving towers, creep mana, wave-clear-time rewards, changing the
+triggering hit itself); they are listed with reasons in
 `plans/reports/porter-items-261002-0809-item-ports.md`.
 
-Ports were done in two passes. Phase 2 replaced most phase-1 approximations with
-exact mechanics using the engine primitives below. What remains approximate
+Ports were done in three passes. Phase 2 replaced most phase-1 approximations
+with exact mechanics using the engine primitives below; phase 3 added the
+remaining primitives (item rarity locks, overkill, tower links, mana per attack,
+attack type overrides, item marks, stacking armor, chance riders) and finished
+the last tower scripts. What remains approximate
 (typical values where the engine cannot measure the real one, counters that
 should shrink with level, a few dropped riders) is listed per element in the
 "Phase 2" section of `plans/reports/porter-<element>-261002-0809-tower-ports.md`.
@@ -94,8 +96,19 @@ should shrink with level, a few dropped riders) is listed per element in the
   `mark`, plus `...PerLevel` variants and `debuffDurPerLevel`.
 - Passives: `levelBonus` (stats that switch on at a level), `miss`,
   `randomTarget`, `reveal`, `charge`, `multishot`, `splash`, `chain`.
+- Phase 3 additions: passives `itemRarityLock`, `attackOverride`,
+  `manaPerAttack {cost, gain}`; trigger `buffed`; proc filters `attacks`,
+  `elements`, `manaAbove`, `goldCost`, `notOwnKill`, `everyPerLevel`/`everyMin`
+  and exact `everySteps: [[level, n], ...]`; towerBuff `pick: 'random'` and
+  `scaleBy` on buff mods; riders `armorStack`, `stunChance`/`slowChance` (+ per
+  level), `slowDurPerLevel`, `dot.durPerLevel`, `stackVuln.attacksOnly`; mark
+  `itemChance`/`itemQuality`; kinds `stealXp`, `dropItem`, `resetGrow`,
+  `resetGrowSelf`, `nextSpellCrit`, `link` (with `fromLinked`), `mana` with
+  `fromOverkill` and `pctCurrent`; scaleBy `goldLinear`, `towerCost`, `maxMana`,
+  `towersInRange` (with `range`); item ports may return `mods` and `attackType`;
+  creep aura `xpBonusPerLevel`. Gold spending never goes below zero.
 - Towers with a YouTD mana value get a mana pool even without autocasts.
-  Experience removal never goes below zero.
+  Experience removal never goes below zero. On-hit procs also fire on the killing blow.
 
 Upstream script bugs that the ports reinterpret: Gryphon Rider's Hammer Fall
 deals 0 damage upstream (ported as 1.5x attack damage), and Storm Battery's

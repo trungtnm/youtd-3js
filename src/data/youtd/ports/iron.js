@@ -5,9 +5,6 @@
 // eslint-disable-next-line no-unused-vars
 import { UNIT, at, proc, autocast } from './helpers.js';
 
-// Gold-scaled tower buffs (buff mods cannot scale at runtime) assume a typical bank of this many gold.
-const TYPICAL_GOLD = 1000;
-
 // Rundown sentry: damage gained per intruder, by creep size (bigger intruders count more).
 const AWARENESS_SIZE_MULT = { mass: 1, challengeMass: 2, normal: 3, air: 4, champion: 5, boss: 6, challenge: 8 };
 
@@ -24,9 +21,9 @@ export const PORTS = {
   rundown_iron_sentry: {
     passives: (row) => {
       const [chance, armor, armorAdd, alertDur, awareDur] = at([[0.4, 3, 0.1, 5, 5], [0.5, 4, 0.15, 10, 8], [0.6, 5, 0.2, 15, 12]], row);
-      // The original armor loss stacks up to 5x and never expires; here it is one long-lasting stack.
+      // Armor loss stacks up to 5x and lasts for the creep's life.
       const list = [proc('Trespasser Awareness', 'enter', { chance, silent: true },
-        { kind: 'debuff', armor, armorPerLevel: armorAdd, debuffDur: 999, fx: 'iron', quiet: true })];
+        { kind: 'debuff', armorStack: { key: 'trespasser', armor, armorPerLevel: armorAdd, max: 5 }, debuffDur: 999, fx: 'iron', quiet: true })];
       for (const [size, k] of Object.entries(AWARENESS_SIZE_MULT)) {
         list.push(proc('Awareness', 'enter', { chance: 1, sizes: [size], silent: true },
           { kind: 'towerBuff', key: `awareness-${size}`, label: 'Awareness', mods: { damage: 0.05 * k }, perLevel: 0.02, dur: awareDur, maxStacks: 20, quiet: true, fx: 'iron' }));
@@ -60,8 +57,11 @@ export const PORTS = {
     },
   },
 
+  // Bronzefied creeps crawl, but their armor hardens by half; when they die they drop better items.
+  // Armor and item quality use the level-0 values (the original's per-level change is not modelled).
   bronze_dragon_roost: {
-    passives: () => [proc('Bronzefication', 'hit', { chance: 0.1, chancePerLevel: 0.004 }, { kind: 'debuff', slow: 0.5, slowDur: 5, fx: 'gold' })],
+    passives: () => [proc('Bronzefication', 'hit', { chance: 0.1, chancePerLevel: 0.004 },
+      { kind: 'debuff', slow: 0.5, slowDur: 5, slowDurPerLevel: 0.1, armorPct: -0.5, mark: { itemQuality: 0.25 }, debuffDur: 5, debuffDurPerLevel: 0.1, fx: 'gold' })],
   },
 
   // Jolt: bonus attack speed plus extra damage on each of the buffed tower's attacks
@@ -85,12 +85,14 @@ export const PORTS = {
       return [proc('Energetic Weapon', 'attack', { chance: 1, silent: true },
         { kind: 'spellDamage', flat: dmg, flatPerLevel: add, manaMult: 3, spendMana: 0.2, radius: 250 / UNIT, fx: 'storm' })];
     },
-    // Energy Absorb: nearby towers attack slower for 8s while this tower regenerates mana faster.
-    // The original's mana bonus scales with the number of towers drained; a cluster of 4 is assumed.
-    actives: (row) => [autocast(row, 'absorb', '🔋', 'Drains nearby towers for 8s: they lose 10% attack speed (less with level) while this tower gains about +8 mana per second.', 'self',
+    // Energy Absorb: nearby towers attack slower for 8s while this tower gains 2 mana per second
+    // (+0.04 per level) for each other tower within 1000: a (towers in range + 1) scaled buff
+    // minus a one-share offset leaves exactly one share per other tower.
+    actives: (row) => [autocast(row, 'absorb', '🔋', 'Drains nearby towers for 8s: they lose 10% attack speed (less with level) while this tower gains +2 mana per second (+0.04 per level) for each other tower.', 'self',
       { kind: 'multi', effects: [
         { kind: 'towerBuff', key: 'absorbed', label: 'Energy Absorb', center: 'self', radius: 1000 / UNIT, others: true, mods: { attackSpeed: -0.1 }, perLevel: -0.01, dur: 8, fx: 'storm' },
-        { kind: 'towerBuff', key: 'absorbing', label: 'Energy Absorb', mods: { manaRegenFlat: 8 }, perLevel: 0.02, dur: 8, fx: 'mana' },
+        { kind: 'towerBuff', key: 'absorbing', label: 'Energy Absorb', mods: { manaRegenFlat: 2 }, perLevel: 0.02, scaleBy: { kind: 'towersInRange', per: 1, range: 1000 / UNIT }, dur: 8, fx: 'mana' },
+        { kind: 'towerBuff', key: 'absorbingOffset', label: 'Energy Absorb', mods: { manaRegenFlat: -2 }, perLevel: 0.02, dur: 8, quiet: true },
       ] })],
   },
 
@@ -128,8 +130,8 @@ export const PORTS = {
   solar_collector: {
     passives: (row) => {
       const cost = at([1, 2], row);
-      // Every attack burns mana that would otherwise feed Release Energy.
-      return [proc('Solar Drain', 'attack', { chance: 1, manaCost: cost, silent: true }, { kind: 'multi', effects: [] })];
+      // Every attack burns mana that would otherwise feed Release Energy; with too little, it holds fire.
+      return [{ type: 'manaPerAttack', cost }];
     },
     actives: (row) => {
       const [dmg, add, stun, bossStun] = at([[4000, 150, 3, 1], [12000, 450, 5, 1.75]], row);
@@ -142,10 +144,10 @@ export const PORTS = {
     passives: (row) => {
       const [chance, add, dmg, dmgAdd] = at([[0.2, 0.003, 1200, 100], [0.25, 0.004, 1800, 150]], row);
       // Shards spread in a cone; modelled as an area around the target. Each grenade adds a
-      // permanent stack of damage taken (the original caps the total near 50%).
+      // permanent stack of attack damage taken (the original caps the total near 50%).
       return [proc('Frag Grenade', 'hit', { chance, chancePerLevel: add },
         { kind: 'spellDamage', flat: dmg, flatPerLevel: dmgAdd, radius: 250 / UNIT, fx: 'fire',
-          stackVuln: { key: 'fragged', pct: 0.02, pctPerLevel: 0.001, max: 12, permanent: true } })];
+          stackVuln: { key: 'fragged', pct: 0.02, pctPerLevel: 0.001, max: 12, permanent: true, attacksOnly: true } })];
     },
     actives: (row) => [autocast(row, 'stim', '💉', 'Stim: +150% attack speed but -50% damage for 5s (+0.08s per level).', 'self',
       { kind: 'towerBuff', key: 'stim', label: 'Stim', mods: { attackSpeed: 1.5, damage: -0.5 }, dur: 5, durPerLevel: 0.08, fx: 'iron' })],
@@ -177,16 +179,28 @@ export const PORTS = {
         const f = 0.5 ** i;
         return { kind: 'spellDamage', flat: 2000 * f, flatPerLevel: 80 * f, slow: 0.3 * f, slowPerLevel: 0.012 * f, slowDur: 1, delay: i, quiet: i > 0, fx: 'holy' };
       });
-      return [proc("Valor's Light", 'enter', { chance: 1 }, { kind: 'multi', effects: pulses })];
+      return [
+        proc("Valor's Light", 'enter', { chance: 1 }, { kind: 'multi', effects: pulses }),
+        // We Will Not Fall: towers within 400 gain damage and spell damage of 0.5% (+0.02% per level)
+        // for each portal percent lost, re-checked every 15s like the original. The scaled buff is
+        // base x (1 + lost), so it starts one lost percent high at full lives.
+        proc('We Will Not Fall', 'periodic', { icd: 15, silent: true },
+          { kind: 'towerBuff', key: 'notFall', label: 'We Will Not Fall', center: 'self', radius: 400 / UNIT, others: true,
+            mods: { damage: 0.005, spell: 0.005 }, perLevel: 0.04, scaleBy: { kind: 'livesLost', per: 1 }, dur: 15.5, quiet: true }),
+      ];
     },
   },
 
-  // Phased creeps drop more and better items; modelled as a short self buff.
+  // Phased creeps drop more and better items when they die. Marks cannot grow per level, so the
+  // value steps up every 5 levels (one proc per step; the highest unlocked step is applied last).
   small_ray_blaster: {
     passives: (row) => {
       const [value, add, dur] = at([[0.05, 0.003, 5], [0.08, 0.0035, 5], [0.1, 0.004, 5], [0.12, 0.0045, 6], [0.15, 0.005, 6]], row);
-      return [proc('Phaze', 'hit', { chance: 1, silent: true },
-        { kind: 'towerBuff', key: 'phaze', label: 'Phaze', mods: { itemFind: value, itemQuality: value }, perLevel: add / value, dur, durPerLevel: 0.1, quiet: true })];
+      return [0, 5, 10, 15, 20, 25].map((level) => {
+        const v = +(value + add * level).toFixed(4);
+        return proc('Phaze', 'hit', { chance: 1, minLevel: level || undefined, silent: true },
+          { kind: 'debuff', mark: { itemChance: v, itemQuality: v }, debuffDur: dur, debuffDurPerLevel: 0.1, fx: 'arcane', quiet: true });
+      });
     },
   },
 
@@ -208,11 +222,11 @@ export const PORTS = {
     passives: () => [
       proc('Goblin Sapper', 'attack', { chance: 0.2, chancePerLevel: 0.004 },
         { kind: 'spellDamage', flat: 4500, flatPerLevel: 180, radius: 250 / UNIT, slow: 0.35, slowPerLevel: 0.006, slowDur: 3, fx: 'fire' }),
-      // Robot and emitter go to a random nearby tower in the original; here they buff the stronghold.
+      // Robot and emitter go to one random other tower within 500.
       proc('Clockwork Engineer', 'attack', { chance: 0.2, chancePerLevel: 0.004 },
-        { kind: 'towerBuff', key: 'robot', label: 'Clockwork Engineer', mods: { damage: 0.25, attackSpeed: 0.25 }, perLevel: 0.024, dur: 5, fx: 'iron' }),
+        { kind: 'towerBuff', key: 'robot', label: 'Clockwork Engineer', center: 'self', radius: 500 / UNIT, others: true, pick: 'random', mods: { damage: 0.25, attackSpeed: 0.25 }, perLevel: 0.024, dur: 5, fx: 'iron' }),
       proc('Probability Field Emitter', 'attack', { chance: 0.2, chancePerLevel: 0.004 },
-        { kind: 'towerBuff', key: 'emitter', label: 'Probability Field', mods: { trigger: 0.45 }, perLevel: 0.6 / 45, dur: 5, fx: 'arcane' }),
+        { kind: 'towerBuff', key: 'emitter', label: 'Probability Field', center: 'self', radius: 500 / UNIT, others: true, pick: 'random', mods: { trigger: 0.45 }, perLevel: 0.6 / 45, dur: 5, fx: 'arcane' }),
       // Pays out when none of the three goblins showed up: (1 - 0.2)^3 at level 0, falling with level.
       proc('Reimbursement', 'attack', { chance: 0.512, chancePerLevel: -0.0068, silent: true }, { kind: 'gold', amount: 5, fx: 'gold' }),
     ],
@@ -226,14 +240,21 @@ export const PORTS = {
     ],
   },
 
+  // Every attack permanently adds damage and attack speed until the tower kills a creep; a kill
+  // wipes the bonus and jams the tower for 2s (modelled as -80% attack speed, no tower stun).
   particle_accelerator: {
     passives: (row) => {
       const v = at([0.02, 0.03, 0.04], row);
       return [
-        proc('Energy Acceleration', 'attack', { chance: 1, silent: true },
-          { kind: 'towerBuff', key: 'accel', label: 'Energy Acceleration', mods: { damage: v, attackSpeed: v }, perLevel: 0.001 / v, dur: 4, maxStacks: 15, quiet: true }),
-        proc('Errant Tachyons', 'kill', { chance: 1, silent: true },
-          { kind: 'towerBuff', key: 'tachyons', label: 'Errant Tachyons', mods: { attackSpeed: -0.8 }, dur: 2, quiet: true }),
+        proc('Energy Acceleration', 'attack', { chance: 1, silent: true }, { kind: 'multi', effects: [
+          { kind: 'growSelf', stat: 'damage', amount: v, amountPerLevel: 0.001 },
+          { kind: 'growSelf', stat: 'attackSpeed', amount: v, amountPerLevel: 0.001 },
+        ] }),
+        proc('Errant Tachyons', 'kill', { chance: 1, silent: true }, { kind: 'multi', effects: [
+          { kind: 'resetGrowSelf', stat: 'damage' },
+          { kind: 'resetGrowSelf', stat: 'attackSpeed' },
+          { kind: 'towerBuff', key: 'tachyons', label: 'Errant Tachyons', mods: { attackSpeed: -0.8 }, dur: 2, quiet: true },
+        ] }),
       ];
     },
   },
@@ -305,16 +326,16 @@ export const PORTS = {
 
   miner: {
     passives: (row) => {
-      // Goldrush attack speed depends on banked gold when it starts; fixed at a typical bank.
-      const [asBase, asDiv, rush, dig] = at([[0, 5, 1, 2], [20, 3, 3, 5], [40, 2, 5, 10]], row);
-      const as = 0.2 + 0.01 * Math.floor(asBase + Math.sqrt(TYPICAL_GOLD) / asDiv);
+      // Goldrush attack speed is 0.2 + 0.01 x (base + sqrt(gold) / divisor), read from the bank when it starts.
+      const [asBase, asDiv, rush, dig] = at([[0, 5, 1, 7.5], [20, 3, 3, 21], [40, 2, 5, 40]], row);
+      const as = 0.2 + 0.01 * asBase;
       return [
         proc('Goldrush', 'attack', { chance: 0.2 },
-          { kind: 'towerBuff', key: 'goldrush', label: 'Goldrush', mods: { attackSpeed: as }, dur: 5, durPerLevel: 0.1, fx: 'gold' }),
+          { kind: 'towerBuff', key: 'goldrush', label: 'Goldrush', mods: { attackSpeed: as }, scaleBy: { kind: 'gold', per: 0.01 / asDiv / as }, dur: 5, durPerLevel: 0.1, fx: 'gold' }),
         // Gold per hit while Goldrush is up (about half the time).
         proc('Goldrush Nuggets', 'hit', { chance: 0.45, silent: true }, { kind: 'gold', amount: rush, fx: 'gold' }),
-        // Every 20s a 25% chance to dig up gold; paid as the expected amount.
-        proc('Excavation', 'periodic', { icd: 20 }, { kind: 'gold', amount: dig, fx: 'gold' }),
+        // Every 20s a 25% chance to dig up gold (paid in whole coins).
+        proc('Excavation', 'periodic', { chance: 0.25, icd: 20 }, { kind: 'gold', amount: dig, fx: 'gold' }),
       ];
     },
   },

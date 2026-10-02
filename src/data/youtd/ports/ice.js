@@ -40,12 +40,10 @@ export const PORTS = {
     actives: (row) => {
       const [maxBonus, buffLevel, dmg, add] = at([[1, 0, 50, 2], [1.125, 1, 100, 4], [1.25, 2, 200, 8], [1.375, 3, 400, 16], [1.5, 4, 600, 24]], row);
       const slow = 0.2 + 0.05 * buffLevel;
-      // The claw lasts 5s (+0.2s per level); the longer duration is folded into the damage per second.
-      const dpsAdd = +(add + dmg * 0.04).toFixed(2);
       return [autocast(row, 'iceclaw', '🐾',
-        `Claws a creep: ${dmg} spell damage per second (+${dpsAdd} per level) and ${Math.round(slow * 100)}% slow for 5s. Each cast permanently grants +0.5% attack speed, up to +${Math.round(maxBonus * 100)}%; the bonus carries over on upgrade.`,
+        `Claws a creep: ${dmg} spell damage per second (+${add} per level) and ${Math.round(slow * 100)}% slow for 5s (+0.2s per level). Each cast permanently grants +0.5% attack speed, up to +${Math.round(maxBonus * 100)}%; the bonus carries over on upgrade.`,
         'creep', { kind: 'multi', effects: [
-          { kind: 'debuff', dot: { dps: dmg, dpsPerLevel: dpsAdd, dur: 5, key: 'iceclaw' }, slow, slowDur: 5, fx: 'frost' },
+          { kind: 'debuff', dot: { dps: dmg, dpsPerLevel: add, dur: 5, durPerLevel: 0.2, key: 'iceclaw' }, slow, slowDur: 5, slowDurPerLevel: 0.2, fx: 'frost' },
           { kind: 'growSelf', stat: 'attackSpeed', amount: 0.005, cap: maxBonus },
         ] }, { pick: 'strong' })];
     },
@@ -79,12 +77,13 @@ export const PORTS = {
           { kind: 'spellDamage', flat: 1500, flatPerLevel: 150, radius: 250 / UNIT, fx: 'frost' }),
         proc('Spread', 'hit', { chance: 0.1, chancePerLevel: 0.002, manaCost: 40 },
           { kind: 'spellDamage', flat: 3000, flatPerLevel: 200, radius: 250 / UNIT, stun: 0.8, fx: 'frost' }),
-        // A 30% roll every 7s, expressed as the same average rate.
-        proc('Magic Boost', 'periodic', { icd: 23, needCreeps: true, manaCost: 40 },
+        // A 30% roll once every 7s.
+        proc('Magic Boost', 'periodic', { chance: 0.3, icd: 7, manaCost: 40 },
           { kind: 'towerBuff', key: 'magicboost', label: 'Magic Boost', radius: 350 / UNIT, mods: { spell: 0.2 }, perLevel: 0.05, dur: 3, fx: 'frost' }),
         // Speed Cast follows 15% of the spells above; rolled alongside each spell's own trigger.
         proc('Speed Cast', 'attack', { chance: 0.03, chancePerLevel: 0.0009, key: 'speedcastEdge' }, speedCast),
         proc('Speed Cast', 'hit', { chance: 0.015, chancePerLevel: 0.0003, key: 'speedcastSpread' }, speedCast),
+        proc('Speed Cast', 'periodic', { chance: 0.045, icd: 7, key: 'speedcastBoost', silent: true }, speedCast),
       ];
     },
   },
@@ -152,12 +151,12 @@ export const PORTS = {
   },
 
   // Attacks charge mana and every hit deals bonus attack damage equal to current mana.
-  // The upstream 1.75%/s mana leak is dropped: the engine has no describable mana-drain effect.
+  // The upstream leak of 1.75% of current mana per second is dropped: mana drains work on flat or max-mana amounts.
   sea_turtle: {
     passives: (row) => {
-      const gain = at([64, 128, 192], row);
+      const [gain, gainPerLevel] = at([[64, 2.56], [128, 5.12], [192, 7.68]], row);
       return [
-        proc('Tidal Charge', 'attack', { chance: 1, silent: true }, { kind: 'mana', self: true, amount: gain }),
+        { type: 'manaPerAttack', gain, gainPerLevel },
         proc('Aqua Breath', 'hit', { chance: 1, silent: true }, { kind: 'attackDamage', flat: 0, manaMult: 1, fx: 'frost' }),
       ];
     },
@@ -176,14 +175,14 @@ export const PORTS = {
   ice_battery: {
     passives: (row) => {
       const [, , slow, add] = at([[300, 12, 0.10, 0.003], [750, 30, 0.15, 0.0045], [1800, 72, 0.20, 0.006]], row);
-      return [proc('Frost', 'hit', { chance: 1, silent: true }, { kind: 'debuff', slow, slowPerLevel: add, slowDur: 9, fx: 'frost', quiet: true })];
+      return [proc('Frost', 'hit', { chance: 1, silent: true }, { kind: 'debuff', slow, slowPerLevel: add, slowDur: 9, slowDurPerLevel: 0.3, fx: 'frost', quiet: true })];
     },
     actives: (row) => {
       const [dmg, add, slow, slowAdd] = at([[300, 12, 0.10, 0.003], [750, 30, 0.15, 0.0045], [1800, 72, 0.20, 0.006]], row);
       // Upstream spends 10 mana per missile until the battery is empty; the 100-mana charge gives 10 missiles.
       return [autocast(row, 'overload', '🔋',
         `Discharges the battery: 10 frost missiles over 2s strike random creeps for ${dmg} spell damage (+${add} per level) each and slow them.`,
-        'self', { kind: 'bolts', count: 10, interval: 0.2, range: 1200 / UNIT, flat: dmg, flatPerLevel: add, slow, slowPerLevel: slowAdd, slowDur: 9, fx: 'frost' })];
+        'self', { kind: 'bolts', count: 10, interval: 0.2, range: 1200 / UNIT, flat: dmg, flatPerLevel: add, slow, slowPerLevel: slowAdd, slowDur: 9, slowDurPerLevel: 0.3, fx: 'frost' })];
     },
   },
 
@@ -224,28 +223,31 @@ export const PORTS = {
 
   icy_skulls: {
     passives: (row) => {
-      const [slow, add, dur] = at([[0.075, 0.003, 3], [0.1, 0.004, 4], [0.125, 0.005, 5], [0.15, 0.006, 6]], row);
-      return [proc('Icy Touch', 'hit', { chance: 1, silent: true }, { kind: 'debuff', slow, slowPerLevel: add, slowDur: dur, fx: 'frost', quiet: true })];
+      const [slow, add, dur, durAdd] = at([[0.075, 0.003, 3, 0.1], [0.1, 0.004, 4, 0.2], [0.125, 0.005, 5, 0.3], [0.15, 0.006, 6, 0.4]], row);
+      return [proc('Icy Touch', 'hit', { chance: 1, silent: true }, { kind: 'debuff', slow, slowPerLevel: add, slowDur: dur, slowDurPerLevel: durAdd, fx: 'frost', quiet: true })];
     },
   },
 
   the_frozen_wyrm: {
     passives: () => [
       proc('Freezing Breath', 'hit', { chance: 0.25, chancePerLevel: 0.01, key: 'breathSlow' },
-        { kind: 'debuff', slow: 0.27, slowPerLevel: 0.002, slowDur: 4, fx: 'frost' }),
+        { kind: 'debuff', slow: 0.27, slowPerLevel: 0.002, slowDur: 4, slowDurPerLevel: 0.24, fx: 'frost' }),
       proc('Freezing Breath', 'hit', { chance: 0.05, chancePerLevel: 0.002, key: 'breathStun' },
         { kind: 'debuff', stun: 1.5, fx: 'frost' }),
     ],
   },
 
-  // Blizzard waves strike once per second. The per-wave slow almost always lands; the per-wave stun chance is dropped.
+  // Blizzard waves strike once per second; each wave rolls its own slow and stun chance per creep.
+  // Upstream both chances also grow per level (+1% slow, +0.1% stun); the base chances are used.
   cold_troll: {
     actives: (row) => {
-      const [slow, slowDur, dmg, radius, waves, ratio] = at([
-        [0.07, 4, 60, 200, 5, 0.1], [0.09, 4.5, 333, 300, 6, 0.036], [0.11, 5, 572, 400, 7, 0.033], [0.14, 5.5, 1000, 500, 8, 0.05]], row);
+      const [slow, slowDur, dmg, radius, waves, ratio, slowChance, stunChance, stun] = at([
+        [0.07, 4, 60, 200, 5, 0.1, 0.3, 0.1, 0.25], [0.09, 4.5, 333, 300, 6, 0.036, 0.35, 0.15, 0.5],
+        [0.11, 5, 572, 400, 7, 0.033, 0.4, 0.2, 0.75], [0.14, 5.5, 1000, 500, 8, 0.05, 0.45, 0.25, 1]], row);
       return [autocast(row, 'blizzard', '🌨',
-        `Calls a blizzard on a group: ${waves} waves of ${dmg} spell damage (+${+(dmg * ratio).toFixed(1)} per level) in an area, slowing creeps by ${Math.round(slow * 100)}%.`,
-        'area', { kind: 'zone', flat: dmg, flatPerLevel: +(dmg * ratio).toFixed(1), radius: radius / UNIT, dur: waves, slow, slowPerLevel: 0.0001, slowDur, fx: 'frost' })];
+        `Calls a blizzard on a group: ${waves} waves of ${dmg} spell damage (+${+(dmg * ratio).toFixed(1)} per level) in an area. Each wave has a ${Math.round(slowChance * 100)}% chance to slow a creep by ${Math.round(slow * 100)}% and a ${Math.round(stunChance * 100)}% chance to stun it for ${stun}s.`,
+        'area', { kind: 'zone', flat: dmg, flatPerLevel: +(dmg * ratio).toFixed(1), radius: radius / UNIT, dur: waves,
+          slow, slowPerLevel: 0.0001, slowDur, slowChance, stun, stunChance, fx: 'frost' })];
     },
   },
 

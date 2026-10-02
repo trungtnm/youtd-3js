@@ -179,3 +179,50 @@ Validation:
 - `towers.js` maps a YouTD mana regeneration of 0 to the engine default. Death Knight and Soulflame work around this with the `noRegen` level bonus. A `manaRegen: 0` that is respected would be cleaner.
 - Formatter glitches: a negative `armorPct`, `armor` or `scaleBy.per` prints as "--40% armor" or "+-2% per mana". The `xp` effect prints "grants -N experience".
 - Missing primitives: a "targeted by an allied spell" trigger (harby, council), an "attack damage taken" rider, `armorPct` on `creepAura`, a per-level field for `execute`, and a `scaleBy` kind for max mana.
+
+## Phase 3
+
+File changed: `src/data/youtd/ports/darkness.js` only.
+
+Validation:
+- The pending check prints `pending 0`, and `describeAbility` runs on every darkness tower without errors.
+- The full-roster sandbox run (110 towers, 180 s) finished with `nonfinite 0`.
+- In a scripted check, Harby has 0 targets at rest. A towerBuff from a Dreadlord gives it 1 target for 5 s, and it goes back to 0 after the buff ends.
+
+### Now exact
+- Mana regeneration of 0 is now respected. The `noRegen` workaround (a -100% regeneration level bonus) is removed from death_knight and soulflame_device. Both now show a regeneration of 0.
+- harby: it sleeps and banks mana until another tower buffs it. A `levelBonus` of -1 multishot at level 0 gives it 0 targets, so it cannot attack. A `'buffed'` proc then gives it +1 target for 5 s. While awake, Arcane Orb spends the banked mana for big hits, as upstream does.
+- "Attack damage taken" now uses `stackVuln.attacksOnly` in place of `curse`:
+  - lesser_skeletal_mage: the curse, with per-level growth and the per-level duration.
+  - dark_battery: Corruption on hits and on the overload missiles.
+- council Darkness: attacks now deal 95% less (`stackVuln.attacksOnly` at -95%). The release of stored damage is modelled as +75% (+1%/level) damage taken while the debuff lasts. Before, it was only extra spell damage taken.
+- dreadlord: Slash deals (1 + 0.04/level) × the current maximum mana, through `scaleBy: maxMana`. Max-mana growth from kills now counts. It is written as (1 + 0.04L) × (1 + maxMana), so it runs about 0.1% high.
+- Durations that grow per level:
+  - essence_of_fury: poison lasts 6 s + 0.1–0.5 s per level, depending on tier (`dot.durPerLevel`).
+  - plagued_crypt: the plague lasts 5 s + 0.2 s per level.
+  - small_frost_fire: the slow lasts 4 s + 0.02–0.10 s per level (`slowDurPerLevel`).
+  - cursed_grounds: the slow lasts 4 s + 0.1 s per level.
+  - undisturbed_crypt: the Corpse Explosion slow now grows with the debuff (0.25 × the buff-level gain).
+  - black_dragon_roost: the Fear slow lasts 5 s + 0.1 s per level.
+
+### Still approximate (no fitting primitive)
+- harby:
+  - A multishot item would let it attack while asleep.
+  - At rest its displayed dps is 0, so ally autocasts that buff a single tower pick it last.
+  - Replenish still restores a fixed 12% (upstream is 10% +0.2%/level), because `mana.pct` has no per-level field.
+  - The Arcane Aura is still a 30 s pulse. There is no trigger for an ally's own cast.
+- chaos_warlock: the execute threshold is still a fixed 5.5% (upstream is 5.5% +0.06%/level). The `execute` passive and `hpBelow` have no per-level field.
+- black_dragon_roost (armor +50% -0.8%/level), soul_vault aura (-25% -0.2%/level) and spider_queen erosion (-(2% +0.08%/level) of armor per second) still use fixed `armorPct`. `armorPct` has no per-level field, and `armorStack` is flat armor, not percent.
+- kraken: the tentacle cooldown is still a fixed 4 s (upstream is 4 s -0.04 s/level). A proc `icd` has no per-level field.
+- village_witch item chance and black_dragon item quality: not added through `mark`. The formatter prints mark riders as "+N% bounty", which would show NaN without a bounty. A mark also replaces any other mark on the creep.
+- death_knight: Will of the Undying still cannot pick out neighbors costing at least 1300 gold. There is no tower-cost filter on `towerBuff`.
+- The rest of the Phase 2 list is unchanged:
+  - void_drake drain steps.
+  - shard_of_souls, it and the Maledict bonus on spell targeting.
+  - The rest of the council, sacrificial_lamb, soulflame Evil Device, plague spread speed-up and dutchman Panic speed-up.
+  - small_bug_nest and thief_apprentice.
+
+### Formatter notes (not in my file)
+- `stackVuln` riders do not say "from attacks" for `attacksOnly`. Dark Battery's passive prints "+10% damage taken per stack (max 1)".
+- `scaleBy: maxMana` prints as "+100% per maxMana".
+- `slowDurPerLevel` and `dot.durPerLevel` are not shown. Where the description is my own autocast text, I wrote the growth there.

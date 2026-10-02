@@ -172,6 +172,11 @@ function procAllowed(game, t, p, ctx) {
   if (p.hpAbove != null && !(c && c.hp / c.maxHp > p.hpAbove)) return false;
   if (p.onCrit && !ctx.crit) return false;
   if (p.manaCost && (t.mana || 0) < p.manaCost) return false;
+  if (p.manaAbove != null && (t.mana || 0) <= p.manaAbove) return false;
+  if (p.goldCost && game.gold < p.goldCost) return false;
+  if (p.notOwnKill && ctx.killer === t) return false;
+  if (p.attacks && !p.attacks.includes(t.stats.attackType || t.def.attack)) return false;
+  if (p.elements && !p.elements.includes(t.def.element)) return false;
   return true;
 }
 
@@ -189,7 +194,11 @@ export function runProcs(game, t, on, ctx) {
         // Deterministic counter: fires on every Nth trigger.
         t.counters ||= {};
         t.counters[key] = (t.counters[key] || 0) + 1;
-        if (t.counters[key] < p.every) continue;
+        // Counters may shrink with level (everyPerLevel < 0), never below everyMin.
+        // everySteps: [[level, every], ...] switches the count at exact levels (e.g. [[15, 9], [25, 8]]).
+        let every = Math.max(p.everyMin ?? 1, Math.round(p.every + (p.everyPerLevel || 0) * t.level));
+        if (p.everySteps) for (const [lvl, n] of p.everySteps) if (t.level >= lvl) every = n;
+        if (t.counters[key] < every) continue;
         t.counters[key] = 0;
       } else {
         let chance = (p.chance ?? 1) + (p.chancePerLevel || 0) * t.level;
@@ -225,7 +234,13 @@ export function applyEffect(game, t, e, target, ctx = {}) {
   // Original YouTD spells deal flat damage that grows per level; others scale off attack damage.
   let base = e.flat != null ? e.flat + (e.flatPerLevel || 0) * t.level : avgDamage(t) * (e.mult || 0) * lvlScale;
   if (e.manaMult) base += (t.mana || 0) * e.manaMult;
-  if (e.scaleBy) base *= 1 + e.scaleBy.per * scaleValue(game, t, e.scaleBy.kind, target);
+  if (e.fromLinked) {
+    // Releases a share of the spell damage the linked ally dealt (needs linkAfter seconds of link).
+    const ready = t.linkTo && game.towers.has(t.linkTo) && game.time - (t.linkSince || 0) >= (e.linkAfter || 0);
+    base += ready ? (t.linkBank || 0) * e.fromLinked : 0;
+    if (ready) t.linkBank = 0;
+  }
+  if (e.scaleBy) base *= 1 + e.scaleBy.per * scaleValue(game, t, e.scaleBy.kind, target, e.scaleBy);
   if (e.spendMana) t.mana = Math.max(0, (t.mana || 0) * (1 - e.spendMana));
   const fx = e.fx || 'arcane';
   switch (e.kind) {
@@ -298,10 +313,13 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       let targets = e.radius ? towersNear(game, cx, cz, e.radius) : [target.tower || t];
       if (e.others) targets = targets.filter((o) => o !== t);
       if (e.element) targets = targets.filter((o) => o.def.element === e.element);
+      if (e.pick === 'random' && targets.length) targets = [targets[Math.floor(game.rng() * targets.length)]];
       for (const o of targets) {
         const dur = (e.dur + (e.durPerLevel || 0) * t.level) * (1 + (t.stats.buffDur || 0));
-        addTowerBuff(game, o, e.key || e.label, scaleMods(e.mods, lvlScale), dur, e.label, e.maxStacks || 1);
+        const runtime = e.scaleBy ? 1 + e.scaleBy.per * scaleValue(game, t, e.scaleBy.kind, target, e.scaleBy) : 1;
+        addTowerBuff(game, o, e.key || e.label, scaleMods(e.mods, lvlScale * runtime), dur, e.label, e.maxStacks || 1);
         if (!e.quiet) game.emit('buffFx', { tower: o, kind: fx });
+        if (o !== t) runProcs(game, o, 'buffed', { from: t });
       }
       break;
     }
@@ -310,15 +328,22 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       for (const o of list) {
         if (!o.maxMana) continue;
         const cap = o.stats.maxMana ?? o.maxMana;
-        o.mana = Math.min(cap, o.mana + (e.pct ? cap * e.pct : e.amount + (e.amountPerLevel || 0) * t.level));
+        // pctCurrent: share of current mana (negative drains), pct: share of max mana.
+        const gain = e.pctCurrent ? o.mana * e.pctCurrent : e.pct ? cap * e.pct : (e.amount || 0) + (e.amountPerLevel || 0) * t.level + (ctx.overkill || 0) * (e.fromOverkill || 0);
+        o.mana = Math.max(0, Math.min(cap, o.mana + gain));
       }
       game.emit('buffFx', { tower: t, kind: 'mana' });
       break;
     }
     case 'gold': {
       const amount = Math.round((e.amount || 0) + (e.perWave || 0) * game.level);
-      game.addGold(amount);
-      game.emit('goldFx', { x: target.x, z: target.z, amount });
+      if (amount < 0) {
+        // Spending never takes the player below zero and is not counted as earnings.
+        game.gold = Math.max(0, game.gold + amount);
+      } else {
+        game.addGold(amount);
+        game.emit('goldFx', { x: target.x, z: target.z, amount });
+      }
       break;
     }
     case 'xp': {
@@ -368,6 +393,45 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       game.computeStats(t);
       break;
     }
+    case 'stealXp': {
+      // Takes experience from a random other tower in range (never below zero).
+      const near = towersNear(game, t.x, t.z, e.radius).filter((o) => o !== t && o.xp > 0);
+      if (!near.length) break;
+      const o = near[Math.floor(game.rng() * near.length)];
+      const take = Math.min(o.xp, e.amount + (e.amountPerLevel || 0) * t.level);
+      game.giveXp(o, -take);
+      game.giveXp(t, take);
+      break;
+    }
+    case 'dropItem': {
+      // Creates an item in the stash, as if dropped by a creep.
+      const item = game.rollItemAt(e.rarity || 'common', e.uniqueChance || 0, e.itemKind || 'equip');
+      if (game.addItem(item)) game.emit('itemDrop', { item, x: target.x, z: target.z, rarity: game.itemDef(item).rarity });
+      break;
+    }
+    case 'resetGrow': {
+      if (ctx.item?.bound) { delete ctx.item.bound[e.stat]; game.computeStats(t); }
+      break;
+    }
+    case 'resetGrowSelf': {
+      if (t.growth) { delete t.growth[e.stat]; game.computeStats(t); }
+      break;
+    }
+    case 'nextSpellCrit': {
+      t.nextSpellCrit = (t.nextSpellCrit || 0) + (e.count || 1);
+      break;
+    }
+    case 'link': {
+      // Links this tower to an ally; the ally's spell damage is banked on this tower.
+      const o = target.tower;
+      if (!o || o === t) break;
+      if (t.linkTo === o.uid) break; // already linked: keep the bank and the timer
+      if (t.linkTo && game.towers.get(t.linkTo)) game.towers.get(t.linkTo).linkedBy = null;
+      t.linkTo = o.uid; t.linkSince = game.time; t.linkBank = 0;
+      o.linkedBy = t.uid;
+      game.emit('buffFx', { tower: o, kind: fx });
+      break;
+    }
     case 'transferXp': {
       // Moves experience from this tower to others nearby (never below zero).
       const near = towersNear(game, t.x, t.z, e.radius).filter((o) => o !== t).slice(0, e.count || 5);
@@ -393,14 +457,24 @@ function debuffCreep(game, t, c, e) {
   const resist = c.specials.includes('unyielding') ? 0.4 : 1;
   const lvl = t.level;
   const dur = (e.debuffDur || 5) + (e.debuffDurPerLevel || 0) * lvl;
-  if (e.stun) {
+  if (e.stun && (e.stunChance == null || game.rng() < e.stunChance + (e.stunChancePerLevel || 0) * t.level)) {
     const bossCut = c.size === 'boss' || c.size === 'challenge' ? (e.bossStunMult ?? 1) : 1;
     c.stun = Math.max(c.stun, (e.stun + (e.stunPerLevel || 0) * lvl) * resist * bossCut);
     game.emit('stun', c);
   }
-  if (e.slow) {
+  if (e.slow && (e.slowChance == null || game.rng() < e.slowChance + (e.slowChancePerLevel || 0) * t.level)) {
     const pct = (e.slow + (e.slowPerLevel || 0) * t.level) * resist;
-    if (pct >= c.slow) { c.slow = pct; c.slowT = Math.max(c.slowT, e.slowDur || 3); }
+    const slowDur = (e.slowDur || 3) + (e.slowDurPerLevel || 0) * t.level;
+    if (pct >= c.slow) { c.slow = pct; c.slowT = Math.max(c.slowT, slowDur); }
+  }
+  if (e.armorStack) {
+    // Flat armor loss that stacks per source up to max.
+    const k = `${t.def.family}-stack-${e.armorStack.key || ''}`;
+    const cur = c.shred[k] || { stacks: 0, armor: e.armorStack.armor, t: 0 };
+    cur.stacks = Math.min(e.armorStack.max || 1, cur.stacks + 1);
+    cur.armor = e.armorStack.armor + (e.armorStack.armorPerLevel || 0) * t.level;
+    cur.t = dur;
+    c.shred[k] = cur;
   }
   if (e.armor) {
     const k = `${t.def.family}-spell`;
@@ -416,14 +490,14 @@ function debuffCreep(game, t, c, e) {
   if (e.dot) {
     // Flat spell damage over time; stacks per source up to maxStacks.
     const d = e.dot;
-    game.addFlatDot(t, c, d.key || t.def.family, d.dps + (d.dpsPerLevel || 0) * lvl, d.dur, d.maxStacks || 1);
+    game.addFlatDot(t, c, d.key || t.def.family, d.dps + (d.dpsPerLevel || 0) * lvl, d.dur + (d.durPerLevel || 0) * lvl, d.maxStacks || 1);
   }
   if (e.pushBack) c.dist = Math.max(0, c.dist - e.pushBack);
   if (e.stackVuln) {
     const v = e.stackVuln;
     c.vulnStack ||= {};
     const k = v.key || t.def.family;
-    const cur = c.vulnStack[k] || { stacks: 0, pct: v.pct, t: 0, element: v.element, attack: v.attack, spellOnly: v.spellOnly };
+    const cur = c.vulnStack[k] || { stacks: 0, pct: v.pct, t: 0, element: v.element, attack: v.attack, spellOnly: v.spellOnly, attacksOnly: v.attacksOnly };
     cur.stacks = Math.min(v.max || 1, cur.stacks + 1);
     cur.pct = v.pct + (v.pctPerLevel || 0) * lvl;
     cur.t = v.permanent ? Infinity : dur;
@@ -436,7 +510,13 @@ function debuffCreep(game, t, c, e) {
     const cur = c.vulnEl[e.vulnElement.el];
     if (!cur || cur.pct <= e.vulnElement.pct) c.vulnEl[e.vulnElement.el] = { pct: e.vulnElement.pct, t: dur };
   }
-  if (e.mark) c.mark = { ...e.mark, t: dur };
+  if (e.mark) {
+    // Marks from several towers merge, keeping the strongest value of each field.
+    const prev = c.mark || {};
+    const next = { ...prev, t: Math.max(prev.t || 0, dur) };
+    for (const [k, v] of Object.entries(e.mark)) next[k] = Math.max(prev[k] || 0, v);
+    c.mark = next;
+  }
 }
 
 // Ticks creep-side ability debuffs (vulnerability, marks).
@@ -456,17 +536,21 @@ function hpPart(c, e) {
 }
 
 // Runtime values an effect can scale with (scaleBy: { kind, per }).
-function scaleValue(game, t, kind, target) {
+function scaleValue(game, t, kind, target, opts = {}) {
   switch (kind) {
     case 'mana': return t.mana || 0;
     case 'gold': return Math.sqrt(Math.max(0, game.gold));
     case 'livesLost': return 100 - game.lives;
     case 'towers': return game.towers.size;
+    case 'towersInRange': return towersNear(game, t.x, t.z, opts.range ?? t.stats.range).length - 1;
     case 'elementTowers': return [...game.towers.values()].filter((o) => o.def.element === t.def.element).length;
     case 'wave': return game.level;
     case 'creepsInRange': return creepsNear(game, t.x, t.z, t.stats.range).length;
     case 'targetMissingHp': return target.creep ? 1 - target.creep.hp / target.creep.maxHp : 0;
     case 'kills': return t.kills;
+    case 'goldLinear': return Math.max(0, game.gold);
+    case 'towerCost': return t.invested || t.def.totalCost;
+    case 'maxMana': return t.stats.maxMana ?? t.maxMana ?? 0;
     default: return 0;
   }
 }

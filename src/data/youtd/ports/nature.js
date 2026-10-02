@@ -12,6 +12,12 @@ const aura = (stat, value, valuePerLevel, radius) => ({ type: 'aura', stat, valu
 // Ground creeps below boss size (YouTD roots and entangles skip air and bosses).
 const GROUND_SMALL = ['mass', 'normal', 'champion', 'challengeMass'];
 
+// Nature's Gift: the stat each element's towers receive, with its base value and per-level gain.
+const GIFT_STATS = {
+  astral: ['xp', 0.28, 0.008], darkness: ['spell', 0.16, 0.004], nature: ['crit', 0.04, 0.001], fire: ['damage', 0.16, 0.004],
+  ice: ['buffDur', 0.2, 0.006], storm: ['attackSpeed', 0.08, 0.002], iron: ['itemFind', 0.06, 0.0014],
+};
+
 export const PORTS = {
   annoyed_tree: {
     passives: (row) => {
@@ -96,7 +102,7 @@ export const PORTS = {
       return [
         proc('Gift of the Forest', 'hit', { chance: stun, chancePerLevel: 0.001 }, { kind: 'debuff', stun: 1.75, stunPerLevel: 0.05, fx: 'nature' }),
         // Roots only roll when the stun did not.
-        proc('Grasping Roots', 'hit', { chance: slow * (1 - stun), chancePerLevel: 0.001 }, { kind: 'debuff', slow: 0.15, slowDur, fx: 'nature' }),
+        proc('Grasping Roots', 'hit', { chance: slow * (1 - stun), chancePerLevel: 0.001 }, { kind: 'debuff', slow: 0.15, slowDur, slowDurPerLevel: 0.2, fx: 'nature' }),
         { type: 'levelBonus', level: 15, mods: { multishot: 1 } },
       ];
     },
@@ -104,7 +110,7 @@ export const PORTS = {
 
   mud_golem: {
     passives: (row) => {
-      const smash = { kind: 'attackDamage', flat: 4300, flatPerLevel: 230, radius: 750 / UNIT, slow: 0.6, slowDur: 0.5, fx: 'nature' };
+      const smash = { kind: 'attackDamage', flat: 4300, flatPerLevel: 230, radius: 750 / UNIT, slow: 0.6, slowDur: 0.5, slowDurPerLevel: 0.012, fx: 'nature' };
       return [
         proc('Ground Smash', 'hit', { chance: 1 }, smash),
         // The Earthquake aura also lets the golem's own attacks smash (other towers' attacks are not ported).
@@ -136,7 +142,7 @@ export const PORTS = {
     passives: (row) => {
       const [dmg, add] = at([[30, 1.5], [90, 4.5], [270, 13.5], [750, 37.5]], row);
       return [proc('Poisonous Spittle', 'hit', { chance: 1, silent: true },
-        { kind: 'debuff', dot: { dps: dmg, dpsPerLevel: add, dur: 5, maxStacks: 5, key: 'spider-poison' }, quiet: true, fx: 'nature' })];
+        { kind: 'debuff', dot: { dps: dmg, dpsPerLevel: add, dur: 5, durPerLevel: 0.05, maxStacks: 5, key: 'spider-poison' }, quiet: true, fx: 'nature' })];
     },
   },
 
@@ -182,7 +188,7 @@ export const PORTS = {
       { ...aura('attackSpeed', -0.2, 0.004, auraRadius(row, 450)), name: 'Tranquility' },
       // A three-wave leaf blizzard over the target.
       proc('Leaf Storm', 'hit', { chance: 0.15, chancePerLevel: 0.006 },
-        { kind: 'zone', flat: 700, flatPerLevel: 30, dur: 3, radius: 200 / UNIT, slow: 0.3, slowPerLevel: 0.006, slowDur: 1, fx: 'nature' }),
+        { kind: 'zone', flat: 700, flatPerLevel: 30, dur: 3, radius: 200 / UNIT, slow: 0.3, slowPerLevel: 0.006, slowDur: 1, slowDurPerLevel: 0.04, fx: 'nature' }),
       proc('Thorned!', 'enter', { chance: 1, silent: true },
         { kind: 'debuff', stackVuln: { pct: 0.3, pctPerLevel: 0.006, max: 1, element: 'nature', key: 'thorned' },
           debuffDur: 3, debuffDurPerLevel: 0.06, quiet: true, fx: 'nature' }),
@@ -208,22 +214,23 @@ export const PORTS = {
     passives: (row) => {
       const [, , poison, poisonAdd, slow, slowAdd] = at([[300, 12, 100, 3, 0.05, 0.0012], [750, 30, 240, 8, 0.07, 0.0028], [1800, 72, 600, 20, 0.10, 0.004]], row);
       return [proc('Poison', 'hit', { chance: 1, silent: true },
-        { kind: 'debuff', dot: { dps: poison, dpsPerLevel: poisonAdd, dur: 9, key: 'battery-poison' },
-          slow, slowPerLevel: slowAdd, slowDur: 9, quiet: true, fx: 'nature' })];
+        { kind: 'debuff', dot: { dps: poison, dpsPerLevel: poisonAdd, dur: 9, durPerLevel: 0.3, key: 'battery-poison' },
+          slow, slowPerLevel: slowAdd, slowDur: 9, slowDurPerLevel: 0.3, quiet: true, fx: 'nature' })];
     },
     actives: (row) => {
       const [dmg, add, poison, poisonAdd, slow, slowAdd] = at([[300, 12, 100, 3, 0.05, 0.0012], [750, 30, 240, 8, 0.07, 0.0028], [1800, 72, 600, 20, 0.10, 0.004]], row);
       // The spent 100 mana feeds one orb per 10 mana, fired every 0.2s at random creeps.
       return [autocast(row, 'overload', '🔋', 'Dumps the battery: a stream of poison orbs strikes random creeps nearby.', 'self',
         { kind: 'bolts', count: 9, interval: 0.2, flat: dmg, flatPerLevel: add, range: 1200 / UNIT,
-          dot: { dps: poison, dpsPerLevel: poisonAdd, dur: 9, key: 'battery-poison' }, slow, slowPerLevel: slowAdd, slowDur: 9, fx: 'nature' })];
+          dot: { dps: poison, dpsPerLevel: poisonAdd, dur: 9, durPerLevel: 0.3, key: 'battery-poison' }, slow, slowPerLevel: slowAdd, slowDur: 9, slowDurPerLevel: 0.3, fx: 'nature' })];
     },
   },
 
   magic_mushroom: {
     passives: () => [
-      // 40% chance every 20s: one growth per ~50s on average, up to 40 growths.
-      proc('Rapid Growth', 'periodic', { icd: 50, silent: true },
+      // 40% chance every 20s, up to 40 growths. The original period shrinks by 0.4s per level;
+      // raising the chance instead keeps the same growth rate (equal at levels 0 and 25).
+      proc('Rapid Growth', 'periodic', { chance: 0.4, chancePerLevel: 0.016, icd: 20, silent: true },
         { kind: 'growSelf', stat: 'spell', amount: 0.03, amountPerLevel: 0.0012, cap: 40 * (0.03 + 0.0012 * 25) }),
       // Each trance empowers the next hit; with the mushroom's mana that is about every 14th hit.
       proc('Fungus Strike', 'hit', { every: 14 },
@@ -237,11 +244,14 @@ export const PORTS = {
 
   forest_protectress: {
     passives: (row) => [
-      // Meld builds +18%/s damage until Wrath fires and resets it; this keeps the average bonus.
+      // Meld builds damage every second (12 times at most) until Wrath fires and spends it.
       proc('Meld with the Forest', 'periodic', { icd: 1, silent: true },
-        { kind: 'towerBuff', key: 'meld', label: 'Meld with the Forest', mods: { damage: 1.0 }, perLevel: 0.055, dur: 1.5, quiet: true, fx: 'nature' }),
-      proc("Protectress's Wrath", 'hit', { chance: 0.27 },
-        { kind: 'attackDamage', mult: 0.5, perLevel: 0.04, radius: 250 / UNIT, slow: 0.5, slowDur: 1.5, fx: 'nature' }),
+        { kind: 'growSelf', stat: 'damage', amount: 0.18, amountPerLevel: 0.01, cap: 12 * (0.18 + 0.01 * 25) }),
+      // Wrath's chance grows with the time since the last one (5% per second); 27% per hit is its average.
+      proc("Protectress's Wrath", 'hit', { chance: 0.27 }, { kind: 'multi', effects: [
+        { kind: 'attackDamage', mult: 0.5, perLevel: 0.04, radius: 250 / UNIT, slow: 0.5, slowDur: 1.5, slowDurPerLevel: 0.04, fx: 'nature' },
+        { kind: 'resetGrowSelf', stat: 'damage' },
+      ] }),
       // Crit bonus scales with the target's remaining health; about half on average.
       { ...aura('crit', 0.125, 0.005, auraRadius(row, 175)), name: 'Strike the Unprepared' },
     ],
@@ -250,10 +260,15 @@ export const PORTS = {
   nature_sprites: {
     actives: (row) => {
       const s = at([1.0, 1.5, 2.0], row);
-      // The original buff depends on the target's element plus a random second stat;
-      // damage and attack speed stand in for that mix.
-      return [autocast(row, 'gift', '🧚', 'Sprites bless a nearby tower with more damage and faster attacks.', 'tower',
-        { kind: 'towerBuff', key: 'naturesGift', label: "Nature's Gift", mods: { damage: 0.16 * s, attackSpeed: 0.08 * s }, perLevel: 0.025, dur: 5, fx: 'nature' })];
+      // The main stat follows the target's element. The random second stat (one of the other six)
+      // is kept as its expectation: a sixth of each. Per-level growth follows the main stat.
+      const effects = Object.entries(GIFT_STATS).map(([el, [stat, v, add]]) => {
+        const mods = {};
+        for (const [other, [oStat, oV]] of Object.entries(GIFT_STATS)) mods[oStat] = oV * s * (other === el ? 1 : 1 / 6);
+        return { kind: 'towerBuff', element: el, key: 'gift', label: "Nature's Gift", mods: { [stat]: mods[stat], ...mods }, perLevel: add / v, dur: 5, fx: 'nature' };
+      });
+      return [autocast(row, 'gift', '🧚', "Sprites bless a nearby tower: a strong boost matched to the tower's element, plus a smaller random one.", 'tower',
+        { kind: 'multi', effects })];
     },
   },
 

@@ -262,7 +262,7 @@ export const PORTS = {
       const [chain, hit] = at([[150, 70], [560, 260], [1680, 770], [4000, 1840]], row);
       return [
         proc('Force Attack', 'hit', { chance: 1, silent: true }, { kind: 'spellDamage', flat: hit, flatPerLevel: +(hit * 0.02).toFixed(1), quiet: true, fx: 'storm' }),
-        proc('Chain Lightning', 'hit', { chance: 0.195, chancePerLevel: 0.0025 },
+        proc('Chain Lightning', 'attack', { chance: 0.195, chancePerLevel: 0.0025 },
           { kind: 'chainSpell', flat: chain, flatPerLevel: +(chain * 0.02).toFixed(1), count: 2, falloff: 0, fx: 'storm' }),
       ];
     },
@@ -281,7 +281,7 @@ export const PORTS = {
   },
 
   the_conduit: {
-    passives: () => [proc('Absorb Energy', 'hit', { chance: 0.1, chancePerLevel: 0.002 }, { kind: 'mana', self: true, amount: 50 })],
+    passives: () => [proc('Absorb Energy', 'hit', { chance: 0.1, chancePerLevel: 0.002 }, { kind: 'mana', self: true, amount: 50, amountPerLevel: 1 })],
     actives: (row) => [autocast(row, 'unleash', '⚡', 'Unleashes stored energy as lightning: 400 spell damage (+8 per level) for every wave so far. Towers next to the conduit gain +75% spell crit damage for 3 seconds.', 'creep',
       { kind: 'multi', effects: [
         { kind: 'spellDamage', flat: 400, flatPerLevel: 8, scaleBy: { kind: 'wave', per: 1 }, fx: 'storm' },
@@ -328,6 +328,57 @@ export const PORTS = {
     // The shock grows with the distance the creep travels; this assumes a typical walking speed.
     actives: (row) => [autocast(row, 'magneticsurge', '🧲', 'Magnetizes a creep: it is shocked as it moves for the next 4 seconds, about 16000 spell damage in total (+2% per level).', 'creep',
       { kind: 'debuff', dot: { dps: 4000, dpsPerLevel: 80, dur: 4, key: 'magneticsurge' }, fx: 'storm' }, { pick: 'first' })],
+  },
+
+  ruined_wind_tower: {
+    // Upstream throws held items of other rarities back to the stash on every attack; the
+    // engine lock rejects them on equip and returns them on upgrade, which ends the same way.
+    passives: (row) => [{ type: 'itemRarityLock', rarity: at(['common', 'uncommon', 'rare', 'unique'], row) }],
+  },
+
+  cloudy_temple_of_absorption: {
+    passives: () => {
+      // Overkill on creeps dying nearby becomes mana: x1 plus 5% per level, in steps of 0.5 at
+      // levels 5, 15, 25... (within 0.25 of the exact multiplier). The steps share one cooldown
+      // key, listed highest first, so only the highest unlocked step pays out per death.
+      // Upstream ignores creeps hit by its own storm, otherwise the storm would feed itself.
+      // Own kills stand in for that: they set the shared key for the rest of the frame, so the
+      // death that follows pays nothing.
+      const absorb = { key: 'absorb', icd: 0.001, chance: 1, silent: true };
+      const steps = [55, 45, 35, 25, 15, 5, 0].map((lvl) => proc(lvl ? `Cloud of Absorption (level ${lvl})` : 'Cloud of Absorption', 'death',
+        { ...absorb, minLevel: lvl || undefined }, { kind: 'mana', self: true, amount: 0, fromOverkill: 1 + 0.5 * Math.ceil(lvl / 10) }));
+      return [
+        proc('Own kills absorb nothing', 'kill', absorb, { kind: 'multi', effects: [] }),
+        ...steps,
+        // Every 0.4s above 1000 mana, a bolt deals mana x (0.5 + 0.02 per level) to a random creep.
+        // Upstream drains mana by how much of the creep's health the bolt removed; this spends
+        // a fixed 30% of the current mana per bolt instead.
+        proc('Cloudy Thunderstorm', 'periodic', { icd: 0.4, manaAbove: 1000, needCreeps: true, silent: true },
+          { kind: 'bolts', count: 1, interval: 0, flat: 0.5, flatPerLevel: 0.02, scaleBy: { kind: 'mana', per: 1 }, spendMana: 0.3,
+            range: 1000 / UNIT, fx: 'storm' }),
+      ];
+    },
+  },
+
+  dimensional_flux_collector: {
+    // The collector never attacks. Once linked for 10 seconds, it fires every second at a random
+    // creep within 800, dealing energy attack damage equal to 25% (+1% per level) of the spell
+    // damage the linked tower dealt in the meantime. The level share comes in steps at levels
+    // 5, 15, 25...; the procs share one cooldown, so only the highest unlocked step fires.
+    passives: () => {
+      const steps = [55, 45, 35, 25, 15, 5, 0];
+      return [
+        { type: 'attackOverride', attack: 'energy' },
+        ...steps.map((lvl) => {
+          const pct = +(0.25 + 0.01 * (lvl ? lvl + 5 : 0)).toFixed(2);
+          return proc(lvl ? `Dimensional Flux (level ${lvl})` : 'Dimensional Flux', 'periodic', { key: 'flux', icd: 1, needCreeps: true, silent: true, minLevel: lvl || undefined },
+            { kind: 'bolts', attack: true, count: 1, interval: 0, flat: 0, fromLinked: pct, linkAfter: 10, range: 800 / UNIT, fx: 'storm' });
+        }),
+      ];
+    },
+    // A player-chosen link upstream. Re-casting resets the link, so it is not cast automatically.
+    actives: (row) => [autocast(row, 'dimlink', '🔗', 'Links the strongest allied tower nearby to the collector. The collector banks the spell damage that tower deals and releases it as flux. Cast it once; re-casting restarts the link.', 'tower',
+      { kind: 'link', fx: 'storm' }, { auto: false, anytime: true })],
   },
 
   lightning_totem: {
