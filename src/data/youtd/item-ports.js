@@ -19,6 +19,9 @@
 // - Item autocasts become periodic procs with the autocast cooldown.
 
 import { UNIT, proc } from './ports/helpers.js';
+import { ITEM_PORTS_INVENTORY } from './item-ports-inventory.js';
+import { ITEM_PORTS_HITS } from './item-ports-hits.js';
+import { ITEM_PORTS_WAVES } from './item-ports-waves.js';
 
 // Silent, quiet effects for frequent ticks so they do not spam visuals.
 const tick = (name, icd, effect, opts = {}) => proc(name, 'periodic', { icd, silent: true, ...opts }, { quiet: true, ...effect });
@@ -434,4 +437,7 @@ export const ITEM_PORTS = {
       { kind: 'towerBuff', key: 'exhausted', label: 'Exhausted', mods: { damage: -0.5 }, dur: 12, quiet: true },
     ] })],
   }),
+  ...ITEM_PORTS_INVENTORY,
+  ...ITEM_PORTS_HITS,
+  ...ITEM_PORTS_WAVES,
 };
