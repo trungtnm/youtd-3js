@@ -414,6 +414,12 @@ export class World {
       fx.text(tower.x, 2, tower.z, `+${refund}`, 'gold');
       audio?.sell();
     });
+    // Teleported towers (Chrono Jumper) keep their tile; only the body moves.
+    game.on('towerMoved', (t) => {
+      const v = this.towerViews.get(t.uid);
+      if (v) v.group.position.set(t.x, 0, t.z);
+      fx.puff(t.x, 0.5, t.z, 0x8fb8ff, 16, 0.9, 1);
+    });
     game.on('levelUp', (t) => { fx.levelUp(t); fx.text(t.x, 3.5, t.z, `Level ${t.level}`, 'level'); audio?.levelUp(); });
     game.on('itemDrop', ({ x, z, rarity, item }) => {
       fx.beacon(x, z, RARITIES[rarity].color);

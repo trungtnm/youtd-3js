@@ -109,6 +109,16 @@ should shrink with level, a few dropped riders) is listed per element in the
   creep aura `xpBonusPerLevel`. Gold spending never goes below zero.
 - Towers with a YouTD mana value get a mana pool even without autocasts.
   Experience removal never goes below zero. On-hit procs also fire on the killing blow.
+- Item instances (inventory items): procs with `on: 'equip'` / `'unequip'` run once
+  when an item joins or leaves a tower (equip, unequip, swap, sell, rarity-lock
+  ejection, item moves; `hidden` keeps a hook out of the description). Item ports may
+  return `state` (per-instance state kept on the item, read with `game.itemState`) and
+  `requires: 'corner'`. Item proc cooldowns travel with the item, and periodic procs with
+  `waitFirst` start a full cooldown on pickup. An effect that returns `false` (nothing to
+  do) retries after at most 1s. Kinds: `itemXp` (experience stored on the item, taken back
+  exactly on unequip, levels included), `duplicateItem`, `buyItem`, `moveItem`,
+  `copyItems` (copies apply without slots and without autocast procs), `jumpTower`
+  (moves the tower body; its tile stays reserved; `towerMoved` event).
 
 Upstream script bugs that the ports reinterpret: Gryphon Rider's Hammer Fall
 deals 0 damage upstream (ported as 1.5x attack damage), and Storm Battery's

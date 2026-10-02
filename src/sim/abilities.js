@@ -3,6 +3,7 @@
 // the same building blocks.
 
 import { RARITIES } from '../data/constants.js';
+import { ECON } from '../data/constants.js';
 
 // ------------------------------------------------------------------ tower buffs
 
@@ -184,7 +185,8 @@ function procAllowed(game, t, p, ctx) {
 
 export function runProcs(game, t, on, ctx) {
   const sources = [[t.def.abilities, null]];
-  for (const it of t.items) if (it && game.itemDef(it).procs) sources.push([game.itemDef(it).procs, it]);
+  // Copies (made by another item) run without their autocast procs.
+  for (const it of game.carriedItems(t)) if (it && game.itemDef(it).procs) sources.push([it.copyOf ? game.itemDef(it).copyProcs : game.itemDef(it).procs, it]);
   for (const [list, item] of sources) {
     for (const p of list) {
       if (p.type !== 'proc' || p.on !== on) continue;
@@ -218,8 +220,22 @@ export function runProcs(game, t, on, ctx) {
       if (p.manaCost) t.mana -= p.manaCost;
       const target = ctx.creep ? { creep: ctx.creep, x: ctx.creep.x, z: ctx.creep.z } : { tower: t, x: t.x, z: t.z };
       if (!p.silent) game.emit('proc', { tower: t, name: p.name, x: target.x, z: target.z, fx: p.effect.fx });
-      applyEffect(game, t, p.effect, target, { ...ctx, item });
+      // An effect that finds nothing to do returns false; it retries after at most 1s.
+      if (applyEffect(game, t, p.effect, target, { ...ctx, item }) === false && p.icd) t.procCd[key] = Math.min(p.icd, 1);
     }
+  }
+}
+
+// Item hooks: procs with on 'equip' | 'unequip' run once for that item when it joins or
+// leaves a tower (see Game.itemHook). Effects read ctx.hook to tell the two apart.
+export function runItemHook(game, t, item, on) {
+  const def = game.itemDef(item);
+  for (const p of (item.copyOf ? def.copyProcs : def.procs) || []) {
+    if (p.type !== 'proc') continue;
+    if (p.on === on) applyEffect(game, t, p.effect, { tower: t, x: t.x, z: t.z }, { item, hook: on });
+    // waitFirst: a periodic proc starts a full cooldown on pickup unless one carried over.
+    const key = `i${item.uid}:${p.key || p.name}`;
+    if (on === 'equip' && p.on === 'periodic' && p.waitFirst && !(t.procCd[key] > 0)) t.procCd[key] = p.icd;
   }
 }
 
@@ -442,6 +458,97 @@ export function applyEffect(game, t, e, target, ctx = {}) {
     }
     case 'multi': {
       for (const sub of e.effects) applyEffect(game, t, sub, target, ctx);
+      break;
+    }
+    case 'itemXp': {
+      // Experience stored on the item: released into the carrier on equip, and up to
+      // `amount` taken back on unequip (levels included), so moving it never duplicates it.
+      const st = game.itemState(ctx.item);
+      if (ctx.hook === 'unequip') st.xp = game.takeXpFlat(t, e.amount);
+      else if (ctx.hook === 'equip') { game.addXpFlat(t, st.xp || 0); st.xp = 0; }
+      break;
+    }
+    case 'duplicateItem': {
+      // Loses a charge per wave level while carried. At zero it makes a copy of itself with
+      // `growth` more charges (onto the carrier, else the stash) and recharges.
+      const it = ctx.item;
+      const st = game.itemState(it);
+      if (ctx.hook === 'equip') { st.lastLevel = game.level; break; }
+      st.lastLevel ??= game.level;
+      if (game.level > st.lastLevel) { st.charges -= game.level - st.lastLevel; st.lastLevel = game.level; }
+      if (st.charges > 0) break;
+      const base = st.base + e.growth;
+      const made = game.makeItem(it.id, { state: { charges: base, base } });
+      const slot = ctx.hook ? -1 : game.freeSlotFor(t, made);
+      if (slot >= 0) game.placeItem(t, slot, made);
+      else if (!game.addItem(made)) break; // stash full: keep the charge at zero and retry
+      st.charges += st.base;
+      game.emit('itemDrop', { item: made, x: t.x, z: t.z, rarity: game.itemDef(made).rarity });
+      break;
+    }
+    case 'buyItem': {
+      // Gains a charge every `levelsPerCharge` wave levels (max `maxCharges`, counted even in
+      // the stash). Each charge buys a random item of wave level minWave-maxWave for `cost` gold.
+      const st = game.itemState(ctx.item);
+      st.lastLevel ??= st.born;
+      if (game.level > st.lastLevel) {
+        st.acc += game.level - st.lastLevel;
+        st.lastLevel = game.level;
+        if (st.charges >= e.maxCharges) st.acc = 0;
+        while (st.acc >= e.levelsPerCharge && st.charges < e.maxCharges) { st.acc -= e.levelsPerCharge; st.charges++; }
+      }
+      if (st.charges <= 0 || game.gold < e.cost || game.stash.length >= ECON.stashSize) break;
+      const roll = game.rng();
+      const rarity = roll < e.unique ? 'unique' : roll < e.unique + e.rare ? 'rare' : 'uncommon';
+      const bought = game.randomItemBetween(rarity, e.minWave, e.maxWave);
+      if (!bought || !game.addItem(bought)) break;
+      st.charges--;
+      game.gold -= e.cost;
+      game.emit('notice', { text: `Bought ${game.itemDef(bought).name} for ${e.cost} gold`, kind: 'item', rarity });
+      break;
+    }
+    case 'moveItem': {
+      // The item hops to a random other tower within `radius` that can hold it, or goes
+      // back to the stash when none can. Copies have no slot to leave.
+      const it = ctx.item;
+      const slot = t.items.indexOf(it);
+      if (it.copyOf || slot < 0) break;
+      const dests = towersNear(game, t.x, t.z, e.radius).filter((o) => o !== t && game.freeSlotFor(o, it) >= 0);
+      const to = dests.length ? dests[Math.floor(game.rng() * dests.length)] : null;
+      if (!game.transferItem(t, slot, to)) break;
+      if (to) game.emit('spellChain', { tower: t, points: [{ x: t.x, z: t.z, y: 2.5 }, { x: to.x, z: to.z, y: 2.5 }], fx });
+      else game.emit('notice', { text: `${game.itemDef(it).name} returned to the stash`, kind: 'item' });
+      break;
+    }
+    case 'copyItems': {
+      // On equip, copies every other item the carrier holds: their stats and procs apply
+      // without using slots (autocast procs stay off). On unequip the copies vanish.
+      const it = ctx.item;
+      if (it.copyOf) break;
+      const st = game.itemState(it);
+      for (const cp of st.copies || []) game.itemHook(t, cp, 'unequip');
+      st.copies = [];
+      if (ctx.hook !== 'equip') break;
+      st.copies = t.items.filter((o) => o && o.id !== it.id).map((o) => game.makeItem(o.id, { copyOf: it.uid }));
+      for (const cp of st.copies) game.itemHook(t, cp, 'equip');
+      break;
+    }
+    case 'jumpTower': {
+      // Teleports the carrier to the free tile within `range` that covers the most creeps,
+      // with a timed buff, and brings it back after `dur` seconds. Its own tile stays reserved.
+      if (t.jumpHome) return false;
+      const spot = game.jumpSpot(t, e.range);
+      if (!spot) return false;
+      const home = { x: t.x, z: t.z };
+      t.jumpHome = home;
+      game.emit('proc', { tower: t, name: e.label, x: t.x, z: t.z, fx });
+      game.moveTower(t, spot.x, spot.z);
+      addTowerBuff(game, t, e.key, e.mods, e.dur, e.label);
+      game.emit('buffFx', { tower: t, kind: fx });
+      game.delayed.push({ at: game.time + e.dur, fn: () => {
+        t.jumpHome = null;
+        if (game.towers.has(t.uid)) game.moveTower(t, home.x, home.z);
+      } });
       break;
     }
     default: break;

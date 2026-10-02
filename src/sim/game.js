@@ -14,6 +14,8 @@ import { SPOILS, SPOIL_IDS } from '../data/boss-spoils.js';
 import { GROUND_ROUTE, AIR_ROUTE, sampleRoute, tileToWorld, isBuildable } from './map-layout.js';
 import { mulberry32, Emitter } from './rng.js';
 import { initAbilities, tickTower, castActive, runProcs, buffMods, tickCreepDebuffs } from './abilities.js';
+import { runItemHook } from './abilities.js';
+import { COLS, ROWS, worldToTile } from './map-layout.js';
 
 const BASE_SPEED = 2.6;
 // Half-width of a tower in world units; YouTD ranges for tower-to-tower effects start at the edge.
@@ -143,7 +145,7 @@ export class Game extends Emitter {
     const lock = next.abilities.find((a) => a.type === 'itemRarityLock');
     oldSlots.forEach((it, i) => {
       if (!it) return;
-      if (lock && ITEMS[it.id].rarity !== lock.rarity) this.addItem(it); else tower.items[i] = it;
+      if (lock && ITEMS[it.id].rarity !== lock.rarity) { this.itemHook(tower, it, 'unequip'); this.addItem(it); } else tower.items[i] = it;
     });
     initAbilities(tower);
     this.recalcAll();
@@ -155,7 +157,7 @@ export class Game extends Emitter {
     const refund = Math.floor(tower.invested * ECON.sellRefund);
     this.gold += refund;
     this.food -= tower.def.food;
-    for (const it of tower.items) if (it) this.addItem(it);
+    for (const it of tower.items) if (it) { this.itemHook(tower, it, 'unequip'); this.addItem(it); }
     this.towers.delete(tower.uid);
     this.towerGrid.delete(`${tower.c},${tower.r}`);
     this.recalcAll();
@@ -221,6 +223,7 @@ export class Game extends Emitter {
 
   addItem(item) {
     if (this.stash.length >= STASH_SIZE) { this.emit('notice', { text: 'Item stash full', kind: 'warn' }); return false; }
+    if (ITEMS[item.id].state) this.itemState(item); // stateful items start counting when they arrive
     this.stash.push(item);
     this.emit('stash');
     return true;
@@ -254,10 +257,13 @@ export class Game extends Emitter {
       this.emit('error', 'A tower can carry only one unique item');
       return false;
     }
+    const blocked = this.itemEquipBlock(def, tower);
+    if (blocked) { this.emit('error', blocked); return false; }
     const prev = tower.items[slot];
     this.stash.splice(idx, 1);
     tower.items[slot] = item;
-    if (prev) this.stash.push(prev);
+    if (prev) { this.itemHook(tower, prev, 'unequip'); this.stash.push(prev); }
+    this.itemHook(tower, item, 'equip');
     this.recalcAll();
     this.emit('stash');
     this.emit('equip', { tower, item });
@@ -273,6 +279,7 @@ export class Game extends Emitter {
     if (!item) return false;
     if (this.stash.length >= STASH_SIZE) { this.emit('error', 'Item stash full'); return false; }
     tower.items[slot] = null;
+    this.itemHook(tower, item, 'unequip');
     this.stash.push(item);
     this.recalcAll();
     this.emit('stash');
@@ -293,6 +300,135 @@ export class Game extends Emitter {
     this.emit('stash');
     this.emit('notice', { text: `Used ${def.name}`, kind: 'item' });
     return true;
+  }
+
+  // ------------------------------------------------------------------ item state and hooks
+
+  makeItem(id, extra = {}) { return { uid: UID++, id, ...extra }; }
+
+  // Per-instance item state (stored experience, charges, copies). It lives on the item,
+  // so it travels with it between towers and the stash.
+  itemState(item) {
+    return (item.state ||= { born: this.level, ...structuredClone(ITEMS[item.id].state || {}) });
+  }
+
+  // Items whose effects apply to the tower: its slots plus copies made by its items.
+  carriedItems(t) {
+    if (!t.items.some((it) => it?.state?.copies?.length)) return t.items;
+    return t.items.flatMap((it) => (it ? [it, ...(it.state?.copies || [])] : []));
+  }
+
+  // Runs an item's equip/unequip procs. Item cooldowns travel with the item, as YouTD's
+  // periodic item timers do, so moving an item never resets them.
+  itemHook(t, item, on) {
+    const prefix = `i${item.uid}:`;
+    if (on === 'equip' && item.cds) { Object.assign(t.procCd, item.cds); item.cds = null; }
+    runItemHook(this, t, item, on);
+    if (on === 'unequip') {
+      item.cds = {};
+      for (const k in t.procCd) if (k.startsWith(prefix)) { if (t.procCd[k] > 0) item.cds[k] = t.procCd[k]; delete t.procCd[k]; }
+    }
+  }
+
+  // Why this tower cannot carry the item right now (null when it can).
+  itemEquipBlock(def, tower) {
+    if (def.requires === 'corner' && !this.isCorner(tower)) return `${def.name} needs a tower on a corner tile`;
+    return null;
+  }
+
+  // A tile with at least two unbuildable side neighbours (path, rocks, map edge).
+  // Uses the tower's current position, so a teleported tower counts where it stands.
+  isCorner(t) {
+    const { c, r } = worldToTile(t.x, t.z);
+    return [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dc, dr]) => !isBuildable(c + dc, r + dr)).length >= 2;
+  }
+
+  // First open slot that may hold `item` under the equip rules, or -1.
+  freeSlotFor(t, item) {
+    const def = ITEMS[item.id];
+    const lock = t.def.abilities.find((a) => a.type === 'itemRarityLock');
+    if (lock && def.rarity !== lock.rarity) return -1;
+    if (def.rarity === 'unique' && t.items.some((it) => it && ITEMS[it.id].rarity === 'unique')) return -1;
+    if (this.itemEquipBlock(def, t)) return -1;
+    const open = this.itemSlots();
+    return t.items.findIndex((s, i) => !s && i < open);
+  }
+
+  // Puts a new item into a tower slot (see freeSlotFor) and runs its equip hook.
+  placeItem(t, slot, item) {
+    t.items[slot] = item;
+    this.itemHook(t, item, 'equip');
+    this.recalcAll();
+    this.emit('stash');
+  }
+
+  // Moves an equipped item to another tower, or to the stash when `to` is null.
+  transferItem(from, slot, to) {
+    const item = from.items[slot];
+    if (!item) return false;
+    const dest = to ? this.freeSlotFor(to, item) : -1;
+    if (to ? dest < 0 : this.stash.length >= STASH_SIZE) return false;
+    from.items[slot] = null;
+    this.itemHook(from, item, 'unequip');
+    if (to) { to.items[dest] = item; this.itemHook(to, item, 'equip'); } else this.stash.push(item);
+    this.recalcAll();
+    this.emit('stash');
+    return true;
+  }
+
+  // A random equipment item of a rarity within a wave-level band (null if none).
+  randomItemBetween(rarity, minWave, maxWave) {
+    const pool = ITEMS_BY_RARITY[rarity].filter((d) => d.kind === 'equip' && d.reqWave >= minWave && d.reqWave <= maxWave);
+    return pool.length ? this.makeItem(pool[Math.floor(this.rng() * pool.length)].id) : null;
+  }
+
+  // Experience that ignores the tower's experience bonus.
+  addXpFlat(t, amount) {
+    if (amount > 0) this.giveXp(t, amount / Math.max(0.01, 1 + t.stats.xp));
+  }
+
+  // Removes experience, losing levels when needed, and returns how much was removed.
+  // Items that carry experience use it to take back exactly what they gave.
+  takeXpFlat(t, amount) {
+    const level = t.level;
+    let left = amount;
+    while (left > 0) {
+      const take = Math.min(t.xp, left);
+      t.xp -= take;
+      left -= take;
+      if (left <= 0 || t.level === 0) break;
+      t.level--;
+      t.xp = xpForLevel(t.level);
+    }
+    if (t.level !== level) this.recalcAll();
+    return amount - left;
+  }
+
+  // Free buildable tile within `range` whose attack range covers the most visible
+  // creeps, if it covers more than the tower's current spot.
+  jumpSpot(t, range) {
+    const r2 = t.stats.range ** 2;
+    const count = (x, z) => this.creeps.reduce((n, c) => n + (c.alive && c.revealed && (c.x - x) ** 2 + (c.z - z) ** 2 <= r2 ? 1 : 0), 0);
+    const taken = [...this.towers.values()].map((o) => `${worldToTile(o.x, o.z).c},${worldToTile(o.x, o.z).r}`);
+    let best = null, bestN = count(t.x, t.z);
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        if (!isBuildable(c, r) || this.towerGrid.has(`${c},${r}`) || taken.includes(`${c},${r}`)) continue;
+        const p = tileToWorld(c, r);
+        if ((p.x - t.x) ** 2 + (p.z - t.z) ** 2 > range ** 2) continue;
+        const n = count(p.x, p.z);
+        if (n > bestN) { bestN = n; best = p; }
+      }
+    }
+    return best;
+  }
+
+  // Moves a tower's body without changing the tile it owns (`c`, `r` stay reserved).
+  moveTower(t, x, z) {
+    t.x = x;
+    t.z = z;
+    this.recalcAll();
+    this.emit('towerMoved', t);
   }
 
   // Combine three items of one rarity into a random item of the next rarity.
@@ -322,7 +458,7 @@ export class Game extends Emitter {
     for (const t of towers) { t.auraMods = {}; byKey.set(t, {}); }
     for (const src of towers) {
       const auras = src.def.abilities.filter((a) => a.type === 'aura' && (!a.minLevel || src.level >= a.minLevel));
-      for (const it of src.items) if (it && ITEMS[it.id].aura) auras.push(ITEMS[it.id].aura);
+      for (const it of this.carriedItems(src)) if (it && ITEMS[it.id].aura) auras.push(ITEMS[it.id].aura);
       for (const a of auras) {
         const value = a.value + (a.valuePerLevel || 0) * src.level;
         for (const t of towers) {
@@ -344,7 +480,7 @@ export class Game extends Emitter {
     }
     this.bonusInterest = 0;
     for (const t of towers) {
-      const procs = t.def.abilities.concat(...t.items.filter(Boolean).map((it) => ITEMS[it.id].procs || []));
+      const procs = t.def.abilities.concat(...this.carriedItems(t).filter(Boolean).map((it) => ITEMS[it.id].procs || []));
       t.hasEnterProcs = procs.some((p) => p.type === 'proc' && p.on === 'enter');
       t.hasDeathProcs = procs.some((p) => p.type === 'proc' && p.on === 'death');
       this.computeStats(t);
@@ -357,7 +493,7 @@ export class Game extends Emitter {
     const add = (mods) => { for (const [k, v] of Object.entries(mods)) m[k] = (m[k] || 0) + v; };
     const lvl0 = t.level;
     addLevelMods(m, t.def.levelMods || [], lvl0);
-    for (const it of t.items) if (it) { addLevelMods(m, ITEMS[it.id].levelMods, lvl0); if (it.bound) add(it.bound); if (ITEMS[it.id].staticMods) add(ITEMS[it.id].staticMods); }
+    for (const it of this.carriedItems(t)) if (it) { addLevelMods(m, ITEMS[it.id].levelMods, lvl0); if (it.bound) add(it.bound); if (ITEMS[it.id].staticMods) add(ITEMS[it.id].staticMods); }
     addLevelMods(m, t.oilMods || [], lvl0);
     if (t.buffs?.length) add(buffMods(t));
     for (const id of t.perks) add(PERKS[id].mods);
@@ -393,7 +529,7 @@ export class Game extends Emitter {
     // Attack type can be overridden by an item or an ability (last one wins).
     s.attackType = null;
     for (const a of t.def.abilities) if (a.type === 'attackOverride' && (!a.minLevel || t.level >= a.minLevel)) s.attackType = a.attack;
-    for (const it of t.items) if (it && ITEMS[it.id].attackType) s.attackType = ITEMS[it.id].attackType;
+    for (const it of this.carriedItems(t)) if (it && ITEMS[it.id].attackType) s.attackType = ITEMS[it.id].attackType;
 
     s.flatDamage += (m.dpsAdd || 0) * t.def.cd;
     if (t.maxMana) s.maxMana = (t.maxMana + s.manaFlat) * (1 + s.manaPct);
@@ -605,7 +741,7 @@ export class Game extends Emitter {
   updateReveal() {
     const revealers = [];
     for (const t of this.towers.values()) {
-      const a = t.def.abilities.find((x) => x.type === 'reveal') || t.items.map((it) => it && ITEMS[it.id].reveal).find(Boolean);
+      const a = t.def.abilities.find((x) => x.type === 'reveal') || this.carriedItems(t).map((it) => it && ITEMS[it.id].reveal).find(Boolean);
       if (a) revealers.push({ x: t.x, z: t.z, r2: a.radius * a.radius });
     }
     for (const c of this.creeps) {
@@ -615,7 +751,7 @@ export class Game extends Emitter {
   }
 
   hasRevealer() {
-    for (const t of this.towers.values()) if (t.def.abilities.some((a) => a.type === 'reveal') || t.items.some((it) => it && ITEMS[it.id].reveal)) return true;
+    for (const t of this.towers.values()) if (t.def.abilities.some((a) => a.type === 'reveal') || this.carriedItems(t).some((it) => it && ITEMS[it.id].reveal)) return true;
     return false;
   }
 
@@ -1089,7 +1225,7 @@ export class Game extends Emitter {
     }
     if (leveled) {
       // Auras can grow per level or unlock at a level, so refresh them for everyone.
-      const hasAura = t.def.abilities.some((a) => a.type === 'aura') || t.items.some((it) => it && ITEMS[it.id].aura);
+      const hasAura = t.def.abilities.some((a) => a.type === 'aura') || this.carriedItems(t).some((it) => it && ITEMS[it.id].aura);
       if (hasAura) this.recalcAll(); else this.computeStats(t);
       this.emit('levelUp', t);
       this.offerPerk(t);
