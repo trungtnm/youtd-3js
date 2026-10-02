@@ -6,6 +6,7 @@ import {
 } from '../data/constants.js';
 import { TOWERS, TOWER_LIST, FAMILIES, nextTier, describeAbility, revealsInvisible, REVEAL_FAMILIES, describeTowerMods } from '../data/towers.js';
 import { ITEMS, describeItem, describeMods } from '../data/items.js';
+import { describeSkill } from '../data/tower-skills.js';
 import { PERKS, PERK_LEVELS } from '../data/tower-perks.js';
 import { SPOILS } from '../data/boss-spoils.js';
 import { SPECIALS } from '../sim/waves.js';
@@ -516,7 +517,8 @@ export class HUD {
       const t = g.towers.get(sel.uid);
       if (!t) { this.select(null); return; }
       const sig = [t.def.id, t.level, Math.floor(t.xp), t.kills, Math.floor(t.damageDealt / 100), t.items.map((i) => i?.uid).join(), t.priority, Math.floor(g.gold / 10), g.tomes, JSON.stringify(t.oil),
-        Math.floor(t.mana || 0), t.actives.map((a) => `${Math.ceil(a.cd * 4)}${a.auto}`).join(), t.buffs.map((b) => b.key).join(),
+        Math.floor(t.mana || 0), t.actives.map((a) => `${Math.ceil(a.cd * 4)}${a.auto}`).join(),
+        g.itemActives(t).map((a) => `${Math.ceil(a.cd * 4)}${a.auto}${a.item.state?.charges ?? ''}`).join(), t.buffs.map((b) => b.key).join(),
         t.perks.join(), (t.perkOffer || []).join(), g.itemSlots()].join('|');
       if (!force && sig === this.sigs.sel) return;
       this.sigs.sel = sig;
@@ -534,6 +536,7 @@ export class HUD {
     const g = this.game;
     const d = t.def, s = t.stats, el = ELEMENTS[d.element], r = RARITIES[d.rarity];
     const next = nextTier(d.id);
+    const itemActs = g.itemActives(t);
     const upErr = next ? g.upgradeCheck(t) : 'Max tier';
     const need = t.level < TOWER_MAX_LEVEL ? xpForLevel(t.level) : 1;
     const xpPct = t.level >= TOWER_MAX_LEVEL ? 100 : (t.xp / need) * 100;
@@ -569,10 +572,13 @@ export class HUD {
             : it
             ? `<div class="slot r-${ITEMS[it.id].rarity}" data-slot="${i}" data-tt="item:${it.id}:${it.uid}">${ITEMS[it.id].icon}</div>`
             : `<div class="slot empty" data-slot="${i}" data-tip="Empty item slot. Click an item in your stash, or drag one here."></div>`).join('')}</div>
-          ${t.actives.length ? `<div class="actives">${t.actives.map((a, i) => `<button class="act ${a.auto ? 'auto' : ''} ${t.mana < a.def.mana ? 'nomana' : ''}" data-act="${i}"
+          ${t.actives.length || itemActs.length ? `<div class="actives">${t.actives.map((a, i) => `<button class="act ${a.auto ? 'auto' : ''} ${t.mana < a.def.mana ? 'nomana' : ''}" data-act="${i}"
               data-tip="${esc(`${a.def.name} — ${a.def.desc} (${a.def.mana} mana, ${a.def.cd}s cooldown). Click to cast [${'FG'[i]}], right-click to toggle autocast.`)}">
               ${a.def.icon}<span class="key">${'FG'[i]}</span><span class="mana">${a.def.mana}</span>
-              <span class="cdsweep" style="--cd:${a.cd > 0 ? (a.cd / a.def.cd) * 360 : 0}deg"></span></button>`).join('')}</div>` : ''}
+              <span class="cdsweep" style="--cd:${a.cd > 0 ? (a.cd / a.def.cd) * 360 : 0}deg"></span></button>`).join('')}${itemActs.map((a, i) => `<button class="act item-act r-${ITEMS[a.item.id].rarity} ${a.auto ? 'auto' : ''}" data-iact="${i}"
+              data-tip="${esc(`${ITEMS[a.item.id].name}: ${describeSkill(a.proc)}`)}">
+              ${a.proc.icon || ITEMS[a.item.id].icon}${a.item.state?.charges != null ? `<span class="mana">${a.item.state.charges}</span>` : ''}
+              <span class="cdsweep" style="--cd:${a.cd > 0 && a.proc.icd > 1 ? (a.cd / a.proc.icd) * 360 : 0}deg"></span></button>`).join('')}</div>` : ''}
           <div class="prio">${prios.map(([k, n]) => `<button data-prio="${k}" class="${t.priority === k ? 'on' : ''}" data-tip="Target the ${n.toLowerCase()} creep in range">${n}</button>`).join('')}</div>
           <div class="sel-actions">
             ${next ? `<button class="btn ${upErr ? '' : 'gold'}" id="btn-upgrade" ${upErr ? 'disabled' : ''} data-tt="tower:${next.id}">Upgrade [U] · ${fmt(next.cost)} ◉${next.tomeCost ? ` ${next.tomeCost} 📘` : ''}</button>` : ''}
@@ -585,6 +591,11 @@ export class HUD {
       const i = Number(b.dataset.act);
       b.addEventListener('click', () => { if (g.castActive(t, i)) this.sigs.sel = null; });
       b.addEventListener('contextmenu', (e) => { e.preventDefault(); const on = g.toggleAutocast(t, i); this.toast(`Autocast ${on ? 'on' : 'off'}: ${t.actives[i].def.name}`); this.audio.click(); this.renderSelection(true); });
+    });
+    box.querySelectorAll('[data-iact]').forEach((b) => {
+      const i = Number(b.dataset.iact);
+      b.addEventListener('click', () => { if (g.castItem(t, i)) this.audio.click(); this.renderSelection(true); });
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); const on = g.toggleItemAuto(t, i); this.toast(`Autocast ${on ? 'on' : 'off'}: ${itemActs[i].proc.name}`); this.audio.click(); this.renderSelection(true); });
     });
     box.querySelectorAll('[data-prio]').forEach((b) => b.addEventListener('click', () => { g.setPriority(t, b.dataset.prio); this.audio.click(); this.renderSelection(true); }));
     box.querySelectorAll('.islots .slot').forEach((sl) => {

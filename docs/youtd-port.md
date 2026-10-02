@@ -119,6 +119,12 @@ should shrink with level, a few dropped riders) is listed per element in the
   exactly on unequip, levels included), `duplicateItem`, `buyItem`, `moveItem`,
   `copyItems` (copies apply without slots and without autocast procs), `jumpTower`
   (moves the tower body; its tile stays reserved; `towerMoved` event).
+- Item actives: an item proc with `active: true` (plus `icon`, default `auto`) gets a
+  button in the tower panel: click casts it (`Game.castItem`), right-click toggles its
+  autocast (`Game.toggleItemAuto`, stored on the item). With autocast off a periodic
+  active still ticks with `ctx.passive` so effects keep their state; a manual cast runs
+  with `ctx.manual` and reports `ctx.fail` when nothing happens. Used by Pocket Emporium
+  (autocast off, as upstream) and Chrono Jumper (autocast on).
 - Hit modification: trigger `damage` runs before the main hit lands, with effect
   `modifyHit` (`mult`, `healthMult`, `regenMult`, `floor`, `toSpell`). Only towers
   with such a proc build the per-hit context. It changes the main hit only, not bounces.

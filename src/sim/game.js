@@ -13,7 +13,7 @@ import { PERKS, PERK_LEVELS, perkFits } from '../data/tower-perks.js';
 import { SPOILS, SPOIL_IDS } from '../data/boss-spoils.js';
 import { GROUND_ROUTE, AIR_ROUTE, sampleRoute, tileToWorld, isBuildable } from './map-layout.js';
 import { mulberry32, Emitter } from './rng.js';
-import { initAbilities, tickTower, castActive, runProcs, buffMods, tickCreepDebuffs } from './abilities.js';
+import { initAbilities, tickTower, castActive, castItemActive, itemAutoOn, runProcs, buffMods, tickCreepDebuffs } from './abilities.js';
 import { runItemHook } from './abilities.js';
 import { COLS, ROWS, worldToTile } from './map-layout.js';
 
@@ -203,6 +203,33 @@ export class Game extends Emitter {
   castActive(tower, idx) { return castActive(this, tower, idx, true); }
   toggleAutocast(tower, idx) { const a = tower.actives[idx]; if (a) a.auto = !a.auto; return a?.auto; }
   itemDef(item) { return ITEMS[item.id]; }
+
+  // Item actives on a tower's slots: [{ item, proc, cd, auto }] for the tower panel.
+  itemActives(t) {
+    const out = [];
+    for (const item of t.items) {
+      if (!item) continue;
+      for (const p of ITEMS[item.id].procs || []) {
+        if (p.active) out.push({ item, proc: p, cd: Math.max(0, t.procCd[`i${item.uid}:${p.key || p.name}`] || 0), auto: itemAutoOn(item, p) });
+      }
+    }
+    return out;
+  }
+
+  castItem(t, idx) {
+    const a = this.itemActives(t)[idx];
+    if (!a) return false;
+    const r = castItemActive(this, t, a.item, a.proc);
+    if (r !== true) this.emit('error', r);
+    return r === true;
+  }
+
+  toggleItemAuto(t, idx) {
+    const a = this.itemActives(t)[idx];
+    if (!a) return null;
+    (a.item.auto ||= {})[a.proc.key || a.proc.name] = !a.auto;
+    return !a.auto;
+  }
 
   // Launches one regular attack from a tower at a creep.
   fireAt(t, target, base) {

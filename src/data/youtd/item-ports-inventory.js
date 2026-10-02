@@ -39,11 +39,11 @@ export const ITEM_PORTS_INVENTORY = {
     };
   },
 
-  // The manual autocast (cooldown 1s) runs on its own: it buys whenever a charge and
-  // 500 gold are available. Rarity roll: 2/25 unique, 4/25 rare, else uncommon.
+  // Manual active (autocast off by default, as upstream): each cast buys an item when a
+  // charge and 500 gold are available. Rarity roll: 2/25 unique, 4/25 rare, else uncommon.
   pocket_emporium: () => ({
     state: { charges: 1, acc: 0 },
-    procs: [proc('Purchase an Item', 'periodic', { icd: 1, silent: true },
+    procs: [proc('Purchase an Item', 'periodic', { icd: 1, silent: true, active: true, icon: '🛒', auto: false },
       { kind: 'buyItem', cost: 500, levelsPerCharge: 5, maxCharges: 5, minWave: 14, maxWave: 25, unique: 2 / 25, rare: 4 / 25, fx: 'gold' })],
   }),
 
@@ -62,10 +62,10 @@ export const ITEM_PORTS_INVENTORY = {
       { kind: 'moveItem', radius: 1500 / UNIT, fx: 'storm' })],
   }),
 
-  // The point-target autocast picks its own spot: the free tile in range that covers the
-  // most creeps. Without a better spot it waits and retries every second.
+  // Active with autocast on by default. Casts pick their own spot: the free tile in range
+  // that covers the most creeps. Without a better spot autocast retries every second.
   chrono_jumper: () => ({
-    procs: [proc('Chrono Jump', 'periodic', { icd: 30, silent: true },
+    procs: [proc('Chrono Jump', 'periodic', { icd: 30, silent: true, active: true, icon: '⏳', auto: true },
       { kind: 'jumpTower', range: 1500 / UNIT, dur: 10, mods: { attackSpeed: 0.1 }, key: 'chrono-jump', label: 'Chrono Jump', fx: 'arcane' })],
   }),
 };

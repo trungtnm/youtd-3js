@@ -195,6 +195,14 @@ export function runProcs(game, t, on, ctx) {
       if (p.type !== 'proc' || p.on !== on) continue;
       const key = (item ? `i${item.uid}:` : '') + (p.key || p.name);
       if (p.icd && (t.procCd[key] || 0) > 0) continue;
+      // Item actives with autocast off still tick once a second without acting, so effects
+      // can keep their state (charges) current; the player casts them from the tower panel.
+      if (p.active && item && !itemAutoOn(item, p)) {
+        if ((t.procCd[`${key}:tick`] || 0) > 0) continue;
+        t.procCd[`${key}:tick`] = 1;
+        applyEffect(game, t, p.effect, { tower: t, x: t.x, z: t.z }, { ...ctx, item, passive: true });
+        continue;
+      }
       if (!procAllowed(game, t, p, ctx)) continue;
       if (p.needCreeps && !game.creeps.some((c) => c.alive && c.revealed && (c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= t.stats.range ** 2)) continue;
       // everyWaves: fires on the first trigger, then again once the wave level has advanced
@@ -233,6 +241,20 @@ export function runProcs(game, t, on, ctx) {
       if (applyEffect(game, t, p.effect, target, { ...ctx, item }) === false && p.icd) t.procCd[key] = Math.min(p.icd, 1);
     }
   }
+}
+
+// Item actives: a proc with `active: true` can be cast from the tower panel. Its autocast
+// switch lives on the item instance (default `auto`), so it travels with the item.
+export const itemAutoOn = (item, p) => item.auto?.[p.key || p.name] ?? !!p.auto;
+
+// Manual cast of an item active. Returns true, or a short reason when nothing happened.
+export function castItemActive(game, t, item, p) {
+  const key = `i${item.uid}:${p.key || p.name}`;
+  if ((t.procCd[key] || 0) > 0) return `${p.name} is on cooldown (${Math.ceil(t.procCd[key])}s)`;
+  const ctx = { item, manual: true };
+  if (applyEffect(game, t, p.effect, { tower: t, x: t.x, z: t.z }, ctx) === false) return ctx.fail || `${p.name}: nothing to do`;
+  if (p.icd) t.procCd[key] = p.icd;
+  return true;
 }
 
 // Item hooks: procs with on 'equip' | 'unequip' run once for that item when it joins or
@@ -592,11 +614,14 @@ export function applyEffect(game, t, e, target, ctx = {}) {
         if (st.charges >= e.maxCharges) st.acc = 0;
         while (st.acc >= e.levelsPerCharge && st.charges < e.maxCharges) { st.acc -= e.levelsPerCharge; st.charges++; }
       }
-      if (st.charges <= 0 || game.gold < e.cost || game.stash.length >= ECON.stashSize) break;
+      if (ctx.passive) break;
+      if (st.charges <= 0) { ctx.fail = 'No purchase charge ready'; return false; }
+      if (game.gold < e.cost) { ctx.fail = `Need ${e.cost} gold`; return false; }
+      if (game.stash.length >= ECON.stashSize) { ctx.fail = 'Stash is full'; return false; }
       const roll = game.rng();
       const rarity = roll < e.unique ? 'unique' : roll < e.unique + e.rare ? 'rare' : 'uncommon';
       const bought = game.randomItemBetween(rarity, e.minWave, e.maxWave);
-      if (!bought || !game.addItem(bought)) break;
+      if (!bought || !game.addItem(bought)) return false;
       st.charges--;
       game.gold -= e.cost;
       game.emit('notice', { text: `Bought ${game.itemDef(bought).name} for ${e.cost} gold`, kind: 'item', rarity });
@@ -631,9 +656,10 @@ export function applyEffect(game, t, e, target, ctx = {}) {
     case 'jumpTower': {
       // Teleports the carrier to the free tile within `range` that covers the most creeps,
       // with a timed buff, and brings it back after `dur` seconds. Its own tile stays reserved.
-      if (t.jumpHome) return false;
+      if (ctx.passive) break;
+      if (t.jumpHome) { ctx.fail = 'Already jumping'; return false; }
       const spot = game.jumpSpot(t, e.range);
-      if (!spot) return false;
+      if (!spot) { ctx.fail = 'No better free tile in range'; return false; }
       const home = { x: t.x, z: t.z };
       t.jumpHome = home;
       game.emit('proc', { tower: t, name: e.label, x: t.x, z: t.z, fx });

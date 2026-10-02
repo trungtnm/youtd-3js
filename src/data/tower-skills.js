@@ -199,6 +199,7 @@ export const TOWER_SKILLS = {
 // Human-readable line for a proc/charge passive.
 export function describeSkill(p) {
   if (p.on === 'equip' || p.on === 'unequip') return `${p.name} (when ${p.on === 'equip' ? 'equipped' : 'unequipped'}): ${describeEffect(p.effect)}`;
+  if (p.active) return `${p.name} (active, ${p.icd}s cooldown; cast from the tower panel, right-click toggles autocast, ${p.auto ? 'on' : 'off'} by default): ${describeEffect(p.effect)}`;
   if (p.type === 'charge') return `${p.name}: gains +${Math.round(p.rate * 100)}% damage per second without attacking (max +${Math.round(p.cap * 100)}%), spent on the next shot.`;
   const when = p.everyWaves ? `once every ${p.everyWaves} waves, on the first ${p.on}`
     : p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', damage: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range', buffed: 'buff received' }[p.on]}`
