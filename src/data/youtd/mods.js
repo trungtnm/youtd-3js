@@ -57,7 +57,7 @@ const LABELS = {
   multicrit: 'multicrit', spellCrit: 'spell crit chance', spellCritMult: 'spell crit damage', spell: 'spell damage',
   manaFlat: 'mana', manaPct: 'max mana', manaRegenFlat: 'mana per second', manaRegen: 'mana regeneration',
   bounty: 'bounty', xp: 'experience', itemFind: 'item chance', itemQuality: 'item quality', trigger: 'trigger chances',
-  buffDur: 'buff duration', debuffDur: 'debuff duration on creeps',
+  buffDur: 'buff duration', debuffDur: 'debuff duration',
   vsUndead: 'damage to undead', vsBrute: 'damage to brutes', vsHumanoid: 'damage to humanoids', vsFeral: 'damage to feral',
   vsArcane: 'damage to arcane creeps', vsMass: 'damage to mass', vsNormal: 'damage to normal', vsAir: 'damage to air',
   vsChampion: 'damage to champions', vsBoss: 'damage to bosses',

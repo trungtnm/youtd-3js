@@ -25,6 +25,9 @@ const PROJECTILE_SPEED = {
 };
 const INSTANT = new Set(['lightning', 'beam']);
 const STASH_SIZE = ECON.stashSize;
+// Creep mana by size (YouTD values). Only creeps whose specials run on mana get a pool.
+const CREEP_MANA = { mass: 100, normal: 200, air: 400, champion: 300, boss: 2000, challengeMass: 100, challenge: 3000 };
+const WARD_MANA = 10; // a ward holds while the creep has at least this much mana
 
 let UID = 1;
 
@@ -347,6 +350,7 @@ export class Game extends Emitter {
       const procs = t.def.abilities.concat(...t.items.filter(Boolean).map((it) => ITEMS[it.id].procs || []));
       t.hasEnterProcs = procs.some((p) => p.type === 'proc' && p.on === 'enter');
       t.hasDeathProcs = procs.some((p) => p.type === 'proc' && p.on === 'death');
+      t.hasDamageProcs = procs.some((p) => p.type === 'proc' && p.on === 'damage');
       this.computeStats(t);
       for (const a of t.def.abilities) if (a.type === 'interest') this.bonusInterest += a.pct;
       // Item interest: a flat rate plus a rate per gold of the carrier's cost.
@@ -399,6 +403,10 @@ export class Game extends Emitter {
     s.attackType = null;
     for (const a of t.def.abilities) if (a.type === 'attackOverride' && (!a.minLevel || t.level >= a.minLevel)) s.attackType = a.attack;
     for (const it of t.items) if (it && ITEMS[it.id].attackType) s.attackType = ITEMS[it.id].attackType;
+    // Duration of debuffs this tower receives, and the share of max mana each attack costs.
+    s.debuffDur = m.debuffDur || 0;
+    s.attackManaPct = 0;
+    for (const it of t.items) if (it && ITEMS[it.id].attackManaPct) s.attackManaPct += ITEMS[it.id].attackManaPct;
 
     s.flatDamage += (m.dpsAdd || 0) * t.def.cd;
     if (t.maxMana) s.maxMana = (t.maxMana + s.manaFlat) * (1 + s.manaPct);
@@ -485,6 +493,8 @@ export class Game extends Emitter {
       blinkT: 4 + this.rng() * 3, damageBy: new Map(), alive: true, spawnT: this.time,
       invisible: has('invisible'), revealed: !has('invisible'),
     };
+    // Wards run on mana, so mana drains can break them.
+    if (has('warded')) c.mana = c.maxMana = CREEP_MANA[sizeId] || 0;
     sampleRoute(route, 0, c);
     wave.alive++;
     this.creeps.push(c);
@@ -732,6 +742,13 @@ export class Game extends Emitter {
       if (t.timer < 0) t.timer = 0;
       const first = targets[0];
       t.aim = Math.atan2(first.x - t.x, first.z - t.z);
+      if (s.attackManaPct) {
+        // Attacks that cost a share of max mana fizzle (cooldown spent, nothing fired)
+        // without enough mana; towers without a mana pool never get to attack.
+        const cost = (s.maxMana ?? t.maxMana ?? 0) * s.attackManaPct;
+        if (!(cost > 0) || (t.mana || 0) < cost) continue;
+        t.mana -= cost;
+      }
 
       for (const target of targets) {
         const base = (s.dmgMin + this.rng() * (s.dmgMax - s.dmgMin)) * chargeMult;
@@ -780,10 +797,10 @@ export class Game extends Emitter {
     let m;
     if (spell) {
       m = 1 + s.spell;
-      if (c.specials.includes('warded')) m *= 0.4;
+      if (c.specials.includes('warded') && c.mana >= WARD_MANA) m *= 0.4;
     } else {
       const attack = t.stats.attackType || t.def.attack;
-      if (attack === 'arcane' && c.specials.includes('warded')) return 0;
+      if (attack === 'arcane' && c.specials.includes('warded') && c.mana >= WARD_MANA) return 0;
       m = DAMAGE_MATRIX[attack][c.armorType] * (1 - ARMOR_REDUCTION(this.effectiveArmor(c)));
     }
     for (const a of t.def.abilities) {
@@ -829,7 +846,17 @@ export class Game extends Emitter {
       dmg *= i === 0 ? s.critMult : 1 + (s.critMult - 1) * 0.5;
       crit = true;
     }
+    // 'damage' procs may change the hit before it lands; a share moved to spell damage
+    // lands right after the attack part.
+    let spellPart = 0;
+    if (t.hasDamageProcs) {
+      const hit = { damage: dmg, spell: 0 };
+      runProcs(this, t, 'damage', { creep: c, crit, hit });
+      dmg = hit.damage;
+      spellPart = hit.spell;
+    }
     const dealt = this.damage(t, c, dmg, { crit });
+    if (spellPart > 0 && c.alive) this.damage(t, c, spellPart, { spell: true });
     this.applyOnHit(t, c, dealt > 0 ? dmg : 0, true);
     // On-hit procs fire for every damaging hit, including the killing blow; single-target
     // effects skip dead creeps on their own, area effects still hit the neighbours.
