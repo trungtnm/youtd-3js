@@ -49,7 +49,7 @@ for (const row of YT_ITEMS) {
     levelMods, mods: baseMods(levelMods), pending,
     effect: kind === 'consumable' ? CONSUMABLES[row.script] || {} : undefined,
     procs: port?.procs, aura: port?.aura, reveal: port?.reveal,
-    staticMods: port?.mods, attackType: port?.attackType,
+    staticMods: port?.mods, attackType: port?.attackType, interest: port?.interest,
   };
 }
 
@@ -83,6 +83,13 @@ export function describeItem(item) {
     const per = a.valuePerLevel ? ` (${describeMods({ [a.stat]: a.valuePerLevel })[0]} per level)` : '';
     lines.push(a.selfOnly ? `The carrier gains ${describeMods({ [a.stat]: a.value })[0]}${per}.`
       : `Aura: ${a.element ? `${a.element} ` : ''}towers within ${a.radius.toFixed(1)} gain ${describeMods({ [a.stat]: a.value })[0]}${per}.`);
+  }
+  if (item.interest) {
+    const r = item.interest;
+    const parts = [];
+    if (r.pct) parts.push(`+${+(r.pct * 100).toFixed(3)}%`);
+    if (r.perCost) parts.push(`+${+(r.perCost * 1000 * 100).toFixed(3)}% per 1000 gold of the carrier's cost`);
+    lines.push(`Interest rate on banked gold ${parts.join(' and ')}.`);
   }
   if (item.reveal) lines.push(`True sight: reveals invisible creeps within ${item.reveal.radius.toFixed(1)}.`);
   for (const p of item.procs || []) lines.push(describeSkill(p));

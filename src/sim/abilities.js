@@ -192,6 +192,11 @@ export function runProcs(game, t, on, ctx) {
       if (p.icd && (t.procCd[key] || 0) > 0) continue;
       if (!procAllowed(game, t, p, ctx)) continue;
       if (p.needCreeps && !game.creeps.some((c) => c.alive && c.revealed && (c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= t.stats.range ** 2)) continue;
+      // everyWaves: fires on the first trigger, then again once the wave level has advanced
+      // by N. The last firing wave lives on the item (or tower), so it travels with the item.
+      const waveHolder = item || t;
+      if (p.everyWaves && waveHolder.waveFired?.[p.key || p.name] != null
+        && game.level - waveHolder.waveFired[p.key || p.name] < p.everyWaves) continue;
       if (p.every) {
         // Deterministic counter: fires on every Nth trigger.
         t.counters ||= {};
@@ -215,6 +220,7 @@ export function runProcs(game, t, on, ctx) {
         }
       }
       if (p.icd) t.procCd[key] = p.icd;
+      if (p.everyWaves) (waveHolder.waveFired ||= {})[p.key || p.name] = game.level;
       if (p.manaCost) t.mana -= p.manaCost;
       const target = ctx.creep ? { creep: ctx.creep, x: ctx.creep.x, z: ctx.creep.z } : { tower: t, x: t.x, z: t.z };
       if (!p.silent) game.emit('proc', { tower: t, name: p.name, x: target.x, z: target.z, fx: p.effect.fx });
@@ -406,6 +412,13 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       break;
     }
     case 'dropItem': {
+      if (e.quality != null) {
+        // Forced drops rolled like a creep drop of the target's level, with the carrier's
+        // item quality plus `quality`.
+        const lv = target.creep?.level ?? game.level;
+        for (let i = 0; i < (e.count || 1); i++) game.dropFor(t, lv, e.quality, target.x, target.z);
+        break;
+      }
       // Creates an item in the stash, as if dropped by a creep.
       const item = game.rollItemAt(e.rarity || 'common', e.uniqueChance || 0, e.itemKind || 'equip');
       if (game.addItem(item)) game.emit('itemDrop', { item, x: target.x, z: target.z, rarity: game.itemDef(item).rarity });
@@ -442,6 +455,31 @@ export function applyEffect(game, t, e, target, ctx = {}) {
     }
     case 'multi': {
       for (const sub of e.effects) applyEffect(game, t, sub, target, ctx);
+      break;
+    }
+    case 'pick': {
+      // One of the sub-effects, chosen at random with equal odds.
+      applyEffect(game, t, e.effects[Math.floor(game.rng() * e.effects.length)], target, ctx);
+      break;
+    }
+    case 'paceReward': {
+      // Rewards attacking a creep of a newer wave soon after the last attack: gold equal to
+      // `window` minus the seconds since that attack, plus `xpRatio` of it as experience.
+      // State lives on the item (or tower), so it follows the item between carriers.
+      const c = target.creep;
+      if (!c) break;
+      const st = ctx.item || t;
+      if (st.paceLevel > 0 && st.paceLevel < c.level) {
+        const reward = e.window - (game.time - st.paceTime);
+        if (reward > 0) {
+          const gold = Math.round(reward);
+          if (gold > 0) { game.addGold(gold); game.emit('goldFx', { x: t.x, z: t.z, amount: gold }); }
+          game.giveXp(t, reward * (e.xpRatio || 0));
+          st.paceTotal = (st.paceTotal || 0) + gold;
+        }
+      }
+      st.paceLevel = Math.max(st.paceLevel || 0, c.level);
+      st.paceTime = Math.round(game.time);
       break;
     }
     default: break;
@@ -495,6 +533,8 @@ function debuffCreep(game, t, c, e) {
     game.addFlatDot(t, c, d.key || t.def.family, d.dps + (d.dpsPerLevel || 0) * lvl, d.dur + (d.durPerLevel || 0) * lvl, d.maxStacks || 1);
   }
   if (e.pushBack) c.dist = Math.max(0, c.dist - e.pushBack);
+  // Permanent, stacking bonus to the experience the creep grants when it dies.
+  if (e.xpGranted) c.xpGranted = (c.xpGranted || 0) + e.xpGranted;
   if (e.stackVuln) {
     const v = e.stackVuln;
     c.vulnStack ||= {};

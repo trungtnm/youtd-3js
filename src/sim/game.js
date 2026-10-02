@@ -349,6 +349,11 @@ export class Game extends Emitter {
       t.hasDeathProcs = procs.some((p) => p.type === 'proc' && p.on === 'death');
       this.computeStats(t);
       for (const a of t.def.abilities) if (a.type === 'interest') this.bonusInterest += a.pct;
+      // Item interest: a flat rate plus a rate per gold of the carrier's cost.
+      for (const it of t.items) {
+        const r = it && ITEMS[it.id].interest;
+        if (r) this.bonusInterest += (r.pct || 0) + (r.perCost || 0) * t.def.totalCost;
+      }
     }
   }
 
@@ -1036,7 +1041,8 @@ export class Game extends Emitter {
 
     // Experience: half to the killer, the rest shared by damage contribution.
     // auraXp: creeps inside an experience aura grant more experience when they die.
-    const xpTotal = size.xp * 6 * (has('wise') ? 2 : 1) * (1 + c.level * 0.02) * (1 + (c.auraXp || 0));
+    // xpGranted: stacking bonus applied to the creep by item and tower effects.
+    const xpTotal = size.xp * 6 * (has('wise') ? 2 : 1) * (1 + c.level * 0.02) * (1 + (c.auraXp || 0)) * (1 + (c.xpGranted || 0));
     let totalDmg = 0;
     for (const v of c.damageBy.values()) totalDmg += v;
     for (const [t, d] of c.damageBy) {
@@ -1202,19 +1208,32 @@ export class Game extends Emitter {
       if (this.rng() >= chance) continue;
       found++;
       const lv = c.level;
-      const q = this.rng();
-      const quality = 1 + (killer ? killer.stats.itemQuality : 0) + (c.mark?.itemQuality || 0);
-      const uniqueP = (0.01 + lv * 0.0004) * quality, rareP = (0.06 + lv * 0.0012) * quality, uncP = 0.26 + lv * 0.0015;
-      let rarity = 'common';
-      if (q < uniqueP) rarity = 'unique';
-      else if (q < uniqueP + rareP) rarity = 'rare';
-      else if (q < uniqueP + rareP + uncP) rarity = 'uncommon';
+      const rarity = this.dropRarity(lv, 1 + (killer ? killer.stats.itemQuality : 0) + (c.mark?.itemQuality || 0));
       const pool = this.itemPool(rarity, lv);
       const def = pool[Math.floor(this.rng() * pool.length)];
       const item = { uid: UID++, id: def.id };
       this.stats.itemsFound++;
       if (this.addItem(item)) this.emit('itemDrop', { item, x: c.x, z: c.z, rarity });
     }
+  }
+
+  // Rarity of a dropped item for a creep level and an item quality multiplier.
+  dropRarity(lv, quality) {
+    const q = this.rng();
+    const uniqueP = (0.01 + lv * 0.0004) * quality, rareP = (0.06 + lv * 0.0012) * quality, uncP = 0.26 + lv * 0.0015;
+    if (q < uniqueP) return 'unique';
+    if (q < uniqueP + rareP) return 'rare';
+    if (q < uniqueP + rareP + uncP) return 'uncommon';
+    return 'common';
+  }
+
+  // A guaranteed drop for a tower (item scripts), rolled with its item quality plus `bonus`.
+  dropFor(t, lv, bonus, x, z) {
+    const rarity = this.dropRarity(lv, 1 + t.stats.itemQuality + bonus);
+    const pool = this.itemPool(rarity, lv);
+    const item = { uid: UID++, id: pool[Math.floor(this.rng() * pool.length)].id };
+    this.stats.itemsFound++;
+    if (this.addItem(item)) this.emit('itemDrop', { item, x, z, rarity });
   }
 
   addGold(n) {

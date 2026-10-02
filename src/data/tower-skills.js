@@ -199,7 +199,8 @@ export const TOWER_SKILLS = {
 // Human-readable line for a proc/charge passive.
 export function describeSkill(p) {
   if (p.type === 'charge') return `${p.name}: gains +${Math.round(p.rate * 100)}% damage per second without attacking (max +${Math.round(p.cap * 100)}%), spent on the next shot.`;
-  const when = p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range', buffed: 'buff received' }[p.on]}`
+  const when = p.everyWaves ? `once every ${p.everyWaves} waves, on the first ${p.on}`
+    : p.every ? `Every ${ordinal(p.every)} ${{ attack: 'attack', hit: 'hit', kill: 'kill', periodic: 'tick', enter: 'creep entering range', crit: 'crit', cast: 'cast', death: 'creep death in range', buffed: 'buff received' }[p.on]}`
     : p.on === 'periodic' ? `${p.chance != null && p.chance < 1 ? `${pctText(p.chance)} chance every` : 'Every'} ${p.icd}s${p.needCreeps ? ' in combat' : ''}`
     : `${pctText(p.chance ?? 1)}${p.chancePerLevel ? ` (+${pctText(p.chancePerLevel)}/lvl)` : ''} ${{
       attack: 'on attack', hit: 'on hit', kill: 'on kill', enter: 'when a creep enters range', crit: 'on crit',
@@ -256,6 +257,7 @@ export function describeEffect(e) {
   if (e.fromOverkill) riders.push(`+${e.fromOverkill}x overkill damage`);
   if (e.cursePerLevel) riders.push(`damage taken +${pctText(e.cursePerLevel)}/lvl`);
   if (e.stunPerLevel) riders.push(`stun +${e.stunPerLevel}s/lvl`);
+  if (e.xpGranted) riders.push(`+${pct(e.xpGranted)} experience granted on death (permanent, stacks)`);
   if (e.pushBack) riders.push(`pushes back ${+e.pushBack.toFixed(1)}`);
   if (e.pctHp) riders.push(`+${pct(e.pctHp)} of current health`);
   if (e.pctMaxHp) riders.push(`+${pct(e.pctMaxHp)} of max health`);
@@ -278,7 +280,8 @@ export function describeEffect(e) {
     case 'bolts': return noDamage ? `${e.count} strikes on random creeps${area}${r}.` : `${e.count} strikes on random creeps for ${amount} ${e.attack ? 'attack' : 'spell'} damage each${area}${r}.`;
     case 'growSelf': return `permanently gains ${fmtMod(e.stat, e.amount)}${e.cap != null ? ` (max ${fmtMod(e.stat, e.cap)})` : ''}.`;
     case 'stealXp': return `steals ${e.amount} experience from a random nearby tower.`;
-    case 'dropItem': return `creates ${/^[aeiou]/.test(e.rarity || 'common') ? 'an' : 'a'} ${e.rarity || 'common'} item${e.uniqueChance ? ` (${pctText(e.uniqueChance)} unique)` : ''}.`;
+    case 'dropItem': if (e.quality != null) return `creates ${(e.count || 1) > 1 ? `${e.count} items` : 'an item'} with +${pctText(e.quality)} item quality.`;
+      return `creates ${/^[aeiou]/.test(e.rarity || 'common') ? 'an' : 'a'} ${e.rarity || 'common'} item${e.uniqueChance ? ` (${pctText(e.uniqueChance)} unique)` : ''}.`;
     case 'resetGrow': case 'resetGrowSelf': return `resets its ${STAT_NAMES[e.stat] || e.stat} growth.`;
     case 'nextSpellCrit': return `the next ${e.count || 1} spell${(e.count || 1) > 1 ? 's' : ''} always crit.`;
     case 'link': return 'links to an allied tower and banks its spell damage.';
@@ -293,6 +296,11 @@ export function describeEffect(e) {
     case 'shareXp': return `${e.amount} experience to ${e.count} nearby towers.`;
     case 'xp': return `grants ${e.amount} experience${e.perLevel ? ` (+${pctText(e.perLevel)} per level)` : ''}.`;
     case 'grow': return `permanently grows the item: ${fmtMod(e.stat, e.amount)}${e.cap != null ? ` (up to ${fmtMod(e.stat, e.cap)})` : ''}${e.min != null ? ` (down to ${fmtMod(e.stat, e.min)})` : ''}.`;
+    case 'pick': {
+      const part = (s) => (s.kind === 'multi' ? s.effects.map(part).join(' and ') : describeEffect(s).replace(/\.$/, ''));
+      return `one at random: ${e.effects.map((s, i) => `(${i + 1}) ${part(s)}`).join('; ')}.`;
+    }
+    case 'paceReward': return `when attacking a creep of a newer wave within ${e.window}s of its last attack, grants gold equal to the seconds left${e.xpRatio ? ` and ${e.xpRatio}x that as experience` : ''}.`;
     case 'multi': return e.effects.map(describeEffect).filter(Boolean).map((t, i) => (i ? t.charAt(0).toUpperCase() + t.slice(1) : t)).join(' ');
     default: return '';
   }
