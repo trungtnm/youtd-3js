@@ -1,0 +1,19 @@
+{
+  "name": "youtd-three",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5317 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5318 --strictPort",
+    "balance": "node tools/balance.js",
+    "import:youtd": "node tools/import-youtd2.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.1"
+  }
+}

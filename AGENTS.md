@@ -1,0 +1,79 @@
+# AGENTS.md
+
+Guidance for coding agents working in this repository.
+
+## Project
+
+YouTD Reforged: a browser tower-defense game in three.js, recreating YouTD (the
+Warcraft III map). Plain JavaScript ES modules, built with Vite. No framework, no
+TypeScript, no test framework.
+
+Read first:
+- `docs/architecture.md` for code layout and data flow.
+- `docs/game-design.md` for rules, economy and balance targets.
+- `docs/youtd-port.md` before touching towers, items or `third_party/youtd2`.
+
+## Commands
+
+```bash
+npm install
+npm run dev            # Vite dev server on port 5317 (add -- --host 0.0.0.0 for LAN/Tailscale)
+npm run build          # production build into dist/; must pass before finishing
+npm run balance        # headless balance bot (see below)
+npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party/youtd2
+```
+
+Balance bot options are environment variables:
+
+```bash
+DIFF=medium MODE=build SEED=2 A=fire B=storm CAP=10 V=1 node tools/balance.js
+```
+
+For runtime checks of many towers, set `game.cfg.mode = 'sandbox'` on a `Game`
+instance: it skips the first-tier-only and research build rules.
+
+`DIFF` difficulty, `MODE` build or random, `SEED` RNG seed, `A`/`B` elements the
+bot researches, `CAP` max towers it builds (10 matches the intended play style),
+`V=1` prints per-wave lines. Run several seeds; results vary by ±15 waves.
+
+## Layout rules
+
+- `src/sim/` is headless. Never import three.js or touch the DOM there; the
+  balance bot runs it in Node.
+- `src/world/` and `src/ui/` read simulation state and listen to `Game` events.
+  Change rules through `Game` methods, not by mutating state from the view.
+- New tower or item mechanics belong in the ability engine
+  (`src/sim/abilities.js`, `applyEffect`) as reusable effect kinds, then get
+  used from data (`src/data/youtd/tower-ports.js`).
+- `src/data/youtd/generated.js` is generated. Edit `tools/import-youtd2.mjs` or
+  the data in `third_party/youtd2/` instead, then rerun the import.
+- HUD sizes in `src/style.css` use `calc(var(--s) * Npx)` so the UI scales with
+  the window. Keep that pattern for new styles.
+
+## Licensing constraints
+
+- Only the MIT-licensed YouTD 2 data tables may be used. Do not copy YouTD 2
+  art, icons or text assets (CC-BY-NC), and do not copy ability description text
+  from youtd.best or the original map. Write descriptions from the mechanics.
+- Third-party assets must carry credits: icons in `docs/icon-credits.md` and the
+  in-game Credits section, music in `docs/music-credits.md` and Credits.
+
+## Verifying changes
+
+1. `npm run build` must pass.
+2. For simulation or balance changes, run the balance bot on 3+ seeds and on the
+   affected difficulties; compare against the table in `docs/game-design.md`.
+3. For UI or rendering changes, check the game in a browser at 1920x1080 and
+   2560x1440 (start a run, build towers, start a wave). `window.__youtd` exposes
+   `game`, `world` and `hud` for scripted checks.
+4. Update `docs/` when rules, data pipeline, balance targets or architecture
+   change, and update the port status table in `docs/youtd-port.md` when porting
+   scripts.
+
+## Conventions
+
+- Match the surrounding style: small helpers, short comments explaining why,
+  descriptive names, no plan or ticket ids in code or commit messages.
+- Distances in data from YouTD are Warcraft III units; divide by 94 for world
+  units. YouTD tiers are 1-based; this game's `tier` field is 0-based.
+- Plans and reports go in `plans/`; long-lived docs go in `docs/`.
