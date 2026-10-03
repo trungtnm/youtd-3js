@@ -7,6 +7,7 @@ import { YT_ITEMS } from './youtd/generated.js';
 import { mapMods, baseMods, describeLevelMods, modLabel, isFlatMod } from './youtd/mods.js';
 import { describeSkill } from './tower-skills.js';
 import { ITEM_PORTS } from './youtd/item-ports.js';
+import { ITEM_ICON_MAP, iconUrl } from './icon-map.js';
 
 // Consumable effects, re-implemented from the YouTD 2 scripts. Food-cap items
 // are converted to gold because this game has no tower limit.
@@ -21,19 +22,6 @@ const CONSUMABLES = {
   consumable_piggy: { goldPerLevel: 20 },
 };
 
-// Card icon from the item's strongest stat line.
-const ICONS = {
-  damage: '🗡', attackSpeed: '⚔', crit: '🎯', critMult: '💥', multicrit: '✴', spell: '🔮', spellCrit: '✨',
-  spellCritMult: '✨', bounty: '🪙', xp: '📜', itemFind: '🧲', itemQuality: '💎', trigger: '🎲', manaPct: '💧',
-  manaRegen: '💧', manaFlat: '💧', manaRegenFlat: '💧', buffDur: '⏳', dpsAdd: '🔥',
-};
-const iconFor = (def, mapped) => {
-  if (def.type === 'oil') return '🫙';
-  if (def.type === 'consumable') return /book/.test(def.script || '') ? '📘' : '🎁';
-  const top = mapped[0]?.[0];
-  return ICONS[top] || (top?.startsWith('vs') ? '⚔' : '💠');
-};
-
 export const ITEMS = {};
 for (const row of YT_ITEMS) {
   const levelMods = mapMods(row.mods);
@@ -45,7 +33,7 @@ for (const row of YT_ITEMS) {
   if (kind === 'equip' && row.script && !port && !pending.length) pending.push('Special effect');
   ITEMS[`i${row.id}`] = {
     id: `i${row.id}`, ytId: row.id, name: row.name, author: row.author, rarity: row.rarity, kind,
-    cost: row.cost, reqWave: row.reqWave, icon: iconFor(row, levelMods),
+    cost: row.cost, reqWave: row.reqWave, icon: iconUrl(ITEM_ICON_MAP[row.name]),
     levelMods, mods: baseMods(levelMods), pending,
     effect: kind === 'consumable' ? CONSUMABLES[row.script] || {} : undefined,
     procs: port?.procs, aura: port?.aura, reveal: port?.reveal,

@@ -412,6 +412,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .ico { display: inline-block; width: calc(var(--s) * 24px); height: calc(var(--s) * 24px); background: currentColor; -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; filter: drop-shadow(0 0 calc(var(--s) * 4px) currentColor); flex: none; }
 .ico.big { width: calc(var(--s) * 42px); height: calc(var(--s) * 42px); }
 #tooltip h4 .ico { width: calc(var(--s) * 18px); height: calc(var(--s) * 18px); }
+/* Item glyphs follow the font size of the slot or card they sit in. */
+.ico.item { width: 1.35em; height: 1.35em; filter: drop-shadow(0 0 calc(var(--s) * 3px) currentColor) drop-shadow(0 1px 1px #000); }
 .credits { margin: calc(var(--s) * 14px) auto 0; max-width: calc(var(--s) * 900px); text-align: left; }
 .credits summary { cursor: pointer; text-align: center; color: var(--muted); font-family: var(--serif); font-size: calc(var(--s) * 11px); letter-spacing: 0.15em; text-transform: uppercase; }
 .credits p { position: relative; color: #c9bda6; font-size: calc(var(--s) * 11.5px); line-height: 1.6; background: var(--stone-bg); border-radius: calc(var(--s) * 3px); padding: calc(var(--s) * 14px) calc(var(--s) * 18px); }

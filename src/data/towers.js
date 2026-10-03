@@ -6,7 +6,7 @@
 import { RARITIES } from './constants.js';
 import { YT_TOWERS } from './youtd/generated.js';
 import { mapMods, describeLevelMods } from './youtd/mods.js';
-import { TOWER_ICONS } from './tower-icons.js';
+import { TOWER_ICON_MAP, iconUrl } from './icon-map.js';
 import { describeSkill, describeStatMod } from './tower-skills.js';
 import { TOWER_PORTS } from './youtd/tower-ports.js';
 
@@ -17,18 +17,12 @@ const REQ_COST = [140, 215, 345, 500, 680, 900, 1080, 1300, 1550, 1850, 2130, 24
 const reqLevelFor = (cost) => { let lvl = 0; REQ_COST.forEach((c, i) => { if (cost >= c) lvl = i + 1; }); return lvl; };
 const TOME_COST = { common: 0, uncommon: 4, rare: 10, unique: 25 };
 
-// Procedural models and icons are grouped by element; each family gets a stable pick.
+// Procedural models are grouped by element; each family gets a stable pick.
 const MODELS = {
   nature: ['thorn', 'mushroom', 'vine', 'tree', 'worldroot'], fire: ['brazier', 'wisp', 'mortar', 'roost', 'forge'],
   ice: ['crystal', 'totem', 'prism', 'obelisk', 'titan'], storm: ['coil', 'spire', 'rod', 'drum', 'eye'],
   iron: ['cannon', 'ballista', 'press', 'gatling', 'anvil'], astral: ['lens', 'orrery', 'sunprism', 'seer', 'sanctum'],
   darkness: ['tomb', 'eye', 'altar', 'reaper', 'monolith'],
-};
-const ICON_KEYS = {
-  nature: ['thorn', 'spore', 'vine', 'grove', 'worldroot'], fire: ['brazier', 'wisp', 'mortar', 'phoenix', 'skyfall'],
-  ice: ['shard', 'snow', 'prism', 'cryo', 'rimeheart'], storm: ['coil', 'gale', 'rod', 'drum', 'maelstrom'],
-  iron: ['cannon', 'ballista', 'coinpress', 'gatling', 'anvil'], astral: ['lens', 'orrery', 'sunprism', 'seer', 'sanctum'],
-  darkness: ['grave', 'shadoweye', 'hex', 'reaper', 'void'],
 };
 const PROJECTILES = { nature: 'thorn', fire: 'fireball', ice: 'icebolt', storm: 'spark', iron: 'shell', astral: 'star', darkness: 'shadow' };
 const pickBy = (list, n) => list[((n * 2654435761) >>> 0) % list.length];
@@ -82,7 +76,7 @@ for (const [famNum, rows] of byFamily) {
       canAttack: row.attackEnabled,
       targets: row.target.includes('SIZE_AIR') ? 'air' : row.target.includes('SIZE_') ? 'ground' : 'all',
       projectile: row.lightning ? 'lightning' : PROJECTILES[row.element], arc: row.arc >= 0.3,
-      model: pickBy(MODELS[row.element], famNum), icon: TOWER_ICONS[pickBy(ICON_KEYS[row.element], famNum)],
+      model: pickBy(MODELS[row.element], famNum), icon: iconUrl(TOWER_ICON_MAP[head.name]),
       lore: `${RARITIES[row.rarity].name} ${row.element} tower by ${row.author}.`,
     };
     FAMILIES[fid].tiers.push(id);

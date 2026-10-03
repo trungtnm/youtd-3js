@@ -5,7 +5,7 @@ import { HUD } from './ui/hud.js';
 import { Audio } from './audio/audio.js';
 import { Game } from './sim/game.js';
 import { DIFFICULTIES, MODES, LENGTHS } from './data/constants.js';
-import { ICON_CREDITS } from './data/tower-icons.js';
+import { ICON_CREDITS } from './data/icon-map.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
 
 const $ = (s) => document.querySelector(s);
@@ -64,14 +64,16 @@ renderChoices('#opt-mode', MODES, 'mode');
 renderChoices('#opt-length', LENGTHS, 'length');
 renderBest();
 
-// Tower icons are CC BY 3.0 and must be credited where players can see it.
+// Tower and item icons are CC BY 3.0 and must be credited where players can see it.
+// With hundreds of icons, credit each author with a count; docs/icon-credits.md lists every icon.
 {
   const byAuthor = {};
-  for (const c of ICON_CREDITS) (byAuthor[c.author] ||= []).push(`<a href="${c.source}" target="_blank" rel="noopener">${c.iconName}</a>`);
+  for (const c of ICON_CREDITS) byAuthor[c.author] = (byAuthor[c.author] || 0) + 1;
   $('#credits-text').innerHTML = `Tower and item data from <a href="https://github.com/Praytic/youtd2" target="_blank" rel="noopener">YouTD 2</a> (MIT license),
-    based on YouTD, the Warcraft III map by geX and the YouTD community. The original author of each tower and item is credited in its tooltip.<br><br>Tower icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licensed under
-    <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a> (background removed, recolored). `
-    + Object.entries(byAuthor).map(([a, list]) => `<b>${a}</b>: ${list.join(', ')}`).join(' · ')
+    based on YouTD, the Warcraft III map by geX and the YouTD community. The original author of each tower and item is credited in its tooltip.<br><br>Tower and item icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licensed under
+    <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a> (background removed, recolored), by `
+    + Object.entries(byAuthor).sort((a, b) => b[1] - a[1]).map(([a, n]) => `<b>${a}</b> (${n})`).join(', ')
+    + `. Each icon's source is listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/icon-credits.md" target="_blank" rel="noopener">docs/icon-credits.md</a>.`
     + `<br><br>Music: ${MUSIC_TRACKS.map((t) => `"<a href="${t.source}" target="_blank" rel="noopener">${t.title}</a>" by ${t.artist}`).join(', ')}
     (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; re-encoded to 128 kbps.
     Sound effects are synthesised in-game with Web Audio.<br><br>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT license).

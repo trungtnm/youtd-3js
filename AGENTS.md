@@ -21,6 +21,7 @@ npm run dev            # Vite dev server on port 5317 (add -- --host 0.0.0.0 for
 npm run build          # production build into dist/; must pass before finishing
 npm run balance        # headless balance bot (see below)
 npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party/youtd2
+GAME_ICONS_DIR=/path/to/game-icons npm run import:icons  # copy curated icons, regenerate docs/icon-credits.md
 ```
 
 Balance bot options are environment variables:
@@ -46,6 +47,11 @@ per-wave lines. Run several seeds; results vary by ±15 waves.
 - New tower or item mechanics belong in the ability engine
   (`src/sim/abilities.js`, `applyEffect`) as reusable effect kinds, then get
   used from data (`src/data/youtd/tower-ports.js`).
+- Tower family and item icons are curated in `src/data/icon-map.js` (one
+  game-icons.net icon per family and item, matching the name). After editing it,
+  run `npm run import:icons` with `GAME_ICONS_DIR` set to a clone of
+  github.com/game-icons/icons; `public/icons/gi/` and `docs/icon-credits.md` are
+  generated.
 - `src/data/youtd/generated.js` is generated. Edit `tools/import-youtd2.mjs` or
   the data in `third_party/youtd2/` instead, then rerun the import.
 - HUD sizes in `src/style.css` use `calc(var(--s) * Npx)` so the UI scales with

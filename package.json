@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --port 5318 --strictPort",
     "balance": "node tools/balance.js",
-    "import:youtd": "node tools/import-youtd2.mjs"
+    "import:youtd": "node tools/import-youtd2.mjs",
+    "import:icons": "node tools/import-icons.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

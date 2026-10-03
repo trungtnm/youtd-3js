@@ -16,6 +16,8 @@ import { fmt } from '../world/world.js';
 const $ = (s) => document.querySelector(s);
 // Element-tinted tower glyph (SVG used as a CSS mask so currentColor applies).
 const towerIcon = (icon, size = '') => `<span class="ico ${size}" style="--icon:url('${icon}')"></span>`;
+// Item glyphs are tinted by rarity and sized relative to the surrounding font.
+const itemIcon = (d) => `<span class="ico item" style="--icon:url('${d.icon}');color:${RARITIES[d.rarity].css}"></span>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const SIZE_ICON = { mass: '⁂', normal: '☗', air: '🜁', boss: '☠', champion: '♛', challenge: '✪', challengeMass: '✪' };
 const SIZE_LABEL = { mass: 'Mass', normal: 'Normal', air: 'Air', boss: 'Boss', champion: 'Champion', challenge: 'Challenge', challengeMass: 'Challenge' };
@@ -108,7 +110,7 @@ export class HUD {
     game.on('stash', () => { this.sigs.stash = null; this.sigs.sel = null; });
     game.on('itemDrop', ({ item }) => {
       const d = ITEMS[item.id];
-      this.toast(`Found ${d.icon} ${d.name}`, 'item');
+      this.toast(`Found ${d.name}`, 'item');
     });
     game.on('invisibleWarning', ({ level, now, covered }) => {
       if (!covered) { this.alertDismissed = 0; this.audio.error(); this.toast(now ? `Wave ${level} is invisible and you cannot see it!` : `Invisible creeps arrive on wave ${level}`, 'warn'); }
@@ -135,7 +137,7 @@ export class HUD {
       this.renderSpoils();
       this.renderPerkQueue();
       this.audio.item(o.item ? ITEMS[o.item.id].rarity : 'rare');
-      this.toast(o.item ? `Claimed ${ITEMS[o.item.id].icon} ${ITEMS[o.item.id].name}` : `Claimed ${SPOILS[o.type].name}`, 'gold');
+      this.toast(o.item ? `Claimed ${ITEMS[o.item.id].name}` : `Claimed ${SPOILS[o.type].name}`, 'gold');
     });
     this.renderAll();
   }
@@ -330,7 +332,7 @@ export class HUD {
       if (o.item) {
         const d = ITEMS[o.item.id];
         return `<button class="spoil r-${d.rarity}" data-spoil="${i}">
-          <span class="sp-icon">${d.icon}</span><span class="sp-tag" style="color:${RARITIES[d.rarity].css}">${RARITIES[d.rarity].name} ${d.kind === 'oil' ? 'oil' : 'item'}</span>
+          <span class="sp-icon">${itemIcon(d)}</span><span class="sp-tag" style="color:${RARITIES[d.rarity].css}">${RARITIES[d.rarity].name} ${d.kind === 'oil' ? 'oil' : 'item'}</span>
           <b class="r-${d.rarity}">${esc(d.name)}</b><ul>${describeItem(d).map((l) => `<li>${esc(l)}</li>`).join('')}</ul></button>`;
       }
       const sp = SPOILS[o.type];
@@ -481,7 +483,7 @@ export class HUD {
       const it = g.stash[i];
       if (!it) { slots.push('<div class="slot empty"></div>'); continue; }
       const d = ITEMS[it.id];
-      slots.push(`<div class="slot r-${d.rarity} ${this.selectedItem === it.uid ? 'sel' : ''} ${this.transmuteSel.has(it.uid) ? 'tsel' : ''}" draggable="true" data-uid="${it.uid}" data-tt="item:${it.id}:${it.uid}">${d.icon}${d.kind !== 'equip' ? `<span class="kind">${d.kind === 'oil' ? 'OIL' : 'USE'}</span>` : ''}</div>`);
+      slots.push(`<div class="slot r-${d.rarity} ${this.selectedItem === it.uid ? 'sel' : ''} ${this.transmuteSel.has(it.uid) ? 'tsel' : ''}" draggable="true" data-uid="${it.uid}" data-tt="item:${it.id}:${it.uid}">${itemIcon(d)}${d.kind !== 'equip' ? `<span class="kind">${d.kind === 'oil' ? 'OIL' : 'USE'}</span>` : ''}</div>`);
     }
     const box = $('#stash');
     box.innerHTML = slots.join('');
@@ -579,14 +581,14 @@ export class HUD {
           <div class="islots">${t.items.map((it, i) => i >= g.itemSlots() && !it
             ? `<div class="slot empty locked" data-tip="Unlocks at wave ${g.slotUnlockWave(i)} for every tower.">🔒</div>`
             : it
-            ? `<div class="slot r-${ITEMS[it.id].rarity}" data-slot="${i}" data-tt="item:${it.id}:${it.uid}">${ITEMS[it.id].icon}</div>`
+            ? `<div class="slot r-${ITEMS[it.id].rarity}" data-slot="${i}" data-tt="item:${it.id}:${it.uid}">${itemIcon(ITEMS[it.id])}</div>`
             : `<div class="slot empty" data-slot="${i}" data-tip="Empty item slot. Click an item in your stash, or drag one here."></div>`).join('')}</div>
           ${t.actives.length || itemActs.length ? `<div class="actives">${t.actives.map((a, i) => `<button class="act ${a.auto ? 'auto' : ''} ${t.mana < a.def.mana ? 'nomana' : ''}" data-act="${i}"
               data-tip="${esc(`${a.def.name} — ${a.def.desc} (${a.def.mana} mana, ${a.def.cd}s cooldown). Click to cast [${'FG'[i]}], right-click to toggle autocast.`)}">
               ${a.def.icon}<span class="key">${'FG'[i]}</span><span class="mana">${a.def.mana}</span>
               <span class="cdsweep" style="--cd:${a.cd > 0 ? (a.cd / a.def.cd) * 360 : 0}deg"></span></button>`).join('')}${itemActs.map((a, i) => `<button class="act item-act r-${ITEMS[a.item.id].rarity} ${a.auto ? 'auto' : ''}" data-iact="${i}"
               data-tip="${esc(`${ITEMS[a.item.id].name}: ${describeSkill(a.proc)}`)}">
-              ${a.proc.icon || ITEMS[a.item.id].icon}${a.item.state?.charges != null ? `<span class="mana">${a.item.state.charges}</span>` : ''}
+              ${a.proc.icon || itemIcon(ITEMS[a.item.id])}${a.item.state?.charges != null ? `<span class="mana">${a.item.state.charges}</span>` : ''}
               <span class="cdsweep" style="--cd:${a.cd > 0 && a.proc.icd > 1 ? (a.cd / a.proc.icd) * 360 : 0}deg"></span></button>`).join('')}</div>` : ''}
           <div class="prio">${prios.map(([k, n]) => `<button data-prio="${k}" class="${t.priority === k ? 'on' : ''}" data-tip="Target the ${n.toLowerCase()} creep in range">${n}</button>`).join('')}</div>
           <div class="sel-actions">
@@ -699,7 +701,7 @@ export class HUD {
       const inst = uid && (g.stash.find((i) => i.uid === uid) || [...g.towers.values()].flatMap((t) => t.items).find((i) => i?.uid === uid));
       const grown = inst?.bound ? `<div class="good" style="margin-top:4px">Grown so far: ${describeMods(inst.bound).join(', ')}</div>` : '';
       const r = RARITIES[d.rarity];
-      return `<h4 style="color:${r.css}">${d.icon} ${esc(d.name)}</h4><div class="tt-sub">${r.name} ${d.kind === 'equip' ? 'equipment' : d.kind}</div>
+      return `<h4 style="color:${r.css};display:flex;align-items:center;gap:6px">${itemIcon(d)}${esc(d.name)}</h4><div class="tt-sub">${r.name} ${d.kind === 'equip' ? 'equipment' : d.kind}</div>
         ${describeItem(d).map((l) => `<div>${esc(l)}</div>`).join('')}
         ${grown}${d.kind === 'equip' ? '<div class="tt-sub" style="margin-top:6px">Shift-click to select for Transmute.</div>' : ''}
         ${d.author ? `<div class="tt-lore">Original YouTD item by ${esc(d.author)}.</div>` : ''}`;

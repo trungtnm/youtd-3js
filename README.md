@@ -31,6 +31,7 @@ To open the game from another device on your network, run
 | `npm run preview` | Serve the production build on port 5318 |
 | `npm run balance` | Headless balance bot (see below) |
 | `npm run import:youtd` | Regenerate `src/data/youtd/generated.js` from `third_party/youtd2` |
+| `npm run import:icons` | Copy the icons chosen in `src/data/icon-map.js` from a game-icons clone (`GAME_ICONS_DIR`) |
 
 ## Controls
 
@@ -103,7 +104,7 @@ are in [docs/game-design.md](docs/game-design.md#balance-targets).
   [YouTD 2](https://github.com/Praytic/youtd2), copied to `third_party/youtd2/`
   with their license. YouTD 2 art, icons and text (CC-BY-NC) are not used.
   In-game descriptions are written from the ported mechanics.
-- Tower icons are from [game-icons.net](https://game-icons.net) (CC BY 3.0).
+- Tower and item icons are from [game-icons.net](https://game-icons.net) (CC BY 3.0).
   See [docs/icon-credits.md](docs/icon-credits.md).
 - Music by Kevin MacLeod ([incompetech.com](https://incompetech.com)), CC BY 4.0.
   See [docs/music-credits.md](docs/music-credits.md).

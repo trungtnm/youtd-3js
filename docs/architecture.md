@@ -68,7 +68,8 @@ main power source.
 - `youtd/mods.js`: maps YouTD `MOD_*` ids to stat channels.
 - `youtd/tower-ports.js`: hand-ported tower behaviors.
 - `tower-perks.js`, `boss-spoils.js`, `tower-skills.js` (effect descriptions),
-  `music-tracks.js`, `tower-icons.js`.
+  `music-tracks.js`, `icon-map.js` (curated game-icons.net icon per tower family
+  and item, imported by `npm run import:icons`).
 
 ## World (`src/world/`)
 

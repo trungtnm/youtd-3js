@@ -10,7 +10,8 @@ tables of [YouTD 2](https://github.com/Praytic/youtd2).
   (`SOURCE_COMMIT`).
 - YouTD 2 assets (art, icons, text) are CC-BY-NC 4.0 and are **not** used. Tower
   and item descriptions shown in game are generated from the ported mechanics.
-- Tower icons are game-icons.net glyphs (CC BY 3.0, `docs/icon-credits.md`);
+- Tower and item icons are game-icons.net glyphs (CC BY 3.0, `docs/icon-credits.md`),
+  one per tower family and item, chosen to match the name (`src/data/icon-map.js`);
   music is by Kevin MacLeod (CC BY 4.0, `docs/music-credits.md`).
 
 ## Pipeline
