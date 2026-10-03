@@ -1,7 +1,7 @@
 ---
 title: "Detailed end screen, player profile and achievements"
 description: "Richer end-of-run summary plus a persistent player profile with achievements and non-power unlocks that give players a reason to start another run."
-status: in-progress
+status: completed
 priority: P2
 effort: 5.75d
 branch: feat/end-screen-profile-achievements
@@ -65,7 +65,7 @@ locking existing difficulties or modes, merging imported profiles.
 | 5 | [Profile hall on the menu](phase-05-profile-hall.md) | 0.75d | 2, 3 | completed |
 | 6 | [Challenge modifiers](phase-06-challenge-modifiers.md) | 0.75d | 3 | completed |
 | 7 | [Cosmetic tower crests](phase-07-cosmetic-crests.md) | 0.5d | 3 | completed |
-| 8 | [Docs and full verification](phase-08-docs-verification.md) | 0.25d | 1-7 | pending |
+| 8 | [Docs and full verification](phase-08-docs-verification.md) | 0.25d | 1-7 | completed |
 
 Run phases 1 and 2 one after the other: both touch `src/ui/hud.js` (lives bar,
 moving `esc`). Phases 5, 6 and 7 can run in parallel after phase 3 if they keep

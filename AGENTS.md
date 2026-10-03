@@ -34,7 +34,7 @@ instance: it skips the first-tier-only and research build rules.
 
 `DIFF` difficulty, `MODE` build or random, `SEED` RNG seed, `A`/`B` elements the
 bot researches, `CAP` max towers it builds (10 matches the intended play style),
-`V=1` prints per-wave lines. Run several seeds; results vary by ±15 waves.
+`V=1` prints per-wave lines, `MODS=glass,frugal` applies challenge modifiers. Run several seeds; results vary by ±15 waves.
 
 ## Layout rules
 
