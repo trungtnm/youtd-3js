@@ -12,11 +12,11 @@ import { SPOILS } from '../data/boss-spoils.js';
 import { SPECIALS } from '../sim/waves.js';
 import { COLS, ROWS, TILE, GROUND_ROUTE, AIR_ROUTE, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { fmt } from '../world/world.js';
+import { esc } from './util.js';
 
 const $ = (s) => document.querySelector(s);
 // Element-tinted tower glyph (SVG used as a CSS mask so currentColor applies).
 const towerIcon = (icon, size = '') => `<span class="ico ${size}" style="--icon:url('${icon}')"></span>`;
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const SIZE_ICON = { mass: '⁂', normal: '☗', air: '🜁', boss: '☠', champion: '♛', challenge: '✪', challengeMass: '✪' };
 const SIZE_LABEL = { mass: 'Mass', normal: 'Normal', air: 'Air', boss: 'Boss', champion: 'Champion', challenge: 'Challenge', challengeMass: 'Challenge' };
 

@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Achievement and unlock definitions plus evaluator"
-status: pending
+status: completed
 priority: P1
 effort: "1d"
 dependencies: [1, 2]

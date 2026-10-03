@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Profile store with export and import"
-status: pending
+status: completed
 priority: P1
 effort: "0.75d"
 dependencies: []

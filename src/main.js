@@ -7,11 +7,11 @@ import { Game } from './sim/game.js';
 import { DIFFICULTIES, MODES, LENGTHS } from './data/constants.js';
 import { ICON_CREDITS } from './data/tower-icons.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
+import { loadProfile, recordRun, recordKey, newRunState } from './meta/profile.js';
 
 const $ = (s) => document.querySelector(s);
 
 const SETTINGS_KEY = 'youtd-reforged-settings';
-const BEST_KEY = 'youtd-reforged-best';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
@@ -21,6 +21,7 @@ const world = new World($('#app'), $('#overlay'));
 const audio = new Audio();
 const hud = new HUD(world, audio);
 let game = null;
+let runState = null; // what this game already wrote to the profile
 let paused = false;
 
 // Interface scale follows the window (1600x900 is the design size), times the player's preference.
@@ -54,9 +55,8 @@ function renderChoices(id, defs, key) {
     renderBest();
   }));
 }
-function bestKey() { return `${settings.difficulty}/${settings.mode}/${settings.length}`; }
 function renderBest() {
-  const best = load(BEST_KEY, {})[bestKey()];
+  const best = loadProfile().profile.records[recordKey(settings)];
   $('#best-score').textContent = best ? `Best on this setup: wave ${best.level} · score ${best.score.toLocaleString()}` : '';
 }
 renderChoices('#opt-difficulty', DIFFICULTIES, 'difficulty');
@@ -117,8 +117,9 @@ function startGame() {
   hud.setGame(game);
   hud.setSpeed(1);
   paused = false;
-  game.on('victory', (sum) => { recordBest(sum); audio.victory(); hud.showEnd(true, sum, settings.length !== 'endless'); });
-  game.on('defeat', (sum) => { recordBest(sum); audio.defeat(); hud.showEnd(false, sum, false); });
+  runState = newRunState();
+  game.on('victory', () => { recordRun(game.summary(), runState); audio.victory(); hud.showEnd(true, game.summary(), settings.length !== 'endless'); });
+  game.on('defeat', () => { recordRun(game.summary(), runState); audio.defeat(); hud.showEnd(false, game.summary(), false); });
   $('#menu').classList.add('hidden');
   $('#endscreen').classList.add('hidden');
   $('#hud').classList.remove('hidden');
@@ -130,13 +131,6 @@ function startGame() {
     : settings.mode === 'random' ? 'Your first towers have been drafted' : 'Research an element and build your first towers');
   hud.hint('Pick a tower on the right, place it beside the path, then press <b>Start</b> or <b>Space</b>.');
   setTimeout(() => { if (game && game.phase === 'prep') hud.hint(''); }, 9000);
-}
-
-function recordBest(sum) {
-  if (sum.cfg.god) return;
-  const all = load(BEST_KEY, {});
-  const prev = all[bestKey()];
-  if (!prev || sum.score > prev.score) { all[bestKey()] = { level: sum.level, score: sum.score }; save(BEST_KEY, all); }
 }
 
 $('#btn-start').addEventListener('click', startGame);
