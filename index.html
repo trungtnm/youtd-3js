@@ -29,6 +29,7 @@
         <div class="wave-label">WAVE <b id="r-wave">0</b><span id="r-wavemax"></span></div>
         <div class="wave-timer"><div id="r-timer"></div></div>
         <button id="btn-next" class="btn gold" data-tip="Send the next wave now for bonus gold. [Space]">Start</button>
+        <button id="btn-auto" class="btn" data-tip="Auto waves. Off: the next wave starts only after the current one is killed or has leaked. On: waves also arrive on a timer while creeps are still alive.">Auto</button>
       </div>
       <div class="right-group">
         <div class="score" data-tip="Score">★ <b id="r-score">0</b></div>
@@ -51,6 +52,7 @@
       <section class="panel" id="stash-panel">
         <h3>Items <small id="stash-count"></small>
           <button id="btn-transmute" class="mini" data-tip="Combine 3 selected items of the same rarity into one of the next rarity. Shift-click items to select.">Transmute</button>
+          <button id="btn-autotx" class="mini" data-tip="Auto transmute. When on, every 3 spare common, uncommon or rare items are combined as they arrive, cheapest first. Uniques, oils, consumables and items that were equipped are never used.">Auto</button>
         </h3>
         <div id="stash"></div>
       </section>
@@ -118,7 +120,7 @@
             </div>
           </div>
         </div>
-        <button id="btn-continue" class="btn gold big">Start Game</button>
+        <button id="btn-setup" class="btn gold big">Start Game</button>
       </div>
       <div id="menu-setup" class="hidden">
         <div class="opts panel">

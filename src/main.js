@@ -5,7 +5,8 @@ import { HUD } from './ui/hud.js';
 import { Audio } from './audio/audio.js';
 import { Game } from './sim/game.js';
 import { DIFFICULTIES, MODES, LENGTHS } from './data/constants.js';
-import { ICON_CREDITS } from './data/tower-icons.js';
+import { ICON_CREDITS } from './data/icon-map.js';
+import { MODEL_LIBRARY } from './data/model-library.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
 
 const $ = (s) => document.querySelector(s);
@@ -15,7 +16,7 @@ const BEST_KEY = 'youtd-reforged-best';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
-const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', god: 'off' });
+const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', autoWave: false, autoTransmute: false, god: 'off' });
 
 const world = new World($('#app'), $('#overlay'));
 const audio = new Audio();
@@ -70,14 +71,21 @@ const GOD_OPTIONS = {
 renderChoices('#opt-god', GOD_OPTIONS, 'god');
 renderBest();
 
-// Tower icons are CC BY 3.0 and must be credited where players can see it.
+// Tower and item icons are CC BY 3.0 and must be credited where players can see it.
+// With hundreds of icons, credit each author with a count; docs/icon-credits.md lists every icon.
 {
   const byAuthor = {};
-  for (const c of ICON_CREDITS) (byAuthor[c.author] ||= []).push(`<a href="${c.source}" target="_blank" rel="noopener">${c.iconName}</a>`);
+  for (const c of ICON_CREDITS) byAuthor[c.author] = (byAuthor[c.author] || 0) + 1;
+  const modelAuthors = {};
+  for (const m of Object.values(MODEL_LIBRARY)) modelAuthors[m.author] = (modelAuthors[m.author] || 0) + 1;
   $('#credits-text').innerHTML = `Tower and item data from <a href="https://github.com/Praytic/youtd2" target="_blank" rel="noopener">YouTD 2</a> (MIT license),
-    based on YouTD, the Warcraft III map by geX and the YouTD community. The original author of each tower and item is credited in its tooltip.<br><br>Tower icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licensed under
-    <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a> (background removed, recolored). `
-    + Object.entries(byAuthor).map(([a, list]) => `<b>${a}</b>: ${list.join(', ')}`).join(' · ')
+    based on YouTD, the Warcraft III map by geX and the YouTD community. The original author of each tower and item is credited in its tooltip.<br><br>Tower and item icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licensed under
+    <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a> (background removed, recolored), by `
+    + Object.entries(byAuthor).sort((a, b) => b[1] - a[1]).map(([a, n]) => `<b>${a}</b> (${n})`).join(', ')
+    + `. Each icon's source is listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/icon-credits.md" target="_blank" rel="noopener">docs/icon-credits.md</a>.`
+    + `<br><br>Tower models from <a href="https://poly.pizza" target="_blank" rel="noopener">Poly Pizza</a> (CC0 and CC BY; compressed, otherwise unchanged), by `
+    + Object.entries(modelAuthors).sort((a, b) => b[1] - a[1]).map(([a, n]) => `<b>${a}</b> (${n})`).join(', ')
+    + `. Each model's title, author and licence are listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/model-credits.md" target="_blank" rel="noopener">docs/model-credits.md</a>.`
     + `<br><br>Music: ${MUSIC_TRACKS.map((t) => `"<a href="${t.source}" target="_blank" rel="noopener">${t.title}</a>" by ${t.artist}`).join(', ')}
     (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; re-encoded to 128 kbps.
     Sound effects are synthesised in-game with Web Audio.<br><br>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT license).
@@ -112,9 +120,11 @@ function startGame() {
   audio.init();
   audio.click();
   if (game) clearWorld();
-  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on' });
+  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, autoWave: settings.autoWave, autoTransmute: settings.autoTransmute, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on' });
   world.bind(game, audio);
   hud.setGame(game);
+  hud.onAutoWave = (on) => { settings.autoWave = on; save(SETTINGS_KEY, settings); };
+  hud.onAutoTransmute = (on) => { settings.autoTransmute = on; save(SETTINGS_KEY, settings); };
   hud.setSpeed(1);
   paused = false;
   game.on('victory', (sum) => { recordBest(sum); audio.victory(); hud.showEnd(true, sum, settings.length !== 'endless'); });
@@ -146,7 +156,7 @@ function showMenuStep(setup) {
   $('#menu-setup').classList.toggle('hidden', !setup);
   $('#menu').scrollTop = 0;
 }
-$('#btn-continue').addEventListener('click', () => showMenuStep(true));
+$('#btn-setup').addEventListener('click', () => showMenuStep(true));
 $('#btn-back').addEventListener('click', () => showMenuStep(false));
 $('#btn-again').addEventListener('click', () => { $('#endscreen').classList.add('hidden'); showMenu(); });
 $('#btn-continue').addEventListener('click', () => {

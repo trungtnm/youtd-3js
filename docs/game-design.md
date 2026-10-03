@@ -47,6 +47,11 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   one every 10 waves (6 at wave 50). A tower may carry only one unique item.
   Oils are consumed into a tower permanently. Three items of one rarity can be
   transmuted into a random item of the next rarity.
+- Auto transmute (Items panel toggle, off by default, remembered in settings):
+  whenever an item reaches the stash, spare common, uncommon and rare equipment
+  is combined in threes, cheapest first, and the results can cascade. Uniques,
+  oils, consumables, items that were ever equipped, and items with grown stats,
+  charges or copies are never used.
 
 ## Waves
 
@@ -58,6 +63,12 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   blinking and invisible. Invisible creeps can only be targeted inside a
   revealing tower's range (the Small Light family).
 - The incoming panel shows the active wave and the next three.
+- Auto waves (top bar toggle, off by default, remembered in settings). Off: the
+  next wave starts 5 seconds (`ECON.clearGap`) after every active wave has been
+  killed or has leaked. On: waves also arrive on a countdown (`ECON.waveGap` plus
+  the spawn time) while earlier waves are still alive. Calling a wave early
+  always works and pays bonus gold for the skipped time; with auto waves off,
+  calling during a wave counts as skipping a full `waveGap`.
 
 ## Boss spoils
 

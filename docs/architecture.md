@@ -68,7 +68,9 @@ factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap o
 - `youtd/mods.js`: maps YouTD `MOD_*` ids to stat channels.
 - `youtd/tower-ports.js`: hand-ported tower behaviors.
 - `tower-perks.js`, `boss-spoils.js`, `tower-skills.js` (effect descriptions),
-  `music-tracks.js`, `tower-icons.js`.
+  `music-tracks.js`, `icon-map.js` (curated game-icons.net icon per tower family
+  and item, imported by `npm run import:icons`), `model-map.js` (curated Poly
+  Pizza model per tower family, imported by `npm run import:models`).
 
 ## World (`src/world/`)
 
@@ -78,6 +80,10 @@ factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap o
 - `environment.js`: island terrain, water, sky, path ribbon, decoration
   (instanced), spawn gate, nexus, placement grid overlay.
 - `models.js`: procedural tower and creep models built from primitives.
+- `tower-glb.js`: loads curated tower models (`public/models/`, chosen in
+  `src/data/model-map.js`) on first use, fits them onto the pedestal, plays their
+  idle clip and an attack clip on each shot. The procedural model stands in until
+  the file arrives.
 - `fx.js`: GPU particle systems, projectiles, lightning, beams, rings, meteors,
   zones and floating combat text.
 

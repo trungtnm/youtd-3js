@@ -21,12 +21,14 @@ npm run dev            # Vite dev server on port 5317 (add -- --host 0.0.0.0 for
 npm run build          # production build into dist/; must pass before finishing
 npm run balance        # headless balance bot (see below)
 npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party/youtd2
+GAME_ICONS_DIR=/path/to/game-icons npm run import:icons  # copy curated icons, regenerate docs/icon-credits.md
+npm run import:models  # download and compress curated tower models, regenerate docs/model-credits.md
 ```
 
 Balance bot options are environment variables:
 
 ```bash
-DIFF=medium MODE=build SEED=2 A=fire B=storm CAP=10 V=1 node tools/balance.js
+DIFF=medium MODE=build SEED=2 A=fire B=storm CAP=10 AUTO=0 V=1 node tools/balance.js
 ```
 
 For runtime checks of many towers, set `game.cfg.mode = 'sandbox'` on a `Game`
@@ -34,7 +36,8 @@ instance: it skips the first-tier-only and research build rules.
 
 `DIFF` difficulty, `MODE` build or random, `SEED` RNG seed, `A`/`B` elements the
 bot researches, `CAP` max towers it builds (10 matches the intended play style),
-`V=1` prints per-wave lines. Run several seeds; results vary by ±15 waves.
+`AUTO=1` turns on auto waves (default off, as in the game), `V=1` prints
+per-wave lines. Run several seeds; results vary by ±15 waves.
 
 ## Layout rules
 
@@ -45,6 +48,17 @@ bot researches, `CAP` max towers it builds (10 matches the intended play style),
 - New tower or item mechanics belong in the ability engine
   (`src/sim/abilities.js`, `applyEffect`) as reusable effect kinds, then get
   used from data (`src/data/youtd/tower-ports.js`).
+- Tower family and item icons are curated in `src/data/icon-map.js` (one
+  game-icons.net icon per family and item, matching the name). After editing it,
+  run `npm run import:icons` with `GAME_ICONS_DIR` set to a clone of
+  github.com/game-icons/icons; `public/icons/gi/` and `docs/icon-credits.md` are
+  generated.
+- Tower models are curated in `src/data/model-map.js` (Poly Pizza ids, CC0 or
+  CC-BY only, keyed by the family's first tier name). `npm run import:models`
+  downloads and compresses them; `public/models/`, `src/data/model-library.js`
+  and `docs/model-credits.md` are generated. Families without a model use the
+  procedural builders in `src/world/models.js`. Check new picks in a browser:
+  static T-pose characters and props that shrink to nothing look broken.
 - `src/data/youtd/generated.js` is generated. Edit `tools/import-youtd2.mjs` or
   the data in `third_party/youtd2/` instead, then rerun the import.
 - HUD sizes in `src/style.css` use `calc(var(--s) * Npx)` so the UI scales with
@@ -55,8 +69,8 @@ bot researches, `CAP` max towers it builds (10 matches the intended play style),
 - Only the MIT-licensed YouTD 2 data tables may be used. Do not copy YouTD 2
   art, icons or text assets (CC-BY-NC), and do not copy ability description text
   from youtd.best or the original map. Write descriptions from the mechanics.
-- Third-party assets must carry credits: icons in `docs/icon-credits.md` and the
-  in-game Credits section, music in `docs/music-credits.md` and Credits.
+- Third-party assets must carry credits: icons in `docs/icon-credits.md`, models
+  in `docs/model-credits.md`, and both in the in-game Credits section, music in `docs/music-credits.md` and Credits.
 
 ## Verifying changes
 

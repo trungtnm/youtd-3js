@@ -16,6 +16,8 @@ import { fmt } from '../world/world.js';
 const $ = (s) => document.querySelector(s);
 // Element-tinted tower glyph (SVG used as a CSS mask so currentColor applies).
 const towerIcon = (icon, size = '') => `<span class="ico ${size}" style="--icon:url('${icon}')"></span>`;
+// Item glyphs are tinted by rarity and sized relative to the surrounding font.
+const itemIcon = (d) => `<span class="ico item" style="--icon:url('${d.icon}');color:${RARITIES[d.rarity].css}"></span>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const SIZE_ICON = { mass: '⁂', normal: '☗', air: '🜁', boss: '☠', champion: '♛', challenge: '✪', challengeMass: '✪' };
 const SIZE_LABEL = { mass: 'Mass', normal: 'Normal', air: 'Air', boss: 'Boss', champion: 'Champion', challenge: 'Challenge', challengeMass: 'Challenge' };
@@ -43,6 +45,8 @@ export class HUD {
 
   _bindStatic() {
     $('#btn-next').addEventListener('click', () => { this.audio.click(); this.game?.callNextWave(); });
+    $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.setAutoWave(!this.game.autoWave); });
+    $('#btn-autotx').addEventListener('click', () => { this.audio.click(); this.game?.setAutoTransmute(!this.game.autoTransmute); });
     document.querySelectorAll('.speed button').forEach((b) => b.addEventListener('click', () => this.setSpeed(Number(b.dataset.speed))));
     $('#btn-transmute').addEventListener('click', () => {
       if (!this.game) return;
@@ -92,6 +96,18 @@ export class HUD {
     this.element = 'nature';
     $('#r-wavemax').textContent = Number.isFinite(game.finalWave) ? ` / ${game.finalWave}` : '';
     $('#btn-next').textContent = 'Start';
+    $('#btn-auto').classList.toggle('on', game.autoWave);
+    game.on('autoWave', (on) => {
+      $('#btn-auto').classList.toggle('on', on);
+      this.toast(on ? 'Auto waves on: waves arrive on a timer' : 'Auto waves off: the next wave waits for a clear field', 'gold');
+      this.onAutoWave?.(on);
+    });
+    $('#btn-autotx').classList.toggle('on', game.autoTransmute);
+    game.on('autoTransmute', (on) => {
+      $('#btn-autotx').classList.toggle('on', on);
+      this.toast(on ? 'Auto transmute on: spare items combine in threes' : 'Auto transmute off', 'gold');
+      this.onAutoTransmute?.(on);
+    });
     game.on('error', (msg) => { this.toast(msg, 'error'); this.audio.error(); });
     game.on('notice', ({ text, kind }) => this.toast(text, kind));
     game.on('waveStart', (w) => {
@@ -113,7 +129,7 @@ export class HUD {
     game.on('stash', () => { this.sigs.stash = null; this.sigs.sel = null; });
     game.on('itemDrop', ({ item }) => {
       const d = ITEMS[item.id];
-      this.toast(`Found ${d.icon} ${d.name}`, 'item');
+      this.toast(`Found ${d.name}`, 'item');
     });
     game.on('invisibleWarning', ({ level, now, covered }) => {
       if (!covered) { this.alertDismissed = 0; this.audio.error(); this.toast(now ? `Wave ${level} is invisible and you cannot see it!` : `Invisible creeps arrive on wave ${level}`, 'warn'); }
@@ -140,7 +156,7 @@ export class HUD {
       this.renderSpoils();
       this.renderPerkQueue();
       this.audio.item(o.item ? ITEMS[o.item.id].rarity : 'rare');
-      this.toast(o.item ? `Claimed ${ITEMS[o.item.id].icon} ${ITEMS[o.item.id].name}` : `Claimed ${SPOILS[o.type].name}`, 'gold');
+      this.toast(o.item ? `Claimed ${ITEMS[o.item.id].name}` : `Claimed ${SPOILS[o.type].name}`, 'gold');
     });
     this.renderAll();
   }
@@ -199,8 +215,10 @@ export class HUD {
     $('.res.lives').classList.toggle('low', g.lives < 30);
     $('#r-wave').textContent = g.level;
     $('#r-score').textContent = fmt(g.score);
-    const gap = ECON.waveGap + 10;
-    $('#r-timer').style.width = g.phase === 'running' && g.level < g.finalWave ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
+    // Auto waves off: the bar stays empty while creeps are alive, then fills over the breather.
+    const gap = g.autoWave ? ECON.waveGap + 10 : ECON.clearGap;
+    const waiting = g.phase === 'running' && g.level < g.finalWave && (g.autoWave || g.activeWaves.length === 0);
+    $('#r-timer').style.width = waiting ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
     $('#btn-next').disabled = g.level >= g.finalWave || g.phase === 'won' || g.phase === 'lost';
     if (g.phase === 'prep') $('#btn-next').classList.add('pulse');
 
@@ -333,7 +351,7 @@ export class HUD {
       if (o.item) {
         const d = ITEMS[o.item.id];
         return `<button class="spoil r-${d.rarity}" data-spoil="${i}">
-          <span class="sp-icon">${d.icon}</span><span class="sp-tag" style="color:${RARITIES[d.rarity].css}">${RARITIES[d.rarity].name} ${d.kind === 'oil' ? 'oil' : 'item'}</span>
+          <span class="sp-icon">${itemIcon(d)}</span><span class="sp-tag" style="color:${RARITIES[d.rarity].css}">${RARITIES[d.rarity].name} ${d.kind === 'oil' ? 'oil' : 'item'}</span>
           <b class="r-${d.rarity}">${esc(d.name)}</b><ul>${describeItem(d).map((l) => `<li>${esc(l)}</li>`).join('')}</ul></button>`;
       }
       const sp = SPOILS[o.type];
@@ -475,6 +493,8 @@ export class HUD {
 
   renderStash(force) {
     const g = this.game;
+    // Auto transmute can consume items that were picked for a manual transmute.
+    for (const uid of this.transmuteSel) if (!g.stash.some((i) => i.uid === uid)) this.transmuteSel.delete(uid);
     const sig = g.stash.map((i) => i.uid).join(',') + '|' + this.selectedItem + '|' + [...this.transmuteSel].join(',');
     if (!force && sig === this.sigs.stash) return;
     this.sigs.stash = sig;
@@ -484,7 +504,7 @@ export class HUD {
       const it = g.stash[i];
       if (!it) { slots.push('<div class="slot empty"></div>'); continue; }
       const d = ITEMS[it.id];
-      slots.push(`<div class="slot r-${d.rarity} ${this.selectedItem === it.uid ? 'sel' : ''} ${this.transmuteSel.has(it.uid) ? 'tsel' : ''}" draggable="true" data-uid="${it.uid}" data-tt="item:${it.id}:${it.uid}">${d.icon}${d.kind !== 'equip' ? `<span class="kind">${d.kind === 'oil' ? 'OIL' : 'USE'}</span>` : ''}</div>`);
+      slots.push(`<div class="slot r-${d.rarity} ${this.selectedItem === it.uid ? 'sel' : ''} ${this.transmuteSel.has(it.uid) ? 'tsel' : ''}" draggable="true" data-uid="${it.uid}" data-tt="item:${it.id}:${it.uid}">${itemIcon(d)}${d.kind !== 'equip' ? `<span class="kind">${d.kind === 'oil' ? 'OIL' : 'USE'}</span>` : ''}</div>`);
     }
     const box = $('#stash');
     box.innerHTML = slots.join('');
@@ -582,14 +602,14 @@ export class HUD {
           <div class="islots">${t.items.map((it, i) => i >= g.itemSlots() && !it
             ? `<div class="slot empty locked" data-tip="Unlocks at wave ${g.slotUnlockWave(i)} for every tower.">🔒</div>`
             : it
-            ? `<div class="slot r-${ITEMS[it.id].rarity}" data-slot="${i}" data-tt="item:${it.id}:${it.uid}">${ITEMS[it.id].icon}</div>`
+            ? `<div class="slot r-${ITEMS[it.id].rarity}" data-slot="${i}" data-tt="item:${it.id}:${it.uid}">${itemIcon(ITEMS[it.id])}</div>`
             : `<div class="slot empty" data-slot="${i}" data-tip="Empty item slot. Click an item in your stash, or drag one here."></div>`).join('')}</div>
           ${t.actives.length || itemActs.length ? `<div class="actives">${t.actives.map((a, i) => `<button class="act ${a.auto ? 'auto' : ''} ${t.mana < a.def.mana ? 'nomana' : ''}" data-act="${i}"
               data-tip="${esc(`${a.def.name} — ${a.def.desc} (${a.def.mana} mana, ${a.def.cd}s cooldown). Click to cast [${'FG'[i]}], right-click to toggle autocast.`)}">
               ${a.def.icon}<span class="key">${'FG'[i]}</span><span class="mana">${a.def.mana}</span>
               <span class="cdsweep" style="--cd:${a.cd > 0 ? (a.cd / a.def.cd) * 360 : 0}deg"></span></button>`).join('')}${itemActs.map((a, i) => `<button class="act item-act r-${ITEMS[a.item.id].rarity} ${a.auto ? 'auto' : ''}" data-iact="${i}"
               data-tip="${esc(`${ITEMS[a.item.id].name}: ${describeSkill(a.proc)}`)}">
-              ${a.proc.icon || ITEMS[a.item.id].icon}${a.item.state?.charges != null ? `<span class="mana">${a.item.state.charges}</span>` : ''}
+              ${a.proc.icon || itemIcon(ITEMS[a.item.id])}${a.item.state?.charges != null ? `<span class="mana">${a.item.state.charges}</span>` : ''}
               <span class="cdsweep" style="--cd:${a.cd > 0 && a.proc.icd > 1 ? (a.cd / a.proc.icd) * 360 : 0}deg"></span></button>`).join('')}</div>` : ''}
           <div class="prio">${prios.map(([k, n]) => `<button data-prio="${k}" class="${t.priority === k ? 'on' : ''}" data-tip="Target the ${n.toLowerCase()} creep in range">${n}</button>`).join('')}</div>
           <div class="sel-actions">
@@ -702,7 +722,7 @@ export class HUD {
       const inst = uid && (g.stash.find((i) => i.uid === uid) || [...g.towers.values()].flatMap((t) => t.items).find((i) => i?.uid === uid));
       const grown = inst?.bound ? `<div class="good" style="margin-top:4px">Grown so far: ${describeMods(inst.bound).join(', ')}</div>` : '';
       const r = RARITIES[d.rarity];
-      return `<h4 style="color:${r.css}">${d.icon} ${esc(d.name)}</h4><div class="tt-sub">${r.name} ${d.kind === 'equip' ? 'equipment' : d.kind}</div>
+      return `<h4 style="color:${r.css};display:flex;align-items:center;gap:6px">${itemIcon(d)}${esc(d.name)}</h4><div class="tt-sub">${r.name} ${d.kind === 'equip' ? 'equipment' : d.kind}</div>
         ${describeItem(d).map((l) => `<div>${esc(l)}</div>`).join('')}
         ${grown}${d.kind === 'equip' ? '<div class="tt-sub" style="margin-top:6px">Shift-click to select for Transmute.</div>' : ''}
         ${d.author ? `<div class="tt-lore">Original YouTD item by ${esc(d.author)}.</div>` : ''}`;

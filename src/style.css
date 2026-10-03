@@ -148,6 +148,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .wave-timer { width: calc(var(--s) * 110px); height: calc(var(--s) * 7px); background: rgba(0, 0, 0, 0.6); border: 1px solid var(--iron); border-radius: calc(var(--s) * 2px); overflow: hidden; box-shadow: 0 0 0 1px rgba(200, 154, 69, 0.3); }
 #r-timer { height: 100%; width: 0; background: linear-gradient(180deg, #ffe9a0, #f2a83a 60%, #b0651a); }
 #btn-next { padding: calc(var(--s) * 7px) calc(var(--s) * 18px); font-family: var(--serif); font-weight: 700; font-size: calc(var(--s) * 14px); }
+#btn-auto { padding: calc(var(--s) * 7px) calc(var(--s) * 10px); font-weight: 700; font-size: calc(var(--s) * 12px); color: #c8bba2; }
+#btn-auto.on, #btn-autotx.on { background: linear-gradient(180deg, #fff0bf, #f0c768 35%, #b07a24); color: #2a1806; }
+#btn-autotx { margin-left: calc(var(--s) * 4px); }
 #btn-next.pulse { animation: glowpulse 1.4s infinite; }
 @keyframes glowpulse { 50% { box-shadow: 0 0 calc(var(--s) * 28px) rgba(255, 200, 90, 0.85); } }
 .right-group { display: flex; align-items: center; gap: calc(var(--s) * 12px); margin-left: calc(var(--s) * 12px); }
@@ -410,6 +413,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .ico { display: inline-block; width: calc(var(--s) * 24px); height: calc(var(--s) * 24px); background: currentColor; -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; filter: drop-shadow(0 0 calc(var(--s) * 4px) currentColor); flex: none; }
 .ico.big { width: calc(var(--s) * 42px); height: calc(var(--s) * 42px); }
 #tooltip h4 .ico { width: calc(var(--s) * 18px); height: calc(var(--s) * 18px); }
+/* Item glyphs follow the font size of the slot or card they sit in. */
+.ico.item { width: 1.35em; height: 1.35em; filter: drop-shadow(0 0 calc(var(--s) * 3px) currentColor) drop-shadow(0 1px 1px #000); }
 .credits { margin: calc(var(--s) * 14px) auto 0; max-width: calc(var(--s) * 900px); text-align: left; }
 .credits summary { cursor: pointer; text-align: center; color: var(--muted); font-family: var(--serif); font-size: calc(var(--s) * 11px); letter-spacing: 0.15em; text-transform: uppercase; }
 .credits p { position: relative; color: #c9bda6; font-size: calc(var(--s) * 11.5px); line-height: 1.6; background: var(--stone-bg); border-radius: calc(var(--s) * 3px); padding: calc(var(--s) * 14px) calc(var(--s) * 18px); }
@@ -497,5 +502,5 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* Wave banner moves down while boss spoils are shown at the top centre. */
 #banner.low { top: 37%; }
 .controls-title { margin: calc(var(--s) * 26px) 0 0; text-align: center; color: var(--gold); font-family: var(--serif); font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; font-size: calc(var(--s) * 14px); text-shadow: 0 1px 0 #000; }
-#btn-continue { margin-top: calc(var(--s) * 24px); }
+#btn-setup { margin-top: calc(var(--s) * 24px); }
 #btn-back { margin-top: calc(var(--s) * 18px); }

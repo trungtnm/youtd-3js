@@ -347,7 +347,7 @@ export class World {
     const H = (c) => (c.air ? 2.6 : 1);
     game.on('attack', ({ tower, target, kind }) => {
       const v = this.towerViews.get(tower.uid);
-      if (v) v.recoil = 1;
+      if (v) { v.recoil = 1; v.anim.playAttack?.(); }
       if (kind === 'lightning') {
         const top = { x: tower.x, y: v ? v.muzzleY : 2.5, z: tower.z };
         fx.lightning([top, { x: target.x, y: H(target), z: target.z }], ELEMENTS[tower.def.element].color);
@@ -498,7 +498,9 @@ export class World {
     hit.userData.pick = { type: 'tower', uid: t.uid };
     group.add(hit);
     this.scene.add(group);
-    this.towerViews.set(t.uid, { group, hit, anim: group.userData.anim, muzzleY: group.userData.muzzleY, born: animate ? 0 : 1, recoil: 0, yaw: t.aim || 0, beamCd: 0 });
+    const view = { group, hit, anim: group.userData.anim, muzzleY: group.userData.muzzleY, born: animate ? 0 : 1, recoil: 0, yaw: t.aim || 0, beamCd: 0 };
+    group.addEventListener('modelswap', () => { view.muzzleY = group.userData.muzzleY; });
+    this.towerViews.set(t.uid, view);
   }
 
   _removeTower(uid) {
@@ -583,7 +585,9 @@ export class World {
     }
     const g = buildTowerModel(towerDef);
     this.ghostMat = new THREE.MeshBasicMaterial({ color: 0x5aff8a, transparent: true, opacity: 0.45, depthWrite: false });
-    g.traverse((o) => { if (o.isMesh) { o.material = this.ghostMat; o.castShadow = false; } });
+    const ghostify = () => g.traverse((o) => { if (o.isMesh) { o.material = this.ghostMat; o.castShadow = false; } });
+    ghostify();
+    g.addEventListener('modelswap', ghostify);
     this.ghost = g;
     this.ghostDef = towerDef;
     this.scene.add(g);
@@ -685,6 +689,7 @@ export class World {
         v.group.scale.setScalar(Math.max(0.01, easeOutBack(v.born)));
       }
       const A = v.anim;
+      A.mixer?.update(dt);
       for (const s of A.spin) s.obj.rotation[s.axis] += s.speed * dt;
       for (const b of A.bob) b.obj.position.y = b.base + Math.sin(T * b.speed + t.uid) * b.amp;
       for (const o of A.orbit) {
