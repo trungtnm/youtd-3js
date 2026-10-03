@@ -11,9 +11,9 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { buildEnvironment } from './environment.js';
-import { buildTowerModel, buildCreepModel, RACE_COLORS } from './models.js';
+import { buildTowerModel, buildCrest, buildCreepModel, RACE_COLORS } from './models.js';
 import { FX } from './fx.js';
-import { ELEMENTS, RARITIES } from '../data/constants.js';
+import { TOWER_MAX_LEVEL, ELEMENTS, RARITIES } from '../data/constants.js';
 import { worldToTile, tileToWorld, isBuildable, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { mulberry32 } from '../sim/rng.js';
 
@@ -501,6 +501,23 @@ export class World {
     this.towerViews.set(t.uid, { group, hit, anim: group.userData.anim, muzzleY: group.userData.muzzleY, born: animate ? 0 : 1, recoil: 0, yaw: t.aim || 0, beamCd: 0 });
   }
 
+  // Towers at the level cap wear the player's crest (null when none is unlocked).
+  // Checked every frame, so level ups, upgrades and crest changes all apply.
+  _syncCrest(t, v, dt, T) {
+    const want = t.level >= TOWER_MAX_LEVEL ? this.crest : null;
+    if (v.crestStyle !== want) {
+      if (v.crest) v.group.remove(v.crest);
+      v.crest = want ? buildCrest(want) : null;
+      v.crestStyle = want;
+      if (v.crest) { v.crest.position.y = v.muzzleY + 1.3; v.group.add(v.crest); }
+    }
+    if (!v.crest) return;
+    v.crest.rotation.y += dt * 0.8;
+    v.crest.position.y = v.muzzleY + 1.3 + Math.sin(T * 1.6 + t.uid) * 0.08;
+    for (const s of v.crest.userData.spin) s.obj.rotation[s.axis] += s.speed * dt;
+    for (const f of v.crest.userData.flicker) f.scale.setScalar(1 + Math.sin(T * 11 + t.uid) * 0.06);
+  }
+
   _removeTower(uid) {
     const v = this.towerViews.get(uid);
     if (!v) return;
@@ -684,6 +701,7 @@ export class World {
         v.born = Math.min(1, v.born + dt * 2.2);
         v.group.scale.setScalar(Math.max(0.01, easeOutBack(v.born)));
       }
+      this._syncCrest(t, v, dt, T);
       const A = v.anim;
       for (const s of A.spin) s.obj.rotation[s.axis] += s.speed * dt;
       for (const b of A.bob) b.obj.position.y = b.base + Math.sin(T * b.speed + t.uid) * b.amp;

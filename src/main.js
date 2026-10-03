@@ -109,7 +109,13 @@ function renderMenuTitle() {
   $('#menu-title').classList.toggle('hidden', !t);
 }
 renderMenuTitle();
-const hall = new Hall(() => { renderMenuTitle(); renderMods(); renderBest(); world.crest = loadProfile().profile.crest; });
+// Crest worn by level-cap towers: the chosen one if unlocked, else Gilded once earned.
+function applyCrest(profile = loadProfile().profile) {
+  const crests = unlockedSet(profile).crests;
+  world.crest = crests.has(profile.crest) ? profile.crest : crests.has('gilded') ? 'gilded' : null;
+}
+applyCrest();
+const hall = new Hall((profile) => { renderMenuTitle(); renderMods(); renderBest(); applyCrest(profile); });
 document.querySelectorAll('.open-hall').forEach((b) => b.addEventListener('click', () => { audio.click(); hall.open(); }));
 
 // Tower icons are CC BY 3.0 and must be credited where players can see it.
@@ -191,6 +197,7 @@ $('#btn-again').addEventListener('click', () => { $('#endscreen').classList.add(
 function endRun() {
   const sum = game.summary();
   const result = recordRun(sum, runState);
+  if (result) applyCrest(result.profile);
   hud.showEnd(sum, result, result?.profile || loadProfile().profile);
 }
 

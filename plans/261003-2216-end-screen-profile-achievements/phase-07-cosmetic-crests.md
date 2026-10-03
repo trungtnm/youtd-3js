@@ -1,7 +1,7 @@
 ---
 phase: 7
 title: "Cosmetic tower crests"
-status: pending
+status: completed
 priority: P3
 effort: "0.5d"
 dependencies: [3]
