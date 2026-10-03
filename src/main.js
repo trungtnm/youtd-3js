@@ -8,6 +8,7 @@ import { DIFFICULTIES, MODES, LENGTHS, MODIFIERS } from './data/constants.js';
 import { ACHIEVEMENT_BY_ID, UNLOCKS } from './data/achievements.js';
 import { unlockedSet } from './meta/achievements.js';
 import { esc } from './ui/util.js';
+import { Hall } from './ui/hall.js';
 import { ICON_CREDITS } from './data/tower-icons.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
 import { loadProfile, recordRun, recordKey, newRunState } from './meta/profile.js';
@@ -101,6 +102,16 @@ renderChoices('#opt-god', GOD_OPTIONS, 'god');
 renderMods();
 renderBest();
 
+// The chosen title shows under the logo.
+function renderMenuTitle() {
+  const t = loadProfile().profile.title;
+  $('#menu-title').textContent = t ? UNLOCKS.titles[t].name : '';
+  $('#menu-title').classList.toggle('hidden', !t);
+}
+renderMenuTitle();
+const hall = new Hall(() => { renderMenuTitle(); renderMods(); renderBest(); world.crest = loadProfile().profile.crest; });
+document.querySelectorAll('.open-hall').forEach((b) => b.addEventListener('click', () => { audio.click(); hall.open(); }));
+
 // Tower icons are CC BY 3.0 and must be credited where players can see it.
 {
   const byAuthor = {};
@@ -128,6 +139,7 @@ function showMenu() {
   game = null;
   renderMods();
   renderBest();
+  renderMenuTitle();
 }
 
 function clearWorld() {
@@ -262,6 +274,7 @@ canvas.addEventListener('drop', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#hall').classList.contains('hidden')) { hall.close(); return; }
   if (!game || e.target.closest('input')) return;
   if (!$('#endscreen').classList.contains('hidden')) return; // the run is over; keys stay inert behind its summary
   const k = e.key.toLowerCase();

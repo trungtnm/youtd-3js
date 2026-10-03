@@ -555,3 +555,55 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .controls-title { margin: calc(var(--s) * 26px) 0 0; text-align: center; color: var(--gold); font-family: var(--serif); font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; font-size: calc(var(--s) * 14px); text-shadow: 0 1px 0 #000; }
 #btn-continue { margin-top: calc(var(--s) * 24px); }
 #btn-back { margin-top: calc(var(--s) * 18px); }
+
+/* ---------------------------------------------------------------- hall of records */
+.menu-title { margin: calc(var(--s) * -14px) 0 calc(var(--s) * 10px); font-family: var(--serif); color: var(--gold); letter-spacing: 0.3em; text-transform: uppercase; font-size: calc(var(--s) * 13px); text-shadow: 0 1px 0 #000; }
+.hall-link { display: block; margin: calc(var(--s) * 12px) auto 0; }
+.row.center { display: flex; gap: calc(var(--s) * 10px); justify-content: center; margin-top: calc(var(--s) * 16px); }
+#hall { z-index: 70; }
+.hall-box { position: relative; width: min(calc(var(--s) * 960px), 94vw); max-height: 92vh; }
+.hall-x { position: absolute; top: calc(var(--s) * 18px); right: calc(var(--s) * 20px); }
+#hall-body { overflow-y: auto; padding-right: calc(var(--s) * 6px); display: flex; flex-direction: column; gap: calc(var(--s) * 18px); text-align: left; }
+#hall-body h3 { margin: 0 0 calc(var(--s) * 8px); font-family: var(--serif); color: var(--gold); font-size: calc(var(--s) * 16px); letter-spacing: 0.08em; }
+#hall-body h3 small { color: var(--muted); font-size: calc(var(--s) * 12px); }
+#hall-body h4 { margin: calc(var(--s) * 10px) 0 calc(var(--s) * 6px); font-family: var(--serif); color: var(--text); font-size: calc(var(--s) * 13px); }
+.hall-banner { padding: calc(var(--s) * 8px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 4px); background: rgba(255, 90, 60, 0.18); color: #ffb0a0; font-size: calc(var(--s) * 12.5px); }
+.hall-head { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: calc(var(--s) * 8px); align-items: stretch; }
+.hall-head > div, .hall-tiles > div { text-align: center; background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.25)); border-radius: calc(var(--s) * 3px); padding: calc(var(--s) * 9px) calc(var(--s) * 6px); box-shadow: var(--socket); }
+.hall-head b, .hall-tiles b { display: block; font-family: var(--serif); font-size: calc(var(--s) * 18px); color: var(--text); }
+.hall-head span, .hall-tiles span { font-size: calc(var(--s) * 10.5px); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.hall-head label, .hall-crest { display: flex; flex-direction: column; justify-content: center; gap: calc(var(--s) * 4px); font-size: calc(var(--s) * 11px); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.hall-crest { flex-direction: row; align-items: center; margin-bottom: calc(var(--s) * 6px); }
+#hall-body select { font: inherit; text-transform: none; letter-spacing: 0; font-size: calc(var(--s) * 13px); color: var(--text); background: #1d1710; border: 1px solid var(--iron); border-radius: calc(var(--s) * 3px); padding: calc(var(--s) * 4px) calc(var(--s) * 6px); }
+.hall-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--s) * 8px); }
+.hall-toggles { display: flex; gap: calc(var(--s) * 4px); margin-bottom: calc(var(--s) * 6px); }
+.hall-toggle { background: rgba(0, 0, 0, 0.3); border: 0; padding: calc(var(--s) * 4px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 3px); color: var(--muted); font-size: calc(var(--s) * 12px); }
+.hall-toggle.on { color: #1a1206; background: var(--gold); }
+.hall-records, .hall-history { width: 100%; border-collapse: collapse; font-size: calc(var(--s) * 12.5px); }
+.hall-records th, .hall-history th { color: var(--muted); font-weight: 600; text-align: left; padding: calc(var(--s) * 5px) calc(var(--s) * 6px); }
+.hall-records td, .hall-history td { padding: calc(var(--s) * 5px) calc(var(--s) * 6px); border-top: 1px solid rgba(200, 154, 69, 0.14); }
+.hall-records td b { display: block; font-family: var(--serif); }
+.hall-records td small, .hall-history small { color: var(--muted); font-size: calc(var(--s) * 10.5px); margin-left: calc(var(--s) * 4px); }
+.hall-records td.empty { color: rgba(200, 154, 69, 0.35); }
+.hall-scroll { max-height: calc(var(--s) * 260px); overflow-y: auto; }
+.hall-history .hall-mods { display: block; margin-left: 0; color: #ff9b7a; }
+.hall-history .out-won { color: var(--green); } .hall-history .out-lost { color: #ff8a78; } .hall-history .out-abandoned { color: var(--muted); }
+.hall-note { color: var(--muted); font-size: calc(var(--s) * 12px); margin: calc(var(--s) * 4px) 0; }
+.hall-msg { color: var(--gold); font-size: calc(var(--s) * 12.5px); }
+.hall-achs, .hall-unlocks { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--s) * 260px), 1fr)); gap: calc(var(--s) * 6px); }
+.hall-ach { display: flex; gap: calc(var(--s) * 9px); padding: calc(var(--s) * 8px) calc(var(--s) * 10px); border-radius: calc(var(--s) * 4px); background: rgba(0, 0, 0, 0.32); box-shadow: inset 0 0 0 1px rgba(200, 154, 69, 0.18); opacity: 0.72; }
+.hall-ach.got { opacity: 1; box-shadow: inset 0 0 0 1px rgba(242, 199, 102, 0.6); background: radial-gradient(120% 120% at 0% 0%, rgba(242, 199, 102, 0.12), transparent 60%), rgba(0, 0, 0, 0.32); }
+.hall-ach:not(.got) .hall-ach-icon { filter: grayscale(1) brightness(0.7); }
+.hall-ach-icon { font-size: calc(var(--s) * 22px); line-height: 1; }
+.hall-ach > div { flex: 1; min-width: 0; }
+.hall-ach b, .hall-unlock b { display: block; font-family: var(--serif); font-size: calc(var(--s) * 13px); color: var(--text); }
+.hall-ach small, .hall-unlock small { display: block; color: var(--muted); font-size: calc(var(--s) * 11px); }
+.hall-ach em { display: block; font-style: normal; color: var(--gold); font-size: calc(var(--s) * 11px); }
+.hall-ach i, .hall-unlock i { display: block; font-style: normal; color: var(--muted); font-size: calc(var(--s) * 10.5px); margin-top: calc(var(--s) * 3px); }
+.hall-ach .end-share { margin-top: calc(var(--s) * 4px); }
+.hall-unlock { padding: calc(var(--s) * 7px) calc(var(--s) * 10px); border-radius: calc(var(--s) * 4px); background: rgba(0, 0, 0, 0.32); opacity: 0.6; }
+.hall-unlock.on { opacity: 1; box-shadow: inset 0 0 0 1px rgba(242, 199, 102, 0.5); }
+.hall-unlock.on i { color: var(--green); }
+.hall-confirm { padding: calc(var(--s) * 10px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 4px); background: rgba(255, 90, 60, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 120, 90, 0.4); }
+.hall-confirm p { margin: 0 0 calc(var(--s) * 8px); }
+#hall-body .row { display: flex; gap: calc(var(--s) * 8px); justify-content: flex-start; }

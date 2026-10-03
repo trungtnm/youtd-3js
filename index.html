@@ -82,6 +82,7 @@
       <div class="title">
         <div class="kicker">A tower defense in seven elements</div>
         <h1>YouTD <span>Reforged</span></h1>
+        <p id="menu-title" class="menu-title hidden"></p>
         <p class="sub">Research the elements, draft your towers, and hold the portal against an endless march.</p>
       </div>
       <div id="menu-intro">
@@ -120,6 +121,7 @@
           </div>
         </div>
         <button id="btn-continue" class="btn gold big">Start Game</button>
+        <button class="btn open-hall hall-link">Hall of Records</button>
       </div>
       <div id="menu-setup" class="hidden">
         <div class="opts panel">
@@ -145,7 +147,7 @@
           <summary>Credits</summary>
           <p id="credits-text"></p>
         </details>
-        <button id="btn-back" class="btn">Back to controls</button>
+        <div class="row center"><button id="btn-back" class="btn">Back to controls</button><button class="btn open-hall">Hall of Records</button></div>
       </div>
     </div>
   </div>
@@ -167,6 +169,15 @@
     </div>
   </div>
 
+  <div id="hall" class="screen modal hidden">
+    <div class="modal-box panel hall-box">
+      <h2>Hall of Records</h2>
+      <button id="hall-close" class="icon-btn hall-x" data-tip="Close [Esc]">✕</button>
+      <div id="hall-body"></div>
+      <input type="file" id="hall-file" accept="application/json,.json" hidden />
+    </div>
+  </div>
+
   <div id="endscreen" class="screen modal hidden">
     <div class="modal-box panel end">
       <h2 id="end-title">Victory</h2>
@@ -177,6 +188,7 @@
       <div class="row">
         <button id="btn-again" class="btn gold">Play again</button>
         <button id="btn-endless" class="btn hidden">Keep playing (endless)</button>
+        <button class="btn open-hall">Hall of Records</button>
       </div>
     </div>
   </div>

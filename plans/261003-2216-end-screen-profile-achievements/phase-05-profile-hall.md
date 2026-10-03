@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Profile hall on the menu"
-status: pending
+status: completed
 priority: P2
 effort: "0.75d"
 dependencies: [2, 3]
