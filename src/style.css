@@ -151,7 +151,15 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 #btn-next { padding: calc(var(--s) * 7px) calc(var(--s) * 18px); font-family: var(--serif); font-weight: 700; font-size: calc(var(--s) * 14px); }
 #btn-auto { padding: calc(var(--s) * 7px) calc(var(--s) * 10px); font-weight: 700; font-size: calc(var(--s) * 12px); color: #c8bba2; }
 #btn-auto.on, #btn-autotx.on { background: linear-gradient(180deg, #fff0bf, #f0c768 35%, #b07a24); color: #2a1806; }
-#btn-autotx { margin-left: calc(var(--s) * 4px); }
+#btn-autotx { margin-left: calc(var(--s) * 4px); white-space: nowrap; }
+#stash-panel h3 { position: relative; }
+#autotx-menu { position: absolute; z-index: 30; bottom: calc(100% + var(--s) * 4px); right: 0; width: calc(var(--s) * 220px); padding: calc(var(--s) * 10px); border-radius: calc(var(--s) * 4px); background: linear-gradient(180deg, #2f2416, #1b140c); box-shadow: var(--shadow), inset 0 0 0 1px rgba(200, 154, 69, 0.55); font-family: var(--sans); text-transform: none; letter-spacing: 0; text-align: left; }
+#autotx-menu .atx-title { font-family: var(--serif); color: var(--gold); font-size: calc(var(--s) * 12px); margin-bottom: calc(var(--s) * 6px); }
+#autotx-menu .atx-r { display: flex; align-items: center; gap: calc(var(--s) * 8px); width: 100%; padding: calc(var(--s) * 5px) calc(var(--s) * 6px); border: 0; border-radius: calc(var(--s) * 3px); background: rgba(0, 0, 0, 0.3); margin-bottom: calc(var(--s) * 4px); font-weight: 600; font-size: calc(var(--s) * 12px); }
+#autotx-menu .atx-r:hover { background: rgba(255, 255, 255, 0.06); }
+#autotx-menu .atx-r i { width: calc(var(--s) * 12px); height: calc(var(--s) * 12px); border-radius: calc(var(--s) * 2px); box-shadow: inset 0 0 0 1px currentColor; }
+#autotx-menu .atx-r.on i { background: currentColor; }
+#autotx-menu .atx-note { color: var(--muted); font-size: calc(var(--s) * 10.5px); line-height: 1.4; margin-top: calc(var(--s) * 4px); }
 #btn-next.pulse { animation: glowpulse 1.4s infinite; }
 @keyframes glowpulse { 50% { box-shadow: 0 0 calc(var(--s) * 28px) rgba(255, 200, 90, 0.85); } }
 .right-group { display: flex; align-items: center; gap: calc(var(--s) * 12px); margin-left: calc(var(--s) * 12px); }

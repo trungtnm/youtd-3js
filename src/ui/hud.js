@@ -10,6 +10,7 @@ import { ITEMS, describeItem, describeMods } from '../data/items.js';
 import { describeSkill } from '../data/tower-skills.js';
 import { PERKS, PERK_LEVELS } from '../data/tower-perks.js';
 import { SPOILS } from '../data/boss-spoils.js';
+import { AUTO_TRANSMUTE_RARITIES } from '../sim/game.js';
 import { SPECIALS } from '../sim/waves.js';
 import { COLS, ROWS, TILE, GROUND_ROUTE, AIR_ROUTE, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { fmt } from '../world/world.js';
@@ -44,7 +45,18 @@ export class HUD {
   _bindStatic() {
     $('#btn-next').addEventListener('click', () => { this.audio.click(); this.game?.callNextWave(); });
     $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.setAutoWave(!this.game.autoWave); });
-    $('#btn-autotx').addEventListener('click', () => { this.audio.click(); this.game?.setAutoTransmute(!this.game.autoTransmute); });
+    // Auto transmute: the button opens a menu of rarities to combine automatically.
+    $('#btn-autotx').addEventListener('click', (e) => { e.stopPropagation(); this.audio.click(); $('#autotx-menu').classList.toggle('hidden'); });
+    $('#autotx-menu').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const b = e.target.closest('[data-r]');
+      if (!b || !this.game) return;
+      this.audio.click();
+      const set = new Set(this.game.autoTransmute);
+      if (set.has(b.dataset.r)) set.delete(b.dataset.r); else set.add(b.dataset.r);
+      this.game.setAutoTransmute([...set]);
+    });
+    document.addEventListener('click', () => $('#autotx-menu').classList.add('hidden'));
     document.querySelectorAll('.speed button').forEach((b) => b.addEventListener('click', () => this.setSpeed(Number(b.dataset.speed))));
     $('#btn-transmute').addEventListener('click', () => {
       if (!this.game) return;
@@ -82,6 +94,14 @@ export class HUD {
     });
   }
 
+  renderAutoTransmute() {
+    const on = this.game.autoTransmute;
+    $('#btn-autotx').classList.toggle('on', on.length > 0);
+    $('#btn-autotx').textContent = on.length ? `Auto ${on.length}/${AUTO_TRANSMUTE_RARITIES.length}` : 'Auto';
+    $('#autotx-menu').innerHTML = `<div class="atx-title">Auto transmute</div>${AUTO_TRANSMUTE_RARITIES.map((r) => `<button class="atx-r ${on.includes(r) ? 'on' : ''}" data-r="${r}" style="color:${RARITIES[r].css}"><i></i>${RARITIES[r].name}</button>`).join('')}
+      <div class="atx-note">Combines 3 spare items of each checked rarity as they arrive. Uniques, oils, consumables and items that were equipped are never used.</div>`;
+  }
+
   setGame(game) {
     const g = game;
     this.game = game;
@@ -104,11 +124,11 @@ export class HUD {
       this.toast(on ? 'Auto waves on: waves arrive on a timer' : 'Auto waves off: the next wave waits for a clear field', 'gold');
       this.onAutoWave?.(on);
     });
-    $('#btn-autotx').classList.toggle('on', game.autoTransmute);
-    game.on('autoTransmute', (on) => {
-      $('#btn-autotx').classList.toggle('on', on);
-      this.toast(on ? 'Auto transmute on: spare items combine in threes' : 'Auto transmute off', 'gold');
-      this.onAutoTransmute?.(on);
+    this.renderAutoTransmute();
+    game.on('autoTransmute', (rarities) => {
+      this.renderAutoTransmute();
+      this.toast(rarities.length ? `Auto transmute: spare ${rarities.map((r) => RARITIES[r].name.toLowerCase()).join(', ')} items combine in threes` : 'Auto transmute off', 'gold');
+      this.onAutoTransmute?.(rarities);
     });
     game.on('error', (msg) => { this.toast(msg, 'error'); this.audio.error(); });
     game.on('notice', ({ text, kind }) => this.toast(text, kind));

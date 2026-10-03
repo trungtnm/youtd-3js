@@ -33,8 +33,14 @@ const WARD_MANA = 10; // a ward holds while the creep has at least this much man
 
 let UID = 1;
 
+// Rarities auto transmute may combine (uniques have no higher rarity to become).
+export const AUTO_TRANSMUTE_RARITIES = ['common', 'uncommon', 'rare'];
+// Accepts a list of rarities, or the old on/off flag (on meaning every rarity).
+export const autoTransmuteRarities = (v) => (v === true ? [...AUTO_TRANSMUTE_RARITIES]
+  : Array.isArray(v) ? AUTO_TRANSMUTE_RARITIES.filter((r) => v.includes(r)) : []);
+
 export class Game extends Emitter {
-  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), autoWave = false, autoTransmute = false, god = false, modifiers = [] } = {}) {
+  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), autoWave = false, autoTransmute = [], god = false, modifiers = [] } = {}) {
     super();
     modifiers = [...new Set((Array.isArray(modifiers) ? modifiers : []).filter((m) => MODIFIERS[m]))].sort();
     this.cfg = { difficulty, mode, length, seed, god, modifiers };
@@ -43,7 +49,7 @@ export class Game extends Emitter {
     // Off: the next wave waits until every active wave is killed or has leaked.
     // On: waves also arrive on the countdown while earlier waves are still alive.
     this.autoWave = autoWave;
-    this.autoTransmute = autoTransmute;
+    this.autoTransmute = autoTransmuteRarities(autoTransmute);
     this.rng = mulberry32(seed);
     this.diff = DIFFICULTIES[difficulty];
     this.finalWave = LENGTHS[length].waves;
@@ -319,10 +325,6 @@ export class Game extends Emitter {
     }
     const lock = tower.def.abilities.find((a) => a.type === 'itemRarityLock');
     if (lock && def.rarity !== lock.rarity) { this.emit('error', `${tower.def.name} only holds ${lock.rarity} items`); return false; }
-    if (def.rarity === 'unique' && tower.items.some((it, i) => it && i !== slot && ITEMS[it.id].rarity === 'unique')) {
-      this.emit('error', 'A tower can carry only one unique item');
-      return false;
-    }
     const blocked = this.itemEquipBlock(def, tower);
     if (blocked) { this.emit('error', blocked); return false; }
     const prev = tower.items[slot];
@@ -420,7 +422,6 @@ export class Game extends Emitter {
     const def = ITEMS[item.id];
     const lock = t.def.abilities.find((a) => a.type === 'itemRarityLock');
     if (lock && def.rarity !== lock.rarity) return -1;
-    if (def.rarity === 'unique' && t.items.some((it) => it && ITEMS[it.id].rarity === 'unique')) return -1;
     if (this.itemEquipBlock(def, t)) return -1;
     const open = this.itemSlots();
     return t.items.findIndex((s, i) => !s && i < open);
@@ -521,10 +522,12 @@ export class Game extends Emitter {
     return made;
   }
 
-  setAutoTransmute(on) {
-    if (this.autoTransmute === on) return;
-    this.autoTransmute = on;
-    this.emit('autoTransmute', on);
+  // Sets which rarities auto transmute combines; an empty list turns it off.
+  setAutoTransmute(rarities) {
+    const next = autoTransmuteRarities(rarities);
+    if (next.join() === this.autoTransmute.join()) return;
+    this.autoTransmute = next;
+    this.emit('autoTransmute', next);
     this.autoTransmuteStash();
   }
 
@@ -535,11 +538,10 @@ export class Game extends Emitter {
     return d.kind === 'equip' && d.rarity !== 'unique' && !item.worn && !item.state && !item.bound && !item.copyOf;
   }
 
-  // Combines spare items three at a time, cheapest first and lowest rarity first,
-  // so a common triple can cascade into an uncommon one.
+  // Combines spare items of the chosen rarities three at a time, cheapest first and
+  // lowest rarity first, so a common triple can cascade into an uncommon one.
   autoTransmuteStash() {
-    if (!this.autoTransmute) return;
-    for (const rarity of ['common', 'uncommon', 'rare']) {
+    for (const rarity of this.autoTransmute) {
       for (;;) {
         const spare = this.stash.filter((i) => ITEMS[i.id].rarity === rarity && this.spareForTransmute(i));
         if (spare.length < 3) break;

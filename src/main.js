@@ -20,7 +20,7 @@ const SETTINGS_KEY = 'youtd-reforged-settings';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
-const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', autoWave: false, autoTransmute: false, god: 'off' });
+const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', autoWave: false, autoTransmute: [], god: 'off' });
 
 const world = new World($('#app'), $('#overlay'));
 const audio = new Audio();
@@ -174,7 +174,7 @@ function startGame() {
   world.bind(game, audio);
   hud.setGame(game);
   hud.onAutoWave = (on) => { settings.autoWave = on; save(SETTINGS_KEY, settings); };
-  hud.onAutoTransmute = (on) => { settings.autoTransmute = on; save(SETTINGS_KEY, settings); };
+  hud.onAutoTransmute = (rarities) => { settings.autoTransmute = rarities; save(SETTINGS_KEY, settings); };
   hud.setSpeed(1);
   paused = false;
   runState = newRunState();

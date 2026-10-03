@@ -50,7 +50,7 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   repeatable perks keep late milestones useful. Towers with a perk waiting are
   listed in the "Perks to choose" toast.
 - **Items**: every tower has 6 slots. All towers start with 1 open slot and gain
-  one every 10 waves (6 at wave 50). A tower may carry only one unique item.
+  one every 10 waves (6 at wave 50). There is no limit on unique items per tower.
   Oils are consumed into a tower permanently. Three items of one rarity can be
   transmuted into a random item of the next rarity.
 - Auto transmute (Items panel toggle, off by default, remembered in settings):

@@ -57,7 +57,7 @@ export const ACHIEVEMENTS = [
   // Collection
   { id: 'elementalist', cat: 'collection', icon: '🌈', name: 'Elementalist', desc: 'Clear wave 40 with an MVP of each of the 7 elements, across runs.', collect: (s) => (s.wavesCleared >= 40 && mvp(s) ? [mvp(s).element] : []), target: 7, reward: { title: 'elementalist' } },
   { id: 'hoarder', cat: 'collection', icon: '🎒', name: 'Hoarder', desc: 'Find 500 items in total.', counter: (s) => s.items, target: 500 },
-  { id: 'unique-taste', cat: 'collection', icon: '🍷', name: 'Unique Taste', desc: 'Carry 4 unique items at once.', test: (s) => s.peakUniquesCarried >= 4 },
+  { id: 'unique-taste', cat: 'collection', icon: '🍷', name: 'Unique Taste', desc: 'Carry 6 unique items at once.', test: (s) => s.peakUniquesCarried >= 6 },
   { id: 'transmuter', cat: 'collection', icon: '⚗', name: 'Transmuter', desc: 'Transmute 50 times in total.', counter: (s) => s.transmutes, target: 50 },
   { id: 'bounty-hunter', cat: 'collection', icon: '☠', name: 'Bounty Hunter', desc: 'Kill 100 bosses in total.', counter: (s) => s.bossKills, target: 100 },
   { id: 'veteran', cat: 'collection', icon: '🎖', name: 'Veteran', desc: 'Play 25 runs.', counter: () => 1, target: 25, reward: { title: 'veteran' } },
