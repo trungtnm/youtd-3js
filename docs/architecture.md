@@ -69,7 +69,8 @@ main power source.
 - `youtd/tower-ports.js`: hand-ported tower behaviors.
 - `tower-perks.js`, `boss-spoils.js`, `tower-skills.js` (effect descriptions),
   `music-tracks.js`, `icon-map.js` (curated game-icons.net icon per tower family
-  and item, imported by `npm run import:icons`).
+  and item, imported by `npm run import:icons`), `model-map.js` (curated Poly
+  Pizza model per tower family, imported by `npm run import:models`).
 
 ## World (`src/world/`)
 
@@ -79,6 +80,10 @@ main power source.
 - `environment.js`: island terrain, water, sky, path ribbon, decoration
   (instanced), spawn gate, nexus, placement grid overlay.
 - `models.js`: procedural tower and creep models built from primitives.
+- `tower-glb.js`: loads curated tower models (`public/models/`, chosen in
+  `src/data/model-map.js`) on first use, fits them onto the pedestal, plays their
+  idle clip and an attack clip on each shot. The procedural model stands in until
+  the file arrives.
 - `fx.js`: GPU particle systems, projectiles, lightning, beams, rings, meteors,
   zones and floating combat text.
 

@@ -12,6 +12,8 @@ tables of [YouTD 2](https://github.com/Praytic/youtd2).
   and item descriptions shown in game are generated from the ported mechanics.
 - Tower and item icons are game-icons.net glyphs (CC BY 3.0, `docs/icon-credits.md`),
   one per tower family and item, chosen to match the name (`src/data/icon-map.js`);
+  most tower families also use a CC0 or CC-BY model from Poly Pizza
+  (`src/data/model-map.js`, `docs/model-credits.md`);
   music is by Kevin MacLeod (CC BY 4.0, `docs/music-credits.md`).
 
 ## Pipeline

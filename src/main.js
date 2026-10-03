@@ -6,6 +6,7 @@ import { Audio } from './audio/audio.js';
 import { Game } from './sim/game.js';
 import { DIFFICULTIES, MODES, LENGTHS } from './data/constants.js';
 import { ICON_CREDITS } from './data/icon-map.js';
+import { MODEL_LIBRARY } from './data/model-library.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
 
 const $ = (s) => document.querySelector(s);
@@ -69,11 +70,16 @@ renderBest();
 {
   const byAuthor = {};
   for (const c of ICON_CREDITS) byAuthor[c.author] = (byAuthor[c.author] || 0) + 1;
+  const modelAuthors = {};
+  for (const m of Object.values(MODEL_LIBRARY)) modelAuthors[m.author] = (modelAuthors[m.author] || 0) + 1;
   $('#credits-text').innerHTML = `Tower and item data from <a href="https://github.com/Praytic/youtd2" target="_blank" rel="noopener">YouTD 2</a> (MIT license),
     based on YouTD, the Warcraft III map by geX and the YouTD community. The original author of each tower and item is credited in its tooltip.<br><br>Tower and item icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licensed under
     <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a> (background removed, recolored), by `
     + Object.entries(byAuthor).sort((a, b) => b[1] - a[1]).map(([a, n]) => `<b>${a}</b> (${n})`).join(', ')
     + `. Each icon's source is listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/icon-credits.md" target="_blank" rel="noopener">docs/icon-credits.md</a>.`
+    + `<br><br>Tower models from <a href="https://poly.pizza" target="_blank" rel="noopener">Poly Pizza</a> (CC0 and CC BY; compressed, otherwise unchanged), by `
+    + Object.entries(modelAuthors).sort((a, b) => b[1] - a[1]).map(([a, n]) => `<b>${a}</b> (${n})`).join(', ')
+    + `. Each model's title, author and licence are listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/model-credits.md" target="_blank" rel="noopener">docs/model-credits.md</a>.`
     + `<br><br>Music: ${MUSIC_TRACKS.map((t) => `"<a href="${t.source}" target="_blank" rel="noopener">${t.title}</a>" by ${t.artist}`).join(', ')}
     (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; re-encoded to 128 kbps.
     Sound effects are synthesised in-game with Web Audio.<br><br>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT license).

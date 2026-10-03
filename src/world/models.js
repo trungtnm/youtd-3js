@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { ELEMENTS, RARITIES, RACES } from '../data/constants.js';
+import { attachTowerGlb } from './tower-glb.js';
 
 const matCache = new Map();
 export function mat(color, { rough = 0.7, metal = 0.05, emissive = 0, ei = 0, flat = false, transparent = false, opacity = 1 } = {}) {
@@ -419,9 +420,12 @@ export function buildTowerModel(def) {
   const y = pedestal(g, def.rarity, def.element, def.tier);
   const top = new THREE.Group();
   g.add(top);
-  const builder = TOWER_BUILDERS[def.model] || TOWER_BUILDERS.crystal;
-  const muzzle = builder(top, color, y, def.tier, anim);
   const s = 0.9 + def.tier * 0.1;
+  // A curated model replaces the procedural one; if it is still loading, the
+  // procedural model stands in and is swapped out when the file arrives.
+  const onSwap = (muzzleY) => { g.userData.muzzleY = muzzleY * s; g.dispatchEvent({ type: 'modelswap' }); };
+  let muzzle = def.glb ? attachTowerGlb(top, def.glb, anim, y, onSwap) : null;
+  if (muzzle == null) muzzle = (TOWER_BUILDERS[def.model] || TOWER_BUILDERS.crystal)(top, color, y, def.tier, anim);
   top.scale.setScalar(s);
   if (def.rarity === 'unique') {
     const halo = add(g, torG(1.25, 0.04, 6, 48), glow(RARITIES.unique.color, 2.5), 0, 0.1, 0, Math.PI / 2);
