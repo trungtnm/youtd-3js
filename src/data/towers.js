@@ -8,6 +8,7 @@ import { YT_TOWERS } from './youtd/generated.js';
 import { mapMods, describeLevelMods } from './youtd/mods.js';
 import { TOWER_ICON_MAP, iconUrl } from './icon-map.js';
 import { TOWER_MODEL_MAP } from './model-map.js';
+import { MESHY_TOWER_MODELS } from './model-library.js';
 import { describeSkill, describeStatMod } from './tower-skills.js';
 import { TOWER_PORTS } from './youtd/tower-ports.js';
 
@@ -45,7 +46,7 @@ for (const [famNum, rows] of byFamily) {
   rows.sort((a, b) => a.tier - b.tier);
   const fid = `f${famNum}`;
   const head = rows[0];
-  const glbSpec = TOWER_MODEL_MAP[head.name];
+  const glbSpec = TOWER_MODEL_MAP[head.name] ?? MESHY_TOWER_MODELS[head.name];
   const glb = glbSpec ? (typeof glbSpec === 'string' ? { id: glbSpec } : glbSpec) : undefined;
   FAMILIES[fid] = { id: fid, element: head.element, rarity: head.rarity, tiers: [], names: rows.map((r) => r.name) };
   rows.forEach((row, t) => {

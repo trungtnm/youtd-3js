@@ -6,7 +6,7 @@ import { Audio } from './audio/audio.js';
 import { Game } from './sim/game.js';
 import { DIFFICULTIES, MODES, LENGTHS } from './data/constants.js';
 import { ICON_CREDITS } from './data/icon-map.js';
-import { MODEL_LIBRARY } from './data/model-library.js';
+import { MODEL_LIBRARY, MESHY_TOWER_MODELS } from './data/model-library.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
 
 const $ = (s) => document.querySelector(s);
@@ -77,7 +77,7 @@ renderBest();
     <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a> (background removed, recolored), by `
     + Object.entries(byAuthor).sort((a, b) => b[1] - a[1]).map(([a, n]) => `<b>${a}</b> (${n})`).join(', ')
     + `. Each icon's source is listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/icon-credits.md" target="_blank" rel="noopener">docs/icon-credits.md</a>.`
-    + `<br><br>Tower models from <a href="https://poly.pizza" target="_blank" rel="noopener">Poly Pizza</a> (CC0 and CC BY; compressed, otherwise unchanged), by `
+    + `<br><br>Tower and creep models from <a href="https://poly.pizza" target="_blank" rel="noopener">Poly Pizza</a> (CC0 and CC BY; compressed, otherwise unchanged)${Object.keys(MESHY_TOWER_MODELS).length ? ' and generated with <a href="https://www.meshy.ai" target="_blank" rel="noopener">Meshy</a>' : ''}, by `
     + Object.entries(modelAuthors).sort((a, b) => b[1] - a[1]).map(([a, n]) => `<b>${a}</b> (${n})`).join(', ')
     + `. Each model's title, author and licence are listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/model-credits.md" target="_blank" rel="noopener">docs/model-credits.md</a>.`
     + `<br><br>Music: ${MUSIC_TRACKS.map((t) => `"<a href="${t.source}" target="_blank" rel="noopener">${t.title}</a>" by ${t.artist}`).join(', ')}

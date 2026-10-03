@@ -22,7 +22,8 @@ npm run build          # production build into dist/; must pass before finishing
 npm run balance        # headless balance bot (see below)
 npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party/youtd2
 GAME_ICONS_DIR=/path/to/game-icons npm run import:icons  # copy curated icons, regenerate docs/icon-credits.md
-npm run import:models  # download and compress curated tower models, regenerate docs/model-credits.md
+npm run import:models  # download/compress curated tower and creep models, regenerate docs/model-credits.md
+MESHY_API_KEY=... MESHY_MAX=5 npm run import:models  # also generate up to 5 missing tower models with Meshy (costs credits)
 ```
 
 Balance bot options are environment variables:
@@ -57,8 +58,11 @@ per-wave lines. Run several seeds; results vary by ±15 waves.
   CC-BY only, keyed by the family's first tier name). `npm run import:models`
   downloads and compresses them; `public/models/`, `src/data/model-library.js`
   and `docs/model-credits.md` are generated. Families without a model use the
-  procedural builders in `src/world/models.js`. Check new picks in a browser:
-  static T-pose characters and props that shrink to nothing look broken.
+  procedural builders in `src/world/models.js`. Creep models per race are in
+  `CREEP_MODEL_MAP` and must be animated (walk or fly clip). Families without a
+  free model can get a Meshy model from a prompt in `tools/meshy-prompts.mjs`.
+  Review picks at `/gallery.html` on the dev server (every tower family and
+  creep): static T-pose characters and props that shrink to nothing look broken.
 - `src/data/youtd/generated.js` is generated. Edit `tools/import-youtd2.mjs` or
   the data in `third_party/youtd2/` instead, then rerun the import.
 - HUD sizes in `src/style.css` use `calc(var(--s) * Npx)` so the UI scales with

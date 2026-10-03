@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YouTD Model Gallery</title>
+  <style>
+    :root { --bg: #1d222d; --panel: rgba(18, 21, 28, 0.92); --line: #3a4252; --text: #e8e2d2; --dim: #9aa2b2; --gold: #f0c768; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 Inter, system-ui, sans-serif; overflow: hidden; }
+    #bar { position: fixed; inset: 0 0 auto 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 2; }
+    #bar b { color: var(--gold); margin-right: 8px; }
+    #bar .sep { width: 1px; height: 22px; background: var(--line); margin: 0 6px; }
+    button { background: #2a303c; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+    button.on { background: var(--gold); color: #241806; border-color: var(--gold); }
+    #count { color: var(--dim); margin-left: auto; }
+    #hint { position: fixed; left: 12px; bottom: 10px; color: var(--dim); z-index: 2; }
+    .label { pointer-events: auto; cursor: pointer; text-align: center; transform: translateY(-6px); white-space: nowrap; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+    .label .n { font-weight: 700; font-size: 12px; }
+    .label .s { font-size: 10px; color: var(--dim); }
+    .tag { display: inline-block; font-size: 9px; padding: 0 4px; border-radius: 3px; margin-left: 3px; vertical-align: 1px; color: #111; }
+    .tag.poly { background: #7fd48a; } .tag.meshy { background: #8fb8ff; } .tag.proc { background: #c9a36a; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <b>Model gallery</b>
+    <button data-tab="towers" class="on">Towers</button>
+    <button data-tab="creeps">Creeps</button>
+    <span class="sep"></span>
+    <span id="filters"></span>
+    <span class="sep"></span>
+    <button id="btn-attack">Play attack</button>
+    <span id="count"></span>
+  </div>
+  <div id="hint">Drag to rotate, right-drag to pan, wheel to zoom. Click a label to focus it.</div>
+  <script type="module" src="/src/gallery.js"></script>
+</body>
+</html>

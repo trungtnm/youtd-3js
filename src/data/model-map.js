@@ -1,4 +1,6 @@
-// Curated 3D model for tower families, keyed by the family's first tier name.
+// Curated 3D models. Towers are keyed by the family's first tier name; families
+// missing here get a Meshy model when tools/meshy-prompts.mjs has a prompt and
+// it has been generated, otherwise their procedural model.
 // Values are Poly Pizza model ids (https://poly.pizza/m/<id>), CC0 or CC-BY only,
 // or `{ id, h, yaw }` to override the fitted height or turn the model to face +Z.
 // After editing, run `npm run import:models` to download the files and
@@ -147,4 +149,15 @@ export const TOWER_MODEL_MAP = {
   "Young Northern Troll": "5vO2YJsPEf",
   "Zealot": "tabnmuxQBl",
   "Zeus": "bN9DnRavONC",
+};
+
+// Creep models per race: `ground` for mass, normal and champion creeps, `air`
+// for flyers, `boss` for bosses and challenge bosses. Animated CC0 models from
+// Poly Pizza; the walk or fly clip plays at the creep's speed.
+export const CREEP_MODEL_MAP = {
+  undead: { ground: 'wODZYCgX5Z', air: 'Iip30bDHmu', boss: 'IkB63XOPvr' },     // skeleton, ghost, demon
+  brute: { ground: 'Q3z8ZX4kUy', air: '3rUm1cN3yp', boss: 'BldaiPtyJa' },      // orc, small dragon, giant
+  humanoid: { ground: 'PpLF4rt4ah', air: '42djT5zJnx', boss: 'I1gTjmuK2m' },   // soldier, armored bee, king
+  arcane: { ground: 'kttbFvCl2C', air: 'TX8r9WBXpe', boss: 'S7jYW6Amye' },     // wizard, ghost skull, blue demon
+  feral: { ground: 'P1gU3Qkr9r', air: 'hNO9XvjlKa', boss: 'UYtneO5FpF' },      // wolf, bat, t-rex
 };

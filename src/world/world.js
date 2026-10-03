@@ -11,7 +11,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { buildEnvironment } from './environment.js';
-import { buildTowerModel, buildCreepModel, RACE_COLORS } from './models.js';
+import { buildTowerModel, buildCreepModel, preloadCreepModels, RACE_COLORS } from './models.js';
 import { FX } from './fx.js';
 import { ELEMENTS, RARITIES } from '../data/constants.js';
 import { worldToTile, tileToWorld, isBuildable, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
@@ -132,6 +132,7 @@ export class World {
     scene.add(this.hoverMarker);
     this.towerViews = new Map();
     this.creepViews = new Map();
+    preloadCreepModels();
     this.dying = [];
     // Hit flash: creep meshes swap to this shared material for a few frames.
     this.flashMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.5, 1.4) });
@@ -535,12 +536,15 @@ export class World {
     this.scene.add(group);
     const inner = group.userData.inner;
     const meshes = [];
-    inner.traverse((o) => { if (o.isMesh) meshes.push({ o, base: o.material }); });
+    const collect = () => { meshes.length = 0; inner.traverse((o) => { if (o.isMesh) meshes.push({ o, base: o.material }); }); };
+    collect();
     const v = {
       group, bar, fill, shield, hit, anim: group.userData.anim, inner, meshes, look: null,
       baseScale: inner.scale.x, air: c.air, weight: c.size === 'boss' || c.size === 'challenge' ? 0.35 : c.size === 'champion' ? 0.7 : 1,
       phase: Math.random() * 6, lastHp: c.hp + c.shield, dmgAcc: 0, hitCd: 0, flash: 0, squash: 0, yaw: Math.atan2(c.dx, c.dz),
     };
+    // A curated model that finishes loading late replaces the meshes the hit flash and shimmer swap.
+    group.addEventListener('modelswap', () => { collect(); v.look = undefined; this._look(v); if (v.unseen) this._setUnseen(v, true); });
     this.creepViews.set(c.uid, v);
     return v;
   }
@@ -765,13 +769,14 @@ export class World {
       const slow = Math.max(c.slow, c.auraSlow);
       v.phase += dt * (moving ? 9 * (1 - slow * 0.8) : 0);
       const A = v.anim;
+      A.mixer?.update(moving ? dt * (1 - slow * 0.8) : 0);
       const sw = Math.sin(v.phase);
       A.legs.forEach((l, i) => { l.rotation.x = (i % 2 ? sw : -sw) * 0.6 * (A.legs.length > 2 && i >= 2 ? -1 : 1); });
       A.arms.forEach((a, i) => { a.rotation.x = (i % 2 ? -sw : sw) * 0.5; });
       for (const s of A.spin) s.obj.rotation[s.axis || 'y'] += s.speed * dt;
       for (const o of A.orbit) { const a = T * o.speed + o.phase; o.obj.position.set(Math.cos(a) * o.r, o.y, Math.sin(a) * o.r); }
       if (A.flap) { const a = Math.sin(T * 10 + c.uid) * 0.6; A.flap.l.rotation.z = a; A.flap.r.rotation.z = -a; }
-      if (A.body) A.body.position.y = 2.6 + Math.sin(T * 3 + c.uid) * 0.15;
+      if (A.body) A.body.position.y = (A.bodyY ?? 2.6) + Math.sin(T * 3 + c.uid) * 0.15;
       v.inner.position.y = A.float ? 0.2 + Math.sin(T * 2 + c.uid) * 0.15 : Math.abs(Math.sin(v.phase)) * 0.06;
       // Health bar
       const k = Math.max(0, c.hp / c.maxHp);

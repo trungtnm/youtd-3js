@@ -19,6 +19,9 @@ npm install
 npm run dev        # http://localhost:5317
 ```
 
+The dev server also serves `/gallery.html`, a review page showing every tower
+family and creep with its model.
+
 To open the game from another device on your network, run
 `npm run dev -- --host 0.0.0.0`.
 
@@ -31,7 +34,7 @@ To open the game from another device on your network, run
 | `npm run preview` | Serve the production build on port 5318 |
 | `npm run balance` | Headless balance bot (see below) |
 | `npm run import:youtd` | Regenerate `src/data/youtd/generated.js` from `third_party/youtd2` |
-| `npm run import:models` | Download and compress the tower models chosen in `src/data/model-map.js` |
+| `npm run import:models` | Download and compress the tower and creep models in `src/data/model-map.js`; with `MESHY_API_KEY`, generate missing tower models with Meshy |
 | `npm run import:icons` | Copy the icons chosen in `src/data/icon-map.js` from a game-icons clone (`GAME_ICONS_DIR`) |
 
 ## Controls
@@ -108,7 +111,7 @@ are in [docs/game-design.md](docs/game-design.md#balance-targets).
   In-game descriptions are written from the ported mechanics.
 - Tower and item icons are from [game-icons.net](https://game-icons.net) (CC BY 3.0).
   See [docs/icon-credits.md](docs/icon-credits.md).
-- Tower models are CC0 and CC BY models from [Poly Pizza](https://poly.pizza)
+- Tower and creep models are CC0 and CC BY models from [Poly Pizza](https://poly.pizza)
   (Quaternius, Kay Lousberg, Poly by Google and others).
   See [docs/model-credits.md](docs/model-credits.md).
 - Music by Kevin MacLeod ([incompetech.com](https://incompetech.com)), CC BY 4.0.

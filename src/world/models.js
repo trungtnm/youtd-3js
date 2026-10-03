@@ -3,7 +3,8 @@
 
 import * as THREE from 'three';
 import { ELEMENTS, RARITIES, RACES } from '../data/constants.js';
-import { attachTowerGlb } from './tower-glb.js';
+import { attachTowerGlb, attachCreepGlb, loadGlb } from './glb-models.js';
+import { CREEP_MODEL_MAP } from '../data/model-map.js';
 
 const matCache = new Map();
 export function mat(color, { rough = 0.7, metal = 0.05, emissive = 0, ei = 0, flat = false, transparent = false, opacity = 1 } = {}) {
@@ -529,6 +530,19 @@ function wings(g, col, armorCol, A) {
   A.flap = { l: wl, r: wr };
 }
 
+// Ground creeps use the race's ground model, flyers its air model, and bosses
+// (including challenge bosses) its boss model.
+function creepModelSpec(creep) {
+  const kinds = CREEP_MODEL_MAP[creep.race];
+  const v = kinds && (creep.air ? kinds.air : creep.size === 'boss' || creep.size === 'challenge' ? kinds.boss : kinds.ground);
+  return v ? (typeof v === 'string' ? { id: v } : v) : null;
+}
+
+// Creep models are few and needed from the first wave, so fetch them up front.
+export function preloadCreepModels() {
+  for (const kinds of Object.values(CREEP_MODEL_MAP)) for (const v of Object.values(kinds)) loadGlb(typeof v === 'string' ? v : v.id);
+}
+
 export function buildCreepModel(creep) {
   const outer = new THREE.Group();
   const g = new THREE.Group();
@@ -544,23 +558,37 @@ export function buildCreepModel(creep) {
     (CREEP_BUILDERS[creep.race] || CREEP_BUILDERS.humanoid)(g, col, armorCol, A);
   }
   const size = creep.size;
+  // Rings, crowns and halos stay when a curated model replaces the body.
+  const keep = (m) => { m.userData.keep = true; return m; };
+  const crown = [];
   if (size === 'champion' || size === 'boss' || size === 'challenge') {
-    const ring = add(g, torG(0.6, 0.04, 6, 32), glow(size === 'champion' ? 0xb07aff : 0xff4a2a, 2.5), 0, 0.05, 0, Math.PI / 2);
+    const ring = keep(add(g, torG(0.6, 0.04, 6, 32), glow(size === 'champion' ? 0xb07aff : 0xff4a2a, 2.5), 0, 0.05, 0, Math.PI / 2));
     ring.castShadow = false;
     A.spin.push({ obj: ring, speed: 1.5, axis: 'z' });
     if (size !== 'champion') {
       for (let i = 0; i < 5; i++) {
-        add(g, coneG(0.05, 0.25, 4), glow(0xffc040, 2), Math.cos(i * 1.256) * 0.18, creep.air ? 3.0 : 1.75, Math.sin(i * 1.256) * 0.18);
+        crown.push(keep(add(g, coneG(0.05, 0.25, 4), glow(0xffc040, 2), Math.cos(i * 1.256) * 0.18, creep.air ? 3.0 : 1.75, Math.sin(i * 1.256) * 0.18)));
       }
     }
   }
   if (creep.armorType === 'divine') {
-    const halo = add(g, torG(0.25, 0.025, 6, 24), glow(0xffd75e, 3), 0, creep.air ? 3.1 : 1.85, 0, Math.PI / 2);
+    const halo = keep(add(g, torG(0.25, 0.025, 6, 24), glow(0xffd75e, 3), 0, creep.air ? 3.1 : 1.85, 0, Math.PI / 2));
     halo.castShadow = false;
+    crown.push(halo);
   }
-  if (size === 'challenge' || size === 'challengeMass') {
-    g.traverse((m) => { if (m.isMesh && !m.material.emissiveIntensity) m.material = mat(0xffd34a, { metal: 0.9, rough: 0.25 }); });
+  const gild = () => {
+    if (size === 'challenge' || size === 'challengeMass') {
+      g.traverse((m) => { if (m.isMesh && !m.userData.keep && !(m.material.emissiveIntensity && m.material.emissive?.getHex())) m.material = mat(0xffd34a, { metal: 0.9, rough: 0.25 }); });
+    }
+  };
+  // Crowns and halos sit just above whatever model is shown.
+  const fitCrown = (top) => { for (const m of crown) m.position.y = top + (m.geometry.type === 'TorusGeometry' ? 0.15 : 0.05); };
+  const spec = creepModelSpec(creep);
+  if (spec) {
+    const top = attachCreepGlb(g, spec, A, creep.air, (late) => { fitCrown(late); gild(); outer.dispatchEvent({ type: 'modelswap' }); });
+    if (top != null) fitCrown(top);
   }
+  gild();
   const scale = { mass: 0.95, normal: 1.3, air: 1.25, champion: 1.75, boss: 2.6, challenge: 3.2, challengeMass: 1.05 }[size] || 1;
   g.scale.setScalar(scale);
   outer.userData.anim = A;

@@ -80,10 +80,11 @@ main power source.
 - `environment.js`: island terrain, water, sky, path ribbon, decoration
   (instanced), spawn gate, nexus, placement grid overlay.
 - `models.js`: procedural tower and creep models built from primitives.
-- `tower-glb.js`: loads curated tower models (`public/models/`, chosen in
-  `src/data/model-map.js`) on first use, fits them onto the pedestal, plays their
-  idle clip and an attack clip on each shot. The procedural model stands in until
-  the file arrives.
+- `glb-models.js`: loads curated tower and creep models (`public/models/`,
+  chosen in `src/data/model-map.js`) and fits them where the procedural model
+  would stand. Towers play their idle clip and an attack clip on each shot;
+  creeps play a walk or fly clip at their current speed. The procedural model
+  stands in until a file arrives.
 - `fx.js`: GPU particle systems, projectiles, lightning, beams, rings, meteors,
   zones and floating combat text.
 
