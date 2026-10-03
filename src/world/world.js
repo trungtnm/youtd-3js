@@ -195,18 +195,27 @@ export class World {
       }
     }, { passive: false });
     let drag = null;
-    el.addEventListener('pointerdown', (e) => {
-      if (e.button === 1 || e.button === 2) {
-        drag = { b: e.button, x: e.clientX, y: e.clientY, moved: 0, grab: e.button === 2 ? this.pickGround() : null };
-      }
-    });
-    window.addEventListener('pointermove', (e) => {
+    const setMouse = (e) => {
       this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.inside = true;
       this.mouse.ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+    };
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button > 2) return;
+      setMouse(e);
+      // Left and right drag pan the map; middle drag rotates.
+      drag = { b: e.button, x: e.clientX, y: e.clientY, moved: 0, grab: e.button === 1 ? null : this.pickGround() };
+    });
+    window.addEventListener('pointermove', (e) => {
+      setMouse(e);
       if (!drag) return;
       const dx = e.clientX - drag.x;
-      drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(e.movementY || 0);
+      drag.moved += Math.abs(dx) + Math.abs(e.clientY - drag.y);
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (this.cam.menu) return;
       if (drag.b === 1) { this.cam.tyaw -= dx * 0.006; return; }
+      // A left click with a few pixels of jitter must still select or build, not pan.
+      if (drag.b === 0 && drag.moved <= 6) return;
+      this.dragging = true;
       // Grab-pan: keep the ground point under the cursor pinned, with no lag.
       const g = this.pickGround();
       if (drag.grab && g) {
@@ -216,8 +225,10 @@ export class World {
         this.cam.vx = this.cam.vz = 0;
       }
     });
-    window.addEventListener('pointerup', (e) => { if (drag && drag.b === e.button) { this.lastDragMoved = drag.moved; drag = null; } });
-    document.addEventListener('mouseleave', () => { this.mouse.inside = false; });
+    window.addEventListener('pointerup', (e) => { if (drag && drag.b === e.button) { this.lastDragMoved = drag.moved; drag = null; this.dragging = false; } });
+    // `document` never receives mouseleave; without this the last edge position
+    // keeps scrolling after the cursor leaves the window.
+    document.documentElement.addEventListener('mouseleave', () => { this.mouse.inside = false; });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -240,17 +251,12 @@ export class World {
       c.tdist = 64;
     } else {
       const k = this.keys;
+      // Panning is mouse-only: edge scrolling here, drag-pan in the pointer handlers.
       let px = 0, pz = 0;
-      if (k.has('w') || k.has('arrowup')) pz -= 1;
-      if (k.has('s') || k.has('arrowdown')) pz += 1;
-      if (k.has('a') || k.has('arrowleft')) px -= 1;
-      if (k.has('d') || k.has('arrowright')) px += 1;
-      if (this.edgeScroll && this.mouse.inside && document.hasFocus()) {
+      if (this.edgeScroll && this.mouse.inside && !this.dragging && document.hasFocus()) {
         const m = 10;
-        if (this.mouse.x < m) px -= 1;
-        if (this.mouse.x > window.innerWidth - m) px += 1;
-        if (this.mouse.y < m) pz -= 1;
-        if (this.mouse.y > window.innerHeight - m) pz += 1;
+        px = (this.mouse.x < m ? -1 : 0) + (this.mouse.x > window.innerWidth - m ? 1 : 0);
+        pz = (this.mouse.y < m ? -1 : 0) + (this.mouse.y > window.innerHeight - m ? 1 : 0);
       }
       const len = Math.hypot(px, pz) || 1;
       const maxSpeed = c.dist * 1.1;
@@ -261,7 +267,11 @@ export class World {
       c.vx += (wx - c.vx) * accel;
       c.vz += (wz - c.vz) * accel;
       c.tx += c.vx * dt; c.tz += c.vz * dt;
+      const ox = c.tx, oz = c.tz;
       this._clamp();
+      // Drop momentum into a wall so reversing away from it responds at once.
+      if (c.tx !== ox) c.vx = 0;
+      if (c.tz !== oz) c.vz = 0;
       const wantYaw = (k.has('q') ? 1 : 0) - (k.has('e') ? 1 : 0);
       c.vyaw += (wantYaw * 1.6 - c.vyaw) * (1 - Math.exp(-dt * 8));
       c.tyaw += c.vyaw * dt;

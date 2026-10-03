@@ -83,28 +83,67 @@
         <h1>YouTD <span>Reforged</span></h1>
         <p class="sub">Research the elements, draft your towers, and hold the portal against an endless march.</p>
       </div>
-      <div class="opts panel">
-        <div class="opt-group"><h4>Difficulty</h4><div class="choices" id="opt-difficulty"></div></div>
-        <div class="opt-group"><h4>Mode</h4><div class="choices" id="opt-mode"></div></div>
-        <div class="opt-group"><h4>Length</h4><div class="choices" id="opt-length"></div></div>
-      </div>
-      <button id="btn-start" class="btn gold big">Defend the Portal</button>
-      <div class="best" id="best-score"></div>
-      <details class="howto">
-        <summary>How to play</summary>
-        <div class="howto-grid">
-          <div><h5>Elements and research</h5><p>Towers belong to seven elements. Spend knowledge tomes to research an element: higher levels unlock stronger tiers and rarer towers.</p></div>
-          <div><h5>Armor matters</h5><p>Each attack type is strong against one armor and weak against others. Divine armor shrugs off everything except Essence. Check the incoming wave and adapt.</p></div>
-          <div><h5>Waves</h5><p>Mass, normal, air and boss waves arrive with random races and special traits. Every 8th wave is a Challenge: it cannot hurt the portal but pays out for every hit.</p></div>
-          <div><h5>Grow your towers</h5><p>Towers level up from kills, carry items dropped by creeps, and drink oils for permanent power. Combine spare items with Transmute.</p></div>
-          <div><h5>Controls</h5><p>WASD / arrows or screen edges to pan, wheel to zoom, Q/E or middle-drag to rotate, right-drag to pan. Space sends the next wave. U upgrades, X sells, F/G cast the selected tower's abilities (right-click an ability to toggle autocast). Shift keeps placing.</p></div>
-          <div><h5>Few towers, deep builds</h5><p>Untrained towers are weak: level 0 deals 35% damage, level 5 100%, level 25 about 360%. Levels go up to 60, and items multiply on top. Every tower starts with 1 item slot and gains one every 10 waves (6 at wave 50), and picks a perk every 5 levels. Each tower may carry one unique item. Spend spare gold on Train to level your carries.</p></div>
+      <div id="menu-intro">
+        <div class="howto controls">
+          <h3 class="controls-title">Controls</h3>
+          <div class="controls-grid">
+            <div>
+              <h5>Mouse</h5>
+              <dl>
+                <dt><kbd>Left drag</kbd> <kbd>Right drag</kbd></dt><dd>Pan the map</dd>
+                <dt><kbd>Screen edge</kbd></dt><dd>Pan the map (toggle in Settings)</dd>
+                <dt><kbd>Wheel</kbd></dt><dd>Zoom toward the cursor</dd>
+                <dt><kbd>Middle drag</kbd></dt><dd>Rotate the camera</dd>
+                <dt><kbd>Left click</kbd></dt><dd>Select a tower or creep, place a tower</dd>
+                <dt><kbd>Shift</kbd> + <kbd>Left click</kbd></dt><dd>Place and keep placing the same tower</dd>
+                <dt><kbd>Right click</kbd></dt><dd>Cancel placing, drop the held item, deselect</dd>
+                <dt><kbd>Drag item</kbd></dt><dd>Drop a stash item on a tower to equip it</dd>
+                <dt><kbd>Shift</kbd> + <kbd>Click item</kbd></dt><dd>Pick up to 3 stash items for Transmute</dd>
+                <dt><kbd>Right click ability</kbd></dt><dd>Toggle autocast</dd>
+              </dl>
+            </div>
+            <div>
+              <h5>Keyboard</h5>
+              <dl>
+                <dt><kbd>Space</kbd></dt><dd>Send the next wave now</dd>
+                <dt><kbd>Q</kbd> <kbd>E</kbd></dt><dd>Rotate the camera</dd>
+                <dt><kbd>U</kbd></dt><dd>Upgrade the selected tower</dd>
+                <dt><kbd>T</kbd></dt><dd>Train the selected tower</dd>
+                <dt><kbd>F</kbd> <kbd>G</kbd></dt><dd>Cast the selected tower's first / second ability</dd>
+                <dt><kbd>X</kbd> <kbd>Delete</kbd></dt><dd>Sell the selected tower</dd>
+                <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Game speed</dd>
+                <dt><kbd>P</kbd></dt><dd>Pause or resume</dd>
+                <dt><kbd>Esc</kbd></dt><dd>Cancel or deselect, otherwise open Settings</dd>
+              </dl>
+            </div>
+          </div>
         </div>
-      </details>
-      <details class="credits">
-        <summary>Credits</summary>
-        <p id="credits-text"></p>
-      </details>
+        <button id="btn-continue" class="btn gold big">Start Game</button>
+      </div>
+      <div id="menu-setup" class="hidden">
+        <div class="opts panel">
+          <div class="opt-group"><h4>Difficulty</h4><div class="choices" id="opt-difficulty"></div></div>
+          <div class="opt-group"><h4>Mode</h4><div class="choices" id="opt-mode"></div></div>
+          <div class="opt-group"><h4>Length</h4><div class="choices" id="opt-length"></div></div>
+        </div>
+        <button id="btn-start" class="btn gold big">Defend the Portal</button>
+        <div class="best" id="best-score"></div>
+        <details class="howto">
+          <summary>How to play</summary>
+          <div class="howto-grid">
+            <div><h5>Elements and research</h5><p>Towers belong to seven elements. Spend knowledge tomes to research an element: higher levels unlock stronger tiers and rarer towers.</p></div>
+            <div><h5>Armor matters</h5><p>Each attack type is strong against one armor and weak against others. Divine armor shrugs off everything except Essence. Check the incoming wave and adapt.</p></div>
+            <div><h5>Waves</h5><p>Mass, normal, air and boss waves arrive with random races and special traits. Every 8th wave is a Challenge: it cannot hurt the portal but pays out for every hit.</p></div>
+            <div><h5>Grow your towers</h5><p>Towers level up from kills, carry items dropped by creeps, and drink oils for permanent power. Combine spare items with Transmute.</p></div>
+            <div class="wide"><h5>Few towers, deep builds</h5><p>Untrained towers are weak: level 0 deals 35% damage, level 5 100%, level 25 about 360%. Levels go up to 60, and items multiply on top. Every tower starts with 1 item slot and gains one every 10 waves (6 at wave 50), and picks a perk every 5 levels. Each tower may carry one unique item. Spend spare gold on Train to level your carries.</p></div>
+          </div>
+        </details>
+        <details class="credits">
+          <summary>Credits</summary>
+          <p id="credits-text"></p>
+        </details>
+        <button id="btn-back" class="btn">Back to controls</button>
+      </div>
     </div>
   </div>
 
