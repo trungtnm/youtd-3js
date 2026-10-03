@@ -670,13 +670,13 @@ export class World {
     nx.crystal.position.y = 3.6 + Math.sin(T * 1.3) * 0.2;
     nx.ring1.rotation.x = T * 0.7; nx.ring2.rotation.y = T * 0.5; nx.ring2.rotation.x = 1.2;
     this.nexusHit = Math.max(0, (this.nexusHit || 0) - dt * 2);
-    const lives = this.game ? this.game.lives : 100;
-    nx.crystalMat.emissive.setRGB(0.18 + this.nexusHit * 0.8, 0.66 * (lives / 100), 1.0 * (lives / 100) + 0.1);
-    nx.crystalMat.emissiveIntensity = 2.2 + this.nexusHit * 4 + (lives < 30 ? Math.sin(T * 8) * 0.8 : 0);
+    const integrity = this.game ? Math.max(0, this.game.lives) / this.game.maxLives : 1;
+    nx.crystalMat.emissive.setRGB(0.18 + this.nexusHit * 0.8, 0.66 * integrity, 1.0 * integrity + 0.1);
+    nx.crystalMat.emissiveIntensity = 2.2 + this.nexusHit * 4 + (integrity < 0.3 ? Math.sin(T * 8) * 0.8 : 0);
     nx.pillarMat.opacity = 0.08 + 0.05 * Math.sin(T * 2) + this.nexusHit * 0.2;
     this.grade.uniforms.uFlash.value = Math.max(0, this.grade.uniforms.uFlash.value - dt * 2.5);
     this.grade.uniforms.uTime.value = T;
-    this.grade.uniforms.uLow.value = lives < 25 && this.game?.phase === 'running' ? 1 : 0;
+    this.grade.uniforms.uLow.value = integrity < 0.25 && this.game?.phase === 'running' ? 1 : 0;
 
     this.grade.uniforms.uWhite.value = this.fx.flash;
 

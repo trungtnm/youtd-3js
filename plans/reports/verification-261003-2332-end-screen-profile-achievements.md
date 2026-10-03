@@ -45,6 +45,25 @@ noted in `AGENTS.md`, and seeds 2 and 3 ended earlier.
 - `recordRun` would throw on a summary whose config failed validation; it now
   skips the history entry instead.
 
+## Independent code review
+
+A reviewer subagent read the full diff. XSS paths, recording once per game,
+determinism without modifiers and hot-path cost came back clean. Findings and
+outcomes:
+
+| Finding | Severity | Outcome |
+|---|---|---|
+| `recordRun` overwrote a stored profile it could not read (newer version or corrupted), erasing progress | High | Fixed: an unreadable profile is never written over; the end screen shows "Progress could not be saved". Regression tests added |
+| Nexus crystal and low-health grade assumed 100 lives, so Glass Portal looked nearly destroyed from the start | Medium | Fixed: visuals use `lives / maxLives` |
+| A won run continued after victory was rewritten as Defeat or Abandoned in history | Medium | Fixed: history keeps Victory; regression test added |
+| Portal Mending and item heals restored absolute lives while the text says percent, so Glass Portal was easier than described | Medium | Fixed: restores scale with `maxLives / 100`; unmodified runs unchanged |
+| Portal-damage charts counted leaks, not integrity lost | Low | Fixed: weighted by integrity lost; the lifetime tile is now "Portal damage" |
+| Spell damage over time counted as attack damage | Low | Rejected: flat DoTs already pass `{ spell: true }` (`src/sim/game.js:786`); only on-hit burn riders use the attack type |
+| No in-memory profile when storage is unavailable | Low | Fixed: the session keeps one; regression test added |
+
+After the fixes: build passes, all Node checks pass, the bot matches the
+baseline, and `MODS=glass` still reaches 38 / 53 / 43.
+
 ## Not verified
 
 - The Export button was not clicked in the browser because it downloads a file;

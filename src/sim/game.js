@@ -357,7 +357,7 @@ export class Game extends Emitter {
     const e = def.effect;
     if (e.tomes) this.tomes += e.tomes;
     if (e.goldPerLevel) this.addGold(e.goldPerLevel * Math.max(1, this.level));
-    if (e.lives) this.lives = Math.min(this.maxLives, this.lives + e.lives);
+    if (e.lives) this.lives = Math.min(this.maxLives, this.lives + e.lives * this.maxLives / 100);
     if (e.income) this.incomeRate += e.income;
     this.stash.splice(idx, 1);
     this.emit('stash');
@@ -1417,7 +1417,7 @@ export class Game extends Emitter {
       case 'gold': this.addGold(o.value); break;
       case 'tomes': this.tomes += o.value; break;
       case 'wisdom': for (const t of this.towers.values()) this.giveXp(t, xpForLevel(t.level) * o.value / (1 + t.stats.xp)); break;
-      case 'mend': this.lives = Math.min(this.maxLives, this.lives + o.value); break;
+      case 'mend': this.lives = Math.min(this.maxLives, this.lives + o.value * this.maxLives / 100); break;
       case 'hero': {
         // Your highest-level tower below the cap gains whole levels.
         const best = [...this.towers.values()].filter((t) => t.level < TOWER_MAX_LEVEL).sort((a, b) => b.level - a.level || b.stats.dps - a.stats.dps)[0];
@@ -1504,7 +1504,7 @@ export class Game extends Emitter {
       attributed += t.damage;
     }
     const portalLeaks = st.leakLog.filter((l) => l.lives > 0);
-    const count = (list, key) => list.reduce((m, l) => { m[l[key]] = (m[l[key]] || 0) + 1; return m; }, {});
+    const count = (list, key) => list.reduce((m, l) => { m[l[key]] = (m[l[key]] || 0) + l.lives; return m; }, {});
     const outcome = this.phase === 'prep' || this.phase === 'running' ? 'running' : this.phase;
     return {
       level: this.level, score: this.score, kills: st.kills, leaks: st.leaks,

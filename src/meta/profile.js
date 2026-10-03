@@ -99,6 +99,9 @@ export function sanitize(raw) {
 
 // ---------------------------------------------------------------- storage
 
+// Session copy used when browser storage is unavailable, so the hall and achievements stay consistent.
+let memoryProfile = null;
+
 function defaultStorage() {
   try { return globalThis.localStorage || null; } catch { return null; }
 }
@@ -122,7 +125,7 @@ function mergeLegacyBest(p, storage) {
 // and the caller shows a warning while a fresh profile is used.
 export function loadProfile(storage = defaultStorage()) {
   let profile = emptyProfile(), loadError = false;
-  if (!storage) return { profile, loadError, storageOk: false };
+  if (!storage) return { profile: memoryProfile ? sanitize(memoryProfile) : profile, loadError, storageOk: false };
   try {
     const text = storage.getItem(PROFILE_KEY);
     if (text) {
@@ -135,7 +138,7 @@ export function loadProfile(storage = defaultStorage()) {
 }
 
 export function saveProfile(profile, storage = defaultStorage()) {
-  if (!storage) return false;
+  if (!storage) { memoryProfile = profile; return false; }
   try { storage.setItem(PROFILE_KEY, JSON.stringify(profile)); return true; } catch { return false; }
 }
 
@@ -158,11 +161,14 @@ export function newRunState() {
 // Returns null for god mode, else { profile, newRecord, earned, unlocks, saved }.
 export function recordRun(sum, runState, storage = defaultStorage()) {
   if (sum.cfg.god) return null;
-  const { profile } = loadProfile(storage);
+  const { profile, loadError } = loadProfile(storage);
+  // An unreadable stored profile (corrupted, or from a newer version) is kept as is:
+  // writing a fresh one over it would erase the player's progress.
+  if (loadError) return { profile, newRecord: false, prevRecord: null, earned: [], unlocks: [], saved: false };
   const totals = runTotals(sum);
   for (const k of TOTAL_KEYS) profile.totals[k] += Math.max(0, totals[k] - (runState.totals?.[k] || 0));
   const entry = sanitizeHistoryEntry({
-    at: runState.historyAt ?? Date.now(), cfg: sum.cfg, outcome: sum.outcome === 'running' ? 'abandoned' : sum.outcome,
+    at: runState.historyAt ?? Date.now(), cfg: sum.cfg, outcome: sum.continued ? 'won' : sum.outcome === 'running' ? 'abandoned' : sum.outcome,
     wavesCleared: sum.wavesCleared, level: sum.level, score: sum.score, kills: sum.kills, time: sum.time,
     mvp: (() => { const t = sum.towerLedger.find((x) => x.uid === sum.mvp); return t && { id: t.id, level: t.level }; })(),
   });

@@ -96,7 +96,7 @@ export class Hall {
     const t = p.totals;
     return `<div class="hall-tiles">${[
       ['Kills', fmt(t.kills)], ['Damage', fmt(t.damage)], ['Gold earned', fmt(t.gold)], ['Waves cleared', fmt(t.wavesCleared)],
-      ['Bosses slain', fmt(t.bossKills)], ['Towers built', fmt(t.towersBuilt)], ['Level 30 towers', fmt(t.maxLevelTowers)], ['Portal hits', fmt(t.leaks)],
+      ['Bosses slain', fmt(t.bossKills)], ['Towers built', fmt(t.towersBuilt)], ['Level 30 towers', fmt(t.maxLevelTowers)], ['Portal damage', fmt(t.leaks)],
     ].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('')}</div>`;
   }
 
