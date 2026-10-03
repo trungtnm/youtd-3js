@@ -4,7 +4,10 @@ import { World } from './world/world.js';
 import { HUD } from './ui/hud.js';
 import { Audio } from './audio/audio.js';
 import { Game } from './sim/game.js';
-import { DIFFICULTIES, MODES, LENGTHS } from './data/constants.js';
+import { DIFFICULTIES, MODES, LENGTHS, MODIFIERS } from './data/constants.js';
+import { ACHIEVEMENT_BY_ID, UNLOCKS } from './data/achievements.js';
+import { unlockedSet } from './meta/achievements.js';
+import { esc } from './ui/util.js';
 import { ICON_CREDITS } from './data/tower-icons.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
 import { loadProfile, recordRun, recordKey, newRunState } from './meta/profile.js';
@@ -52,11 +55,38 @@ function renderChoices(id, defs, key) {
     settings[key] = b.dataset.v;
     save(SETTINGS_KEY, settings);
     renderChoices(id, defs, key);
+    renderMods();
+    renderBest();
+  }));
+}
+// The modifiers that will actually apply: known ids the profile has unlocked (God mode ignores locks).
+function activeModifiers(unlocked = unlockedSet(loadProfile().profile).modifiers) {
+  const picked = Array.isArray(settings.modifiers) ? settings.modifiers : [];
+  return picked.filter((m) => MODIFIERS[m] && (settings.god === 'on' || unlocked.has(m)));
+}
+function renderMods() {
+  const unlocked = unlockedSet(loadProfile().profile).modifiers;
+  const active = activeModifiers(unlocked);
+  const box = $('#opt-mods');
+  box.innerHTML = Object.values(MODIFIERS).map((m) => {
+    const open = settings.god === 'on' || unlocked.has(m.id);
+    const src = ACHIEVEMENT_BY_ID[UNLOCKS.modifiers[m.id].from];
+    const tip = open ? m.desc : `Locked. Earn "${src.name}" to unlock: ${src.desc}`;
+    return `<button class="choice mod ${active.includes(m.id) ? 'on' : ''} ${open ? '' : 'locked'}" data-v="${m.id}" data-tip="${esc(tip)}">
+      <b>${esc(m.name)}</b><small>${open ? `+${Math.round(m.score * 100)}% score` : `🔒 ${esc(src.name)}`}</small></button>`;
+  }).join('');
+  box.querySelectorAll('.choice').forEach((b) => b.addEventListener('click', () => {
+    if (b.classList.contains('locked')) return;
+    const set = new Set(active);
+    if (set.has(b.dataset.v)) set.delete(b.dataset.v); else set.add(b.dataset.v);
+    settings.modifiers = [...set];
+    save(SETTINGS_KEY, settings);
+    renderMods();
     renderBest();
   }));
 }
 function renderBest() {
-  const best = loadProfile().profile.records[recordKey(settings)];
+  const best = loadProfile().profile.records[recordKey({ ...settings, modifiers: activeModifiers() })];
   $('#best-score').textContent = best ? `Best on this setup: wave ${best.level} · score ${best.score.toLocaleString()}` : '';
 }
 renderChoices('#opt-difficulty', DIFFICULTIES, 'difficulty');
@@ -68,6 +98,7 @@ const GOD_OPTIONS = {
   on: { id: 'on', name: 'God mode', desc: 'Testing: all elements mastered, 10M gold, 2000 tomes. Nothing is recorded.' },
 };
 renderChoices('#opt-god', GOD_OPTIONS, 'god');
+renderMods();
 renderBest();
 
 // Tower icons are CC BY 3.0 and must be credited where players can see it.
@@ -95,6 +126,7 @@ function showMenu() {
   world.cam.tx = 0; world.cam.tz = 2;
   if (game) { world.game = null; clearWorld(); }
   game = null;
+  renderMods();
   renderBest();
 }
 
@@ -112,7 +144,7 @@ function startGame() {
   audio.init();
   audio.click();
   if (game) clearWorld();
-  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on' });
+  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on', modifiers: activeModifiers() });
   world.bind(game, audio);
   hud.setGame(game);
   hud.setSpeed(1);

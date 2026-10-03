@@ -1,7 +1,7 @@
 ---
 phase: 6
 title: "Challenge modifiers"
-status: pending
+status: completed
 priority: P2
 effort: "0.75d"
 dependencies: [3]

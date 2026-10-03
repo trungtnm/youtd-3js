@@ -2,7 +2,7 @@
 // its events; nothing here touches the DOM or three.js.
 
 import {
-  ELEMENT_IDS, RARITIES, DAMAGE_MATRIX, SIZES, DIFFICULTIES, LENGTHS, ECON,
+  ELEMENT_IDS, RARITIES, DAMAGE_MATRIX, SIZES, DIFFICULTIES, LENGTHS, ECON, MODIFIERS,
   TOWER_MAX_LEVEL, xpForLevel, ARMOR_REDUCTION,
 } from '../data/constants.js';
 import { TOWERS, FAMILIES, TOWER_LIST, nextTier, REVEAL_FAMILIES } from '../data/towers.js';
@@ -34,16 +34,19 @@ const WARD_MANA = 10; // a ward holds while the creep has at least this much man
 let UID = 1;
 
 export class Game extends Emitter {
-  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), god = false } = {}) {
+  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), god = false, modifiers = [] } = {}) {
     super();
-    this.cfg = { difficulty, mode, length, seed, god };
+    modifiers = [...new Set((Array.isArray(modifiers) ? modifiers : []).filter((m) => MODIFIERS[m]))].sort();
+    this.cfg = { difficulty, mode, length, seed, god, modifiers };
+    this.mods = new Set(modifiers);
+    this.scoreMult = 1 + modifiers.reduce((s, m) => s + MODIFIERS[m].score, 0);
     this.rng = mulberry32(seed);
     this.diff = DIFFICULTIES[difficulty];
     this.finalWave = LENGTHS[length].waves;
 
     this.gold = Math.round(ECON.startGold * this.diff.gold);
     this.tomes = ECON.startTomes;
-    this.maxLives = 100;
+    this.maxLives = this.mods.has('glass') ? 30 : 100;
     this.lives = this.maxLives;
     this.foodCap = Infinity;          // no tower limit; untrained towers are weak instead
     this.food = 0;
@@ -664,7 +667,7 @@ export class Game extends Emitter {
     st.clearedLevels.add(lvl);
     while (st.clearedLevels.has(st.wavesCleared + 1)) st.clearedLevels.delete(++st.wavesCleared);
     const income = Math.round((20 + lvl * 3) * this.diff.gold * (1 + this.incomeRate));
-    const interest = Math.min(ECON.interestCap * (1 + lvl / 40), Math.floor(this.gold * (ECON.interestRate + this.bonusInterest)));
+    const interest = this.mods.has('frugal') ? 0 : Math.min(ECON.interestCap * (1 + lvl / 40), Math.floor(this.gold * (ECON.interestRate + this.bonusInterest)));
     this.addGold(income + interest);
     const tomes = ECON.tomesPerWave + (lvl % 10 === 0 ? 2 : 0);
     this.tomes += tomes;
@@ -685,7 +688,7 @@ export class Game extends Emitter {
     const c = {
       uid: UID++, wave, level: def.level, size: sizeId, race: def.race, armorType: def.armor,
       armor, maxHp, hp: maxHp, air, route, dist: 0, x: 0, z: 0, dx: 1, dz: 0,
-      speed: BASE_SPEED * size.speed * (has('swift') ? 1.35 : 1),
+      speed: BASE_SPEED * size.speed * (has('swift') ? 1.35 : 1) * (this.mods.has('swarm') ? 1.15 : 1),
       specials: def.specials, shield: has('shielded') ? maxHp * 0.3 : 0, maxShield: has('shielded') ? maxHp * 0.3 : 0,
       slow: 0, slowT: 0, auraSlow: 0, auraArmor: 0, auraT: 0, stun: 0, dots: [], shred: {}, curse: 0, curseT: 0,
       blinkT: 4 + this.rng() * 3, damageBy: new Map(), alive: true, spawnT: this.time,
@@ -1265,7 +1268,7 @@ export class Game extends Emitter {
     }
     bounty = Math.max(1, Math.round(bounty));
     this.addGold(bounty);
-    this.score += Math.round(size.score * c.level * (this.diff.hp));
+    this.score += Math.round(size.score * c.level * (this.diff.hp) * this.scoreMult);
 
     // Experience: half to the killer, the rest shared by damage contribution.
     // auraXp: creeps inside an experience aura grant more experience when they die.
@@ -1386,9 +1389,10 @@ export class Game extends Emitter {
   offerSpoils(c) {
     const challenge = c.size === 'challenge';
     const uniqueChance = Math.min(0.6, (challenge ? 0.3 : 0.12) + c.level * 0.004);
-    const options = [{ type: 'item', item: this.rollItemAt('rare', uniqueChance) }];
-    if (challenge) options.push({ type: 'item', item: this.rollItemAt('rare', uniqueChance) });
-    const pool = SPOIL_IDS.filter((id) => !SPOILS[id].when || SPOILS[id].when(this));
+    const naked = this.mods.has('naked');
+    const options = naked ? [] : [{ type: 'item', item: this.rollItemAt('rare', uniqueChance) }];
+    if (challenge && !naked) options.push({ type: 'item', item: this.rollItemAt('rare', uniqueChance) });
+    const pool = SPOIL_IDS.filter((id) => (!SPOILS[id].when || SPOILS[id].when(this)) && !(naked && id === 'oil'));
     while (options.length < 3 && pool.length) {
       const total = pool.reduce((sum, id) => sum + SPOILS[id].weight, 0);
       let r = this.rng() * total, pick = pool[0];
@@ -1428,6 +1432,7 @@ export class Game extends Emitter {
   }
 
   rollDrops(c, killer) {
+    if (this.mods.has('naked')) return;
     const size = SIZES[c.size];
     const find = 1 + (killer ? killer.stats.itemFind : 0) + (c.mark?.itemChance || 0);
     const chance = 0.035 * find;
@@ -1458,6 +1463,7 @@ export class Game extends Emitter {
 
   // A guaranteed drop for a tower (item scripts), rolled with its item quality plus `bonus`.
   dropFor(t, lv, bonus, x, z) {
+    if (this.mods.has('naked')) return;
     const rarity = this.dropRarity(lv, 1 + t.stats.itemQuality + bonus);
     const pool = this.itemPool(rarity, lv);
     const item = { uid: UID++, id: pool[Math.floor(this.rng() * pool.length)].id };

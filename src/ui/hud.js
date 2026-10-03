@@ -3,6 +3,7 @@
 
 import {
   ELEMENTS, ELEMENT_IDS, RARITIES, ATTACK_TYPES, ARMOR_TYPES, DAMAGE_MATRIX, RACES, SIZES, ECON, xpForLevel, TOWER_MAX_LEVEL,
+  MODIFIERS,
 } from '../data/constants.js';
 import { TOWERS, TOWER_LIST, FAMILIES, nextTier, describeAbility, revealsInvisible, REVEAL_FAMILIES, describeTowerMods } from '../data/towers.js';
 import { ITEMS, describeItem, describeMods } from '../data/items.js';
@@ -83,6 +84,10 @@ export class HUD {
   setGame(game) {
     const g = game;
     this.game = game;
+    const mods = g.cfg.modifiers.map((m) => MODIFIERS[m].name);
+    $('#r-mods').textContent = mods.join(' · ');
+    $('#r-mods').classList.toggle('hidden', !mods.length);
+    $('#r-mods').dataset.tip = mods.length ? `Challenge modifiers: score x${g.scoreMult.toFixed(2)}` : '';
     this.alertDismissed = 0;
     this.selection = null;
     this.placing = null;

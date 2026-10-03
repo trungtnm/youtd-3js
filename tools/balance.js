@@ -8,7 +8,8 @@ import { COLS, ROWS, isBuildable, tileToWorld, GROUND_ROUTE } from '../src/sim/m
 
 const { DIFF: difficulty = 'medium', MODE: mode = 'build', SEED: seed = '7', A: focusA = 'fire', B: focusB = 'storm' } = process.env;
 const CAP = Number(process.env.CAP || 999); // max towers the bot builds
-const g = new Game({ difficulty, mode, length: 'full', seed: Number(seed) });
+const modifiers = (process.env.MODS || '').split(',').filter(Boolean); // e.g. MODS=glass,frugal
+const g = new Game({ difficulty, mode, length: 'full', seed: Number(seed), modifiers });
 
 // Score tiles by how much path lies within 9 units.
 const pathPts = [];
@@ -102,4 +103,4 @@ while (g.phase === 'running' && t < 60 * 60 * 3) {
   t += dt;
 }
 console.log(log.join('\n'));
-console.log(`RESULT ${difficulty}/${mode} seed ${seed} ${focus}: phase=${g.phase} wave=${g.level} lives=${g.lives} kills=${g.stats.kills} items=${g.stats.itemsFound} score=${g.score}`);
+console.log(`RESULT ${difficulty}/${mode} seed ${seed} ${focus}: phase=${g.phase} wave=${g.level} lives=${g.lives} kills=${g.stats.kills} items=${g.stats.itemsFound} score=${g.score}${modifiers.length ? ` mods=${g.cfg.modifiers.join(',')}` : ''}`);
