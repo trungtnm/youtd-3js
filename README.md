@@ -39,10 +39,10 @@ To open the game from another device on your network, run
 | Left click | Select, or place the tower being built |
 | Shift + left click | Place and keep building the same tower |
 | Right click | Cancel placement or clear the selection |
-| Right drag | Pan the camera |
-| Middle drag | Rotate the camera |
-| Mouse wheel | Zoom |
-| W A S D / arrow keys | Pan the camera |
+| Left or right drag | Pan the map |
+| Screen edge | Pan the map (toggle in Settings) |
+| Middle drag, Q / E | Rotate the camera |
+| Mouse wheel | Zoom toward the cursor |
 | Space | Call the next wave |
 | Auto (top bar) | Toggle auto waves. Off by default: the next wave waits until the field is clear |
 | 1 / 2 / 3 | Game speed |
@@ -61,7 +61,7 @@ The simulation in `src/sim/` is headless, so a bot can play full runs in Node.
 Options are environment variables:
 
 ```bash
-DIFF=medium MODE=build SEED=2 A=fire B=storm CAP=10 V=1 node tools/balance.js
+DIFF=medium MODE=build SEED=2 A=fire B=storm CAP=10 AUTO=0 V=1 node tools/balance.js
 ```
 
 | Variable | Meaning |
