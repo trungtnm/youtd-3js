@@ -701,7 +701,8 @@ export class HUD {
       const r = RARITIES[d.rarity];
       return `<h4 style="color:${r.css}">${d.icon} ${esc(d.name)}</h4><div class="tt-sub">${r.name} ${d.kind === 'equip' ? 'equipment' : d.kind}</div>
         ${describeItem(d).map((l) => `<div>${esc(l)}</div>`).join('')}
-        ${grown}${d.kind === 'equip' ? '<div class="tt-sub" style="margin-top:6px">Shift-click to select for Transmute.</div>' : ''}`;
+        ${grown}${d.kind === 'equip' ? '<div class="tt-sub" style="margin-top:6px">Shift-click to select for Transmute.</div>' : ''}
+        ${d.author ? `<div class="tt-lore">Original YouTD item by ${esc(d.author)}.</div>` : ''}`;
     }
     if (kind === 'special') {
       const s = SPECIALS[id];

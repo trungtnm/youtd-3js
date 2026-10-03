@@ -69,11 +69,15 @@ renderBest();
   const byAuthor = {};
   for (const c of ICON_CREDITS) (byAuthor[c.author] ||= []).push(`<a href="${c.source}" target="_blank" rel="noopener">${c.iconName}</a>`);
   $('#credits-text').innerHTML = `Tower and item data from <a href="https://github.com/Praytic/youtd2" target="_blank" rel="noopener">YouTD 2</a> (MIT license),
-    based on YouTD, the Warcraft III map by geX and the YouTD community. Original tower and item authors are credited in each tooltip.<br><br>Tower icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licensed under
+    based on YouTD, the Warcraft III map by geX and the YouTD community. The original author of each tower and item is credited in its tooltip.<br><br>Tower icons from <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licensed under
     <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a> (background removed, recolored). `
     + Object.entries(byAuthor).map(([a, list]) => `<b>${a}</b>: ${list.join(', ')}`).join(' · ')
     + `<br><br>Music: ${MUSIC_TRACKS.map((t) => `"<a href="${t.source}" target="_blank" rel="noopener">${t.title}</a>" by ${t.artist}`).join(', ')}
-    (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; re-encoded to 128 kbps.`;
+    (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; re-encoded to 128 kbps.
+    Sound effects are synthesised in-game with Web Audio.<br><br>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT license).
+    Fonts <a href="https://fonts.google.com/specimen/Cinzel" target="_blank" rel="noopener">Cinzel</a>, Cinzel Decorative and
+    <a href="https://fonts.google.com/specimen/Inter" target="_blank" rel="noopener">Inter</a> via Google Fonts, licensed under the
+    <a href="https://openfontlicense.org" target="_blank" rel="noopener">SIL Open Font License</a>.`;
 }
 
 function showMenu() {
@@ -129,6 +133,14 @@ function recordBest(sum) {
 }
 
 $('#btn-start').addEventListener('click', startGame);
+// The welcome screen opens on the controls; Start Game moves on to run setup.
+function showMenuStep(setup) {
+  $('#menu-intro').classList.toggle('hidden', setup);
+  $('#menu-setup').classList.toggle('hidden', !setup);
+  $('#menu').scrollTop = 0;
+}
+$('#btn-continue').addEventListener('click', () => showMenuStep(true));
+$('#btn-back').addEventListener('click', () => showMenuStep(false));
 $('#btn-again').addEventListener('click', () => { $('#endscreen').classList.add('hidden'); showMenu(); });
 $('#btn-continue').addEventListener('click', () => {
   game.finalWave = Infinity;
