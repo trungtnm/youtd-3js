@@ -1,0 +1,6 @@
+RESULT hard/build seed 1 fire,storm: phase=lost wave=39 lives=0 kills=319 items=28 score=20705
+RESULT hard/build seed 2 fire,storm: phase=lost wave=43 lives=0 kills=431 items=23 score=24506
+RESULT hard/build seed 3 fire,storm: phase=lost wave=39 lives=0 kills=359 items=19 score=23043
+RESULT medium/build seed 1 fire,storm: phase=lost wave=45 lives=0 kills=319 items=31 score=21210
+RESULT medium/build seed 2 fire,storm: phase=lost wave=71 lives=0 kills=673 items=61 score=84380
+RESULT medium/build seed 3 fire,storm: phase=lost wave=57 lives=0 kills=497 items=39 score=53729

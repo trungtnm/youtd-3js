@@ -1,7 +1,7 @@
 ---
 title: "Detailed end screen, player profile and achievements"
 description: "Richer end-of-run summary plus a persistent player profile with achievements and non-power unlocks that give players a reason to start another run."
-status: pending
+status: in-progress
 priority: P2
 effort: 5.75d
 branch: feat/end-screen-profile-achievements
@@ -58,8 +58,8 @@ locking existing difficulties or modes, merging imported profiles.
 
 | # | Phase | Effort | Depends on | Status |
 |---|---|---|---|---|
-| 1 | [Run stats ledger in the sim](phase-01-run-stats-ledger.md) | 0.75d | – | pending |
-| 2 | [Profile store with export and import](phase-02-profile-store.md) | 0.75d | – | pending |
+| 1 | [Run stats ledger in the sim](phase-01-run-stats-ledger.md) | 0.75d | – | completed |
+| 2 | [Profile store with export and import](phase-02-profile-store.md) | 0.75d | – | completed |
 | 3 | [Achievement and unlock definitions plus evaluator](phase-03-achievements.md) | 1d | 1, 2 | pending |
 | 4 | [End screen redesign](phase-04-end-screen.md) | 1d | 1, 2, 3 | pending |
 | 5 | [Profile hall on the menu](phase-05-profile-hall.md) | 0.75d | 2, 3 | pending |

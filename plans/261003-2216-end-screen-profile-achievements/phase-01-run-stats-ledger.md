@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Run stats ledger in the sim"
-status: pending
+status: completed
 priority: P1
 effort: "0.75d"
 dependencies: []

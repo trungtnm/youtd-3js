@@ -194,14 +194,15 @@ export class HUD {
     $('#r-gold').textContent = fmt(Math.floor(g.gold));
     $('#r-tomes').textContent = g.tomes;
     $('#r-food').textContent = `${g.towers.size}`;
-    $('#r-lives').textContent = `${Math.max(0, Math.round(g.lives))}%`;
-    $('#r-livesbar').style.width = `${Math.max(0, g.lives)}%`;
-    $('.res.lives').classList.toggle('low', g.lives < 30);
+    const integrity = Math.max(0, g.lives) / g.maxLives * 100;
+    $('#r-lives').textContent = `${Math.round(integrity)}%`;
+    $('#r-livesbar').style.width = `${integrity}%`;
+    $('.res.lives').classList.toggle('low', integrity < 30);
     $('#r-wave').textContent = g.level;
     $('#r-score').textContent = fmt(g.score);
     const gap = ECON.waveGap + 10;
     $('#r-timer').style.width = g.phase === 'running' && g.level < g.finalWave ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
-    $('#btn-next').disabled = g.level >= g.finalWave || g.phase === 'won' || g.phase === 'lost';
+    $('#btn-next').disabled = g.level >= g.finalWave || g.isOver();
     if (g.phase === 'prep') $('#btn-next').classList.add('pulse');
 
     if (this.tick > 0.2) {
