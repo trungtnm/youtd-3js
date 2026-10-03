@@ -179,9 +179,11 @@ export function recordRun(sum, runState, storage = defaultStorage()) {
     profile.history = profile.history.slice(-HISTORY_MAX);
   }
 
+  // Records keep the run as it was won: waves played after continuing past the
+  // last wave would put an impossible wave count under a fixed-length setup.
   const key = recordKey(sum.cfg);
   const prev = profile.records[key];
-  const newRecord = !prev || sum.score > prev.score;
+  const newRecord = !sum.continued && (!prev || sum.score > prev.score);
   if (newRecord) profile.records[key] = { level: sum.level, score: sum.score, at: Date.now() };
 
   let earned = [], unlocks = [];
