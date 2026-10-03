@@ -50,6 +50,21 @@ export class HUD {
     });
     // Tooltips
     const tip = $('#tooltip');
+    let dock = null;
+    const placeTip = (e) => {
+      const r = tip.getBoundingClientRect();
+      let x, y;
+      if (dock) {
+        // Tips from the build menu sit beside it, level with the cursor, so they never cover the list.
+        x = Math.max(8, dock.getBoundingClientRect().left - r.width - 10);
+        y = Math.max(8, Math.min(e.clientY - 16, window.innerHeight - r.height - 8));
+      } else {
+        x = e.clientX + 16; y = e.clientY + 16;
+        if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - 16;
+        if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - 12;
+      }
+      tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+    };
     document.addEventListener('mouseover', (e) => {
       const el = e.target.closest('[data-tip],[data-tt]');
       if (!el) { tip.classList.add('hidden'); return; }
@@ -57,14 +72,11 @@ export class HUD {
       if (!html) { tip.classList.add('hidden'); return; }
       tip.innerHTML = html;
       tip.classList.remove('hidden');
+      dock = el.closest('#right');
+      placeTip(e);
     });
     document.addEventListener('mousemove', (e) => {
-      if (tip.classList.contains('hidden')) return;
-      const r = tip.getBoundingClientRect();
-      let x = e.clientX + 16, y = e.clientY + 16;
-      if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - 16;
-      if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - 12;
-      tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+      if (!tip.classList.contains('hidden')) placeTip(e);
     });
   }
 
