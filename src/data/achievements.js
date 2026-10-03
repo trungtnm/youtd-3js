@@ -9,12 +9,15 @@
 // `sum` is Game.summary(). "Clear wave N" always reads wavesCleared (waves
 // cleared in order), never level (waves called).
 
-import { TOWER_MAX_LEVEL } from './constants.js';
+import { TOWER_MAX_LEVEL, LENGTHS } from './constants.js';
 
 const mods = (s) => s.cfg.modifiers || [];
 const has = (s, id) => mods(s).includes(id);
-// A run continued after victory was won, even if it later fell.
-const won = (s) => s.outcome === 'won' || s.continued;
+// A run is won once every wave of its length was cleared; a run continued after
+// victory stays won even if it later fell. Endless runs cannot be won.
+const won = (s) => (s.outcome === 'won' || s.continued) && s.wavesCleared >= LENGTHS[s.cfg.length].waves;
+// Portal integrity at the moment of victory (later losses in a continued run do not count).
+const victoryIntegrity = (s) => (s.livesAtVictory ?? s.lives) / s.maxLives;
 const share = (part, s) => (s.damage > 0 ? part / s.damage : 0);
 const mvp = (s) => s.towerLedger.find((t) => t.uid === s.mvp);
 const capped = (s) => s.towerLedger.filter((t) => !t.sold && t.level >= TOWER_MAX_LEVEL).length;
@@ -40,7 +43,7 @@ export const ACHIEVEMENTS = [
   { id: 'trinity', cat: 'mastery', icon: '🔱', name: 'Trinity', desc: `End a run with 3 towers at level ${TOWER_MAX_LEVEL}.`, test: (s) => capped(s) >= 3 },
   { id: 'champion-carry', cat: 'mastery', icon: '🏋', name: 'Champion Carry', desc: 'Clear wave 30 with your MVP dealing at least half of all damage.', test: (s) => s.wavesCleared >= 30 && share(mvp(s)?.damage || 0, s) >= 0.5 },
   { id: 'clean-thirty', cat: 'mastery', icon: '✨', name: 'Clean Thirty', desc: 'Clear wave 30 without the portal taking damage before it.', test: (s) => s.wavesCleared >= 30 && !s.leakWaves.some((w) => w < 30), reward: { crest: 'ember' } },
-  { id: 'untouchable', cat: 'mastery', icon: '💎', name: 'Untouchable', desc: 'Win with the portal at full integrity.', test: (s) => won(s) && s.lives >= s.maxLives },
+  { id: 'untouchable', cat: 'mastery', icon: '💎', name: 'Untouchable', desc: 'Win with the portal at full integrity.', test: (s) => won(s) && victoryIntegrity(s) >= 1 },
   { id: 'spellweaver', cat: 'mastery', icon: '🔮', name: 'Spellweaver', desc: 'Clear wave 30 with spells dealing at least 40% of all damage.', test: (s) => s.wavesCleared >= 30 && share(s.damageByAttack.spell || 0, s) >= 0.4 },
   { id: 'lean-defense', cat: 'mastery', icon: '🪶', name: 'Lean Defense', desc: 'Clear wave 60 having built at most 6 towers.', test: (s) => s.wavesCleared >= 60 && s.towerLedger.length <= 6 },
 
@@ -63,7 +66,7 @@ export const ACHIEVEMENTS = [
   // Quirky
   { id: 'impatient', cat: 'quirky', icon: '⏩', name: 'Impatient', desc: 'Call 30 waves early in one run.', test: (s) => s.earlyCalls >= 30 },
   { id: 'scholar-of-war', cat: 'quirky', icon: '📜', name: 'Scholar of War', desc: 'Spend 20,000 gold on training in one run.', test: (s) => s.goldSpent.train >= 20000 },
-  { id: 'close-call', cat: 'quirky', icon: '😅', name: 'Close Call', desc: 'Win with the portal at 10% integrity or less.', test: (s) => won(s) && s.lives / s.maxLives <= 0.1 },
+  { id: 'close-call', cat: 'quirky', icon: '😅', name: 'Close Call', desc: 'Win with the portal at 10% integrity or less.', test: (s) => won(s) && victoryIntegrity(s) <= 0.1 },
   { id: 'speed-run', cat: 'quirky', icon: '⏱', name: 'Speed Run', desc: 'Win a Trial run in under 28 minutes of game time.', test: (s) => won(s) && s.cfg.length === 'trial' && s.time < 28 * 60 },
 ];
 

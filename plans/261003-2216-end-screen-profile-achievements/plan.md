@@ -61,7 +61,7 @@ locking existing difficulties or modes, merging imported profiles.
 | 1 | [Run stats ledger in the sim](phase-01-run-stats-ledger.md) | 0.75d | – | completed |
 | 2 | [Profile store with export and import](phase-02-profile-store.md) | 0.75d | – | completed |
 | 3 | [Achievement and unlock definitions plus evaluator](phase-03-achievements.md) | 1d | 1, 2 | completed |
-| 4 | [End screen redesign](phase-04-end-screen.md) | 1d | 1, 2, 3 | pending |
+| 4 | [End screen redesign](phase-04-end-screen.md) | 1d | 1, 2, 3 | completed |
 | 5 | [Profile hall on the menu](phase-05-profile-hall.md) | 0.75d | 2, 3 | pending |
 | 6 | [Challenge modifiers](phase-06-challenge-modifiers.md) | 0.75d | 3 | completed |
 | 7 | [Cosmetic tower crests](phase-07-cosmetic-crests.md) | 0.5d | 3 | pending |

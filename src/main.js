@@ -150,8 +150,8 @@ function startGame() {
   hud.setSpeed(1);
   paused = false;
   runState = newRunState();
-  game.on('victory', () => { recordRun(game.summary(), runState); audio.victory(); hud.showEnd(true, game.summary(), settings.length !== 'endless'); });
-  game.on('defeat', () => { recordRun(game.summary(), runState); audio.defeat(); hud.showEnd(false, game.summary(), false); });
+  game.on('victory', () => { audio.victory(); endRun(); });
+  game.on('defeat', () => { audio.defeat(); endRun(); });
   $('#menu').classList.add('hidden');
   $('#endscreen').classList.add('hidden');
   $('#hud').classList.remove('hidden');
@@ -175,7 +175,14 @@ function showMenuStep(setup) {
 $('#btn-continue').addEventListener('click', () => showMenuStep(true));
 $('#btn-back').addEventListener('click', () => showMenuStep(false));
 $('#btn-again').addEventListener('click', () => { $('#endscreen').classList.add('hidden'); showMenu(); });
-$('#btn-continue').addEventListener('click', () => {
+// Records the finished run (once per game; God mode is skipped) and shows the summary.
+function endRun() {
+  const sum = game.summary();
+  const result = recordRun(sum, runState);
+  hud.showEnd(sum, result, result?.profile || loadProfile().profile);
+}
+
+$('#btn-endless').addEventListener('click', () => {
   game.finalWave = Infinity;
   game.phase = 'running';
   $('#r-wavemax').textContent = '';
@@ -196,7 +203,12 @@ function openSettings(open) {
 }
 $('#btn-settings').addEventListener('click', () => openSettings(true));
 $('#btn-resume').addEventListener('click', () => openSettings(false));
-$('#btn-quit').addEventListener('click', () => { openSettings(false); showMenu(); });
+// Abandoning ends a run in progress; one that never started a wave just returns to the menu.
+$('#btn-quit').addEventListener('click', () => {
+  openSettings(false);
+  if (!game || game.level < 1 || !game.abandon()) { showMenu(); return; }
+  endRun();
+});
 for (const [id, key, num] of [['#set-ui', 'uiScale', true], ['#set-sfx', 'sfx', true], ['#set-music', 'music', true], ['#set-dmg', 'dmg'], ['#set-edge', 'edge'], ['#set-bloom', 'bloom'], ['#set-shadows', 'shadows']]) {
   $(id).addEventListener('input', (e) => { settings[key] = num ? Number(e.target.value) : e.target.checked; applySettings(); });
 }
@@ -251,6 +263,7 @@ canvas.addEventListener('drop', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (!game || e.target.closest('input')) return;
+  if (!$('#endscreen').classList.contains('hidden')) return; // the run is over; keys stay inert behind its summary
   const k = e.key.toLowerCase();
   if (k === 'escape') {
     if (hud.placing) hud.stopPlacing();

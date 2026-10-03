@@ -13,11 +13,10 @@ import { SPOILS } from '../data/boss-spoils.js';
 import { SPECIALS } from '../sim/waves.js';
 import { COLS, ROWS, TILE, GROUND_ROUTE, AIR_ROUTE, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { fmt } from '../world/world.js';
-import { esc } from './util.js';
+import { esc, towerIcon } from './util.js';
+import { EndScreen } from './end-screen.js';
 
 const $ = (s) => document.querySelector(s);
-// Element-tinted tower glyph (SVG used as a CSS mask so currentColor applies).
-const towerIcon = (icon, size = '') => `<span class="ico ${size}" style="--icon:url('${icon}')"></span>`;
 const SIZE_ICON = { mass: '⁂', normal: '☗', air: '🜁', boss: '☠', champion: '♛', challenge: '✪', challengeMass: '✪' };
 const SIZE_LABEL = { mass: 'Mass', normal: 'Normal', air: 'Air', boss: 'Boss', champion: 'Champion', challenge: 'Challenge', challengeMass: 'Challenge' };
 
@@ -738,20 +737,9 @@ export class HUD {
     return '';
   }
 
-  // ---------------------------------------------------------------- end screens
+  // ---------------------------------------------------------------- end screen
 
-  showEnd(won, sum, canContinue) {
-    const box = $('#endscreen');
-    box.classList.remove('hidden');
-    box.querySelector('.end').classList.toggle('lost', !won);
-    $('#end-title').textContent = won ? 'Victory' : 'The Portal Has Fallen';
-    $('#end-sub').textContent = won ? `You held the line through all ${sum.level} waves.` : `Your defense broke on wave ${sum.level}.`;
-    const mins = Math.floor(sum.time / 60);
-    $('#end-stats').innerHTML = [
-      ['Score', fmt(sum.score)], ['Wave', sum.level], ['Kills', fmt(sum.kills)],
-      ['Damage', fmt(sum.damage)], ['Gold earned', fmt(sum.gold)], ['Items found', sum.items],
-      ['Towers', sum.towers], ['Leaks', sum.leaks], ['Time', `${mins}m`],
-    ].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
-    $('#btn-continue').classList.toggle('hidden', !canContinue);
+  showEnd(sum, result, profile) {
+    (this.endScreen ||= new EndScreen()).show(sum, result, profile);
   }
 }

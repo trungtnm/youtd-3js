@@ -657,6 +657,7 @@ export class Game extends Emitter {
     }
     if (this.phase === 'running' && this.level >= this.finalWave && this.activeWaves.length === 0 && this.creeps.length === 0) {
       this.phase = 'won';
+      this.livesAtVictory = this.lives;
       this.emit('victory', this.summary());
     }
   }
@@ -1511,10 +1512,12 @@ export class Game extends Emitter {
       towers: this.towers.size, time: this.time, cfg: this.cfg,
       outcome, continued: this.finalWave === Infinity && this.cfg.length !== 'endless',
       wavesCleared: st.wavesCleared, lives: Math.max(0, this.lives), maxLives: this.maxLives,
+      livesAtVictory: this.livesAtVictory ?? null,
       towerLedger, mvp: towerLedger[0]?.uid ?? null,
       damageByElement, damageByAttack, damageOther: Math.max(0, st.damage - attributed),
       leaksBySize: count(portalLeaks, 'size'), leaksByRace: count(portalLeaks, 'race'),
       leakWaves: [...new Set(portalLeaks.map((l) => l.wave))].sort((a, b) => a - b),
+      bossLeakWaves: [...new Set(portalLeaks.filter((l) => l.size === 'boss').map((l) => l.wave))],
       challengeEscapes: st.leakLog.length - portalLeaks.length,
       goldSpent: { ...st.goldSpent }, tomesSpent: { ...st.tomesSpent },
       earlyCalls: st.earlyCalls, transmutes: st.transmutes, bossKills: st.bossKills,

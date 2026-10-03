@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "End screen redesign"
-status: pending
+status: completed
 priority: P1
 effort: "1d"
 dependencies: [1, 2, 3]
