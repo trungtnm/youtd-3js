@@ -15,7 +15,7 @@ const BEST_KEY = 'youtd-reforged-best';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
-const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full' });
+const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', god: 'off' });
 
 const world = new World($('#app'), $('#overlay'));
 const audio = new Audio();
@@ -62,6 +62,12 @@ function renderBest() {
 renderChoices('#opt-difficulty', DIFFICULTIES, 'difficulty');
 renderChoices('#opt-mode', MODES, 'mode');
 renderChoices('#opt-length', LENGTHS, 'length');
+// God mode is a testing aid; its runs never count toward records or achievements.
+const GOD_OPTIONS = {
+  off: { id: 'off', name: 'Normal', desc: 'Records count.' },
+  on: { id: 'on', name: 'God mode', desc: 'Testing: all elements mastered, 10M gold, 2000 tomes. Nothing is recorded.' },
+};
+renderChoices('#opt-god', GOD_OPTIONS, 'god');
 renderBest();
 
 // Tower icons are CC BY 3.0 and must be credited where players can see it.
@@ -106,7 +112,7 @@ function startGame() {
   audio.init();
   audio.click();
   if (game) clearWorld();
-  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, seed: (Math.random() * 1e9) | 0 });
+  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on' });
   world.bind(game, audio);
   hud.setGame(game);
   hud.setSpeed(1);
@@ -120,12 +126,14 @@ function startGame() {
   world.cam.tyaw = 0;
   world.cam.tdist = 66;
   world.focus(0, 0);
-  hud.banner('Prepare', settings.mode === 'random' ? 'Your first towers have been drafted' : 'Research an element and build your first towers');
+  hud.banner('Prepare', game.cfg.god ? 'God mode: everything unlocked, nothing is recorded'
+    : settings.mode === 'random' ? 'Your first towers have been drafted' : 'Research an element and build your first towers');
   hud.hint('Pick a tower on the right, place it beside the path, then press <b>Start</b> or <b>Space</b>.');
   setTimeout(() => { if (game && game.phase === 'prep') hud.hint(''); }, 9000);
 }
 
 function recordBest(sum) {
+  if (sum.cfg.god) return;
   const all = load(BEST_KEY, {});
   const prev = all[bestKey()];
   if (!prev || sum.score > prev.score) { all[bestKey()] = { level: sum.level, score: sum.score }; save(BEST_KEY, all); }

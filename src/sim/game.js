@@ -34,9 +34,9 @@ const WARD_MANA = 10; // a ward holds while the creep has at least this much man
 let UID = 1;
 
 export class Game extends Emitter {
-  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now() } = {}) {
+  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), god = false } = {}) {
     super();
-    this.cfg = { difficulty, mode, length, seed };
+    this.cfg = { difficulty, mode, length, seed, god };
     this.rng = mulberry32(seed);
     this.diff = DIFFICULTIES[difficulty];
     this.finalWave = LENGTHS[length].waves;
@@ -52,6 +52,12 @@ export class Game extends Emitter {
     this.level = 0;      // last started wave level
     this.nextWaveTimer = 0;
     this.research = Object.fromEntries(ELEMENT_IDS.map((e) => [e, 0]));
+    // God mode is for testing: every element mastered and effectively unlimited currency.
+    if (god) {
+      this.gold = 10_000_000;
+      this.tomes = 2000;
+      for (const e of ELEMENT_IDS) this.research[e] = ECON.maxElementLevel;
+    }
     this.bonusInterest = 0;
     this.incomeRate = 0;
 
