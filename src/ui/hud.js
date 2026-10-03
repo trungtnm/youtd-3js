@@ -46,6 +46,7 @@ export class HUD {
   _bindStatic() {
     $('#btn-next').addEventListener('click', () => { this.audio.click(); this.game?.callNextWave(); });
     $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.setAutoWave(!this.game.autoWave); });
+    $('#btn-autotx').addEventListener('click', () => { this.audio.click(); this.game?.setAutoTransmute(!this.game.autoTransmute); });
     document.querySelectorAll('.speed button').forEach((b) => b.addEventListener('click', () => this.setSpeed(Number(b.dataset.speed))));
     $('#btn-transmute').addEventListener('click', () => {
       if (!this.game) return;
@@ -88,6 +89,12 @@ export class HUD {
       $('#btn-auto').classList.toggle('on', on);
       this.toast(on ? 'Auto waves on: waves arrive on a timer' : 'Auto waves off: the next wave waits for a clear field', 'gold');
       this.onAutoWave?.(on);
+    });
+    $('#btn-autotx').classList.toggle('on', game.autoTransmute);
+    game.on('autoTransmute', (on) => {
+      $('#btn-autotx').classList.toggle('on', on);
+      this.toast(on ? 'Auto transmute on: spare items combine in threes' : 'Auto transmute off', 'gold');
+      this.onAutoTransmute?.(on);
     });
     game.on('error', (msg) => { this.toast(msg, 'error'); this.audio.error(); });
     game.on('notice', ({ text, kind }) => this.toast(text, kind));
@@ -474,6 +481,8 @@ export class HUD {
 
   renderStash(force) {
     const g = this.game;
+    // Auto transmute can consume items that were picked for a manual transmute.
+    for (const uid of this.transmuteSel) if (!g.stash.some((i) => i.uid === uid)) this.transmuteSel.delete(uid);
     const sig = g.stash.map((i) => i.uid).join(',') + '|' + this.selectedItem + '|' + [...this.transmuteSel].join(',');
     if (!force && sig === this.sigs.stash) return;
     this.sigs.stash = sig;

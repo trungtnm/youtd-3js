@@ -41,6 +41,11 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   one every 10 waves (6 at wave 50). A tower may carry only one unique item.
   Oils are consumed into a tower permanently. Three items of one rarity can be
   transmuted into a random item of the next rarity.
+- Auto transmute (Items panel toggle, off by default, remembered in settings):
+  whenever an item reaches the stash, spare common, uncommon and rare equipment
+  is combined in threes, cheapest first, and the results can cascade. Uniques,
+  oils, consumables, items that were ever equipped, and items with grown stats,
+  charges or copies are never used.
 
 ## Waves
 

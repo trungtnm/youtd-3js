@@ -34,12 +34,13 @@ const WARD_MANA = 10; // a ward holds while the creep has at least this much man
 let UID = 1;
 
 export class Game extends Emitter {
-  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), autoWave = false } = {}) {
+  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), autoWave = false, autoTransmute = false } = {}) {
     super();
     this.cfg = { difficulty, mode, length, seed };
     // Off: the next wave waits until every active wave is killed or has leaked.
     // On: waves also arrive on the countdown while earlier waves are still alive.
     this.autoWave = autoWave;
+    this.autoTransmute = autoTransmute;
     this.rng = mulberry32(seed);
     this.diff = DIFFICULTIES[difficulty];
     this.finalWave = LENGTHS[length].waves;
@@ -262,6 +263,7 @@ export class Game extends Emitter {
     if (ITEMS[item.id].state) this.itemState(item); // stateful items start counting when they arrive
     this.stash.push(item);
     this.emit('stash');
+    this.autoTransmuteStash();
     return true;
   }
 
@@ -298,6 +300,7 @@ export class Game extends Emitter {
     const prev = tower.items[slot];
     this.stash.splice(idx, 1);
     tower.items[slot] = item;
+    item.worn = true; // auto transmute leaves items the player has used alone
     if (prev) { this.itemHook(tower, prev, 'unequip'); this.stash.push(prev); }
     this.itemHook(tower, item, 'equip');
     this.recalcAll();
@@ -482,6 +485,34 @@ export class Game extends Emitter {
     this.emit('stash');
     this.emit('notice', { text: `Transmuted into ${ITEMS[made.id].name}`, kind: 'item', rarity: nextR });
     return made;
+  }
+
+  setAutoTransmute(on) {
+    if (this.autoTransmute === on) return;
+    this.autoTransmute = on;
+    this.emit('autoTransmute', on);
+    this.autoTransmuteStash();
+  }
+
+  // Auto transmute only eats spare drops: equipment below unique that has never
+  // been worn and carries no grown stats, charges or copies.
+  spareForTransmute(item) {
+    const d = ITEMS[item.id];
+    return d.kind === 'equip' && d.rarity !== 'unique' && !item.worn && !item.state && !item.bound && !item.copyOf;
+  }
+
+  // Combines spare items three at a time, cheapest first and lowest rarity first,
+  // so a common triple can cascade into an uncommon one.
+  autoTransmuteStash() {
+    if (!this.autoTransmute) return;
+    for (const rarity of ['common', 'uncommon', 'rare']) {
+      for (;;) {
+        const spare = this.stash.filter((i) => ITEMS[i.id].rarity === rarity && this.spareForTransmute(i));
+        if (spare.length < 3) break;
+        spare.sort((a, b) => ITEMS[a.id].cost - ITEMS[b.id].cost);
+        this.transmute(spare.slice(0, 3).map((i) => i.uid));
+      }
+    }
   }
 
   // ------------------------------------------------------------------ stats

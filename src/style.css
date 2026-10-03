@@ -149,7 +149,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 #r-timer { height: 100%; width: 0; background: linear-gradient(180deg, #ffe9a0, #f2a83a 60%, #b0651a); }
 #btn-next { padding: calc(var(--s) * 7px) calc(var(--s) * 18px); font-family: var(--serif); font-weight: 700; font-size: calc(var(--s) * 14px); }
 #btn-auto { padding: calc(var(--s) * 7px) calc(var(--s) * 10px); font-weight: 700; font-size: calc(var(--s) * 12px); color: #c8bba2; }
-#btn-auto.on { background: linear-gradient(180deg, #fff0bf, #f0c768 35%, #b07a24); color: #2a1806; }
+#btn-auto.on, #btn-autotx.on { background: linear-gradient(180deg, #fff0bf, #f0c768 35%, #b07a24); color: #2a1806; }
+#btn-autotx { margin-left: calc(var(--s) * 4px); }
 #btn-next.pulse { animation: glowpulse 1.4s infinite; }
 @keyframes glowpulse { 50% { box-shadow: 0 0 calc(var(--s) * 28px) rgba(255, 200, 90, 0.85); } }
 .right-group { display: flex; align-items: center; gap: calc(var(--s) * 12px); margin-left: calc(var(--s) * 12px); }

@@ -46,6 +46,7 @@ To open the game from another device on your network, run
 | Mouse wheel | Zoom toward the cursor |
 | Space | Call the next wave |
 | Auto (top bar) | Toggle auto waves. Off by default: the next wave waits until the field is clear |
+| Auto (Items panel) | Toggle auto transmute: spare items combine in threes as they arrive |
 | 1 / 2 / 3 | Game speed |
 | P | Pause |
 | U | Upgrade the selected tower |
