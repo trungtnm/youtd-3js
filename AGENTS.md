@@ -26,7 +26,7 @@ npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party
 Balance bot options are environment variables:
 
 ```bash
-DIFF=medium MODE=build SEED=2 A=fire B=storm CAP=10 V=1 node tools/balance.js
+DIFF=medium MODE=build SEED=2 A=fire B=storm CAP=10 AUTO=0 V=1 node tools/balance.js
 ```
 
 For runtime checks of many towers, set `game.cfg.mode = 'sandbox'` on a `Game`
@@ -34,7 +34,8 @@ instance: it skips the first-tier-only and research build rules.
 
 `DIFF` difficulty, `MODE` build or random, `SEED` RNG seed, `A`/`B` elements the
 bot researches, `CAP` max towers it builds (10 matches the intended play style),
-`V=1` prints per-wave lines. Run several seeds; results vary by ±15 waves.
+`AUTO=1` turns on auto waves (default off, as in the game), `V=1` prints
+per-wave lines. Run several seeds; results vary by ±15 waves.
 
 ## Layout rules
 

@@ -43,6 +43,7 @@ export class HUD {
 
   _bindStatic() {
     $('#btn-next').addEventListener('click', () => { this.audio.click(); this.game?.callNextWave(); });
+    $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.setAutoWave(!this.game.autoWave); });
     document.querySelectorAll('.speed button').forEach((b) => b.addEventListener('click', () => this.setSpeed(Number(b.dataset.speed))));
     $('#btn-transmute').addEventListener('click', () => {
       if (!this.game) return;
@@ -80,6 +81,12 @@ export class HUD {
     this.element = 'nature';
     $('#r-wavemax').textContent = Number.isFinite(game.finalWave) ? ` / ${game.finalWave}` : '';
     $('#btn-next').textContent = 'Start';
+    $('#btn-auto').classList.toggle('on', game.autoWave);
+    game.on('autoWave', (on) => {
+      $('#btn-auto').classList.toggle('on', on);
+      this.toast(on ? 'Auto waves on: waves arrive on a timer' : 'Auto waves off: the next wave waits for a clear field', 'gold');
+      this.onAutoWave?.(on);
+    });
     game.on('error', (msg) => { this.toast(msg, 'error'); this.audio.error(); });
     game.on('notice', ({ text, kind }) => this.toast(text, kind));
     game.on('waveStart', (w) => {
@@ -187,8 +194,10 @@ export class HUD {
     $('.res.lives').classList.toggle('low', g.lives < 30);
     $('#r-wave').textContent = g.level;
     $('#r-score').textContent = fmt(g.score);
-    const gap = ECON.waveGap + 10;
-    $('#r-timer').style.width = g.phase === 'running' && g.level < g.finalWave ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
+    // Auto waves off: the bar stays empty while creeps are alive, then fills over the breather.
+    const gap = g.autoWave ? ECON.waveGap + 10 : ECON.clearGap;
+    const waiting = g.phase === 'running' && g.level < g.finalWave && (g.autoWave || g.activeWaves.length === 0);
+    $('#r-timer').style.width = waiting ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
     $('#btn-next').disabled = g.level >= g.finalWave || g.phase === 'won' || g.phase === 'lost';
     if (g.phase === 'prep') $('#btn-next').classList.add('pulse');
 

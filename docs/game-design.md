@@ -52,6 +52,12 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   blinking and invisible. Invisible creeps can only be targeted inside a
   revealing tower's range (the Small Light family).
 - The incoming panel shows the active wave and the next three.
+- Auto waves (top bar toggle, off by default, remembered in settings). Off: the
+  next wave starts 5 seconds (`ECON.clearGap`) after every active wave has been
+  killed or has leaked. On: waves also arrive on a countdown (`ECON.waveGap` plus
+  the spawn time) while earlier waves are still alive. Calling a wave early
+  always works and pays bonus gold for the skipped time; with auto waves off,
+  calling during a wave counts as skipping a full `waveGap`.
 
 ## Boss spoils
 

@@ -15,7 +15,7 @@ const BEST_KEY = 'youtd-reforged-best';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
-const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full' });
+const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', autoWave: false });
 
 const world = new World($('#app'), $('#overlay'));
 const audio = new Audio();
@@ -102,9 +102,10 @@ function startGame() {
   audio.init();
   audio.click();
   if (game) clearWorld();
-  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, seed: (Math.random() * 1e9) | 0 });
+  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, autoWave: settings.autoWave, seed: (Math.random() * 1e9) | 0 });
   world.bind(game, audio);
   hud.setGame(game);
+  hud.onAutoWave = (on) => { settings.autoWave = on; save(SETTINGS_KEY, settings); };
   hud.setSpeed(1);
   paused = false;
   game.on('victory', (sum) => { recordBest(sum); audio.victory(); hud.showEnd(true, sum, settings.length !== 'endless'); });

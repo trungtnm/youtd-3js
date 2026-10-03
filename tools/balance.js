@@ -8,7 +8,7 @@ import { COLS, ROWS, isBuildable, tileToWorld, GROUND_ROUTE } from '../src/sim/m
 
 const { DIFF: difficulty = 'medium', MODE: mode = 'build', SEED: seed = '7', A: focusA = 'fire', B: focusB = 'storm' } = process.env;
 const CAP = Number(process.env.CAP || 999); // max towers the bot builds
-const g = new Game({ difficulty, mode, length: 'full', seed: Number(seed) });
+const g = new Game({ difficulty, mode, length: 'full', seed: Number(seed), autoWave: process.env.AUTO === '1' });
 
 // Score tiles by how much path lies within 9 units.
 const pathPts = [];

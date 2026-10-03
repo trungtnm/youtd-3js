@@ -103,7 +103,8 @@ export const ECON = {
   interestCap: 0.02 * 3000,
   sellRefund: 0.75,
   earlyCallBonus: 0.5,      // gold per second skipped from the wave countdown
-  waveGap: 22,              // seconds between waves when not called early
+  waveGap: 22,              // seconds between waves when not called early (auto waves on)
+  clearGap: 5,              // breather after the field is clear before the next wave (auto waves off)
   rollCount: 3,             // random mode: towers granted per wave
   rerollCost: 2,            // random mode: tomes per reroll
 };

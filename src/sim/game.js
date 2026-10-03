@@ -34,9 +34,12 @@ const WARD_MANA = 10; // a ward holds while the creep has at least this much man
 let UID = 1;
 
 export class Game extends Emitter {
-  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now() } = {}) {
+  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), autoWave = false } = {}) {
     super();
     this.cfg = { difficulty, mode, length, seed };
+    // Off: the next wave waits until every active wave is killed or has leaked.
+    // On: waves also arrive on the countdown while earlier waves are still alive.
+    this.autoWave = autoWave;
     this.rng = mulberry32(seed);
     this.diff = DIFFICULTIES[difficulty];
     this.finalWave = LENGTHS[length].waves;
@@ -193,7 +196,10 @@ export class Game extends Emitter {
     if (this.phase === 'prep') { this.phase = 'running'; this.startWave(); return; }
     const spawning = this.activeWaves.filter((w) => w.idx < w.def.list.length).length;
     if (spawning >= 2) { this.emit('error', 'Too many waves spawning'); return; }
-    const bonus = Math.floor(Math.max(0, this.nextWaveTimer) * ECON.earlyCallBonus * (1 + this.level * 0.05));
+    // With auto waves off the countdown holds while creeps are alive, so calling
+    // during a wave skips a full gap.
+    const skipped = !this.autoWave && this.activeWaves.length ? ECON.waveGap : this.nextWaveTimer;
+    const bonus = Math.floor(Math.max(0, skipped) * ECON.earlyCallBonus * (1 + this.level * 0.05));
     if (bonus > 0) { this.addGold(bonus); this.emit('notice', { text: `Early call bonus +${bonus} gold`, kind: 'gold' }); }
     this.startWave();
   }
@@ -587,7 +593,7 @@ export class Game extends Emitter {
     this.upcoming.push(generateWave(def.level + this.upcoming.length + 1, this.cfg.difficulty, this.rng));
     const wave = { def, idx: 0, timer: 0, alive: 0, done: false };
     this.activeWaves.push(wave);
-    this.nextWaveTimer = ECON.waveGap + def.list.length * def.interval;
+    this.nextWaveTimer = this.autoWave ? ECON.waveGap + def.list.length * def.interval : ECON.clearGap;
     if (this.cfg.mode === 'random') {
       this.grantRandomTowers(ECON.rollCount, false);
       this.ensureRevealerInDraft();
@@ -616,7 +622,7 @@ export class Game extends Emitter {
     }
     this.activeWaves = this.activeWaves.filter((w) => !w.done);
 
-    if (this.phase === 'running' && this.level < this.finalWave) {
+    if (this.phase === 'running' && this.level < this.finalWave && (this.autoWave || this.activeWaves.length === 0)) {
       this.nextWaveTimer -= dt;
       if (this.nextWaveTimer <= 0) this.startWave();
     }
@@ -624,6 +630,13 @@ export class Game extends Emitter {
       this.phase = 'won';
       this.emit('victory', this.summary());
     }
+  }
+
+  setAutoWave(on) {
+    if (this.autoWave === on) return;
+    this.autoWave = on;
+    this.nextWaveTimer = on ? Math.max(this.nextWaveTimer, ECON.waveGap) : Math.min(this.nextWaveTimer, ECON.clearGap);
+    this.emit('autoWave', on);
   }
 
   onWaveCleared(w) {
