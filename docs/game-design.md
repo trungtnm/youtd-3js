@@ -10,6 +10,12 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
 - Mode: Build (any researched tower) or Random (towers are drafted into a stash
   each wave).
 - Length: 80 waves, 120 waves, or endless.
+- Challenge modifiers (`MODIFIERS` in `src/data/constants.js`), unlocked by
+  achievements: Glass Portal (integrity capped at 30, +30% score), Frugal (no
+  interest, +20%), Swarm (creeps 15% faster, +25%) and No Items (no drops or item
+  spoils, +35%). Multipliers add up. Records are kept per modifier set.
+- God mode (testing): every element mastered, 10M gold, 2000 tomes. Nothing is
+  recorded.
 
 ## Economy
 
@@ -76,6 +82,27 @@ Killing a boss (or a challenge boss) offers three rewards; the player keeps one.
 One option is always a rolled rare-or-better item. The others come from gold,
 tomes, experience for all towers, an oil, portal repair, or levels for the
 highest-level tower still below the cap (`src/data/boss-spoils.js`).
+
+## Progression across runs
+
+Meta progression never adds power: a fresh profile and a full one play the same
+game. What carries over is a profile with records, the last 25 runs, lifetime
+totals and achievements (`src/data/achievements.js`, 32 in five categories).
+Achievements unlock titles (shown on the menu and end screen), the challenge
+modifiers above, and crests that float over towers at level 30.
+
+- "Clear wave N" counts waves cleared in order, not waves called early.
+- A win needs every wave of the run's length cleared; endless runs cannot be
+  won. A run continued after victory stays won, and integrity goals read the
+  portal at the moment of victory.
+- Abandoned runs count toward history and totals but earn achievements only
+  from 10 cleared waves on. Closed tabs are not recorded.
+
+The end screen shows an overview with the MVP (most damage), a sortable tower
+table including sold towers, damage by element, attack type and spells, portal
+damage by creep size, race and wave, gold and tomes spent, and the achievements
+earned with the next goals. The Hall of Records holds the rest and offers
+export, import and reset.
 
 ## Balance targets
 

@@ -4,15 +4,19 @@ import { World } from './world/world.js';
 import { HUD } from './ui/hud.js';
 import { Audio } from './audio/audio.js';
 import { Game } from './sim/game.js';
-import { DIFFICULTIES, MODES, LENGTHS } from './data/constants.js';
+import { DIFFICULTIES, MODES, LENGTHS, MODIFIERS } from './data/constants.js';
 import { ICON_CREDITS } from './data/icon-map.js';
 import { MODEL_LIBRARY } from './data/model-library.js';
+import { ACHIEVEMENT_BY_ID, UNLOCKS } from './data/achievements.js';
+import { unlockedSet } from './meta/achievements.js';
+import { esc } from './ui/util.js';
+import { Hall } from './ui/hall.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
+import { loadProfile, recordRun, recordKey, newRunState } from './meta/profile.js';
 
 const $ = (s) => document.querySelector(s);
 
 const SETTINGS_KEY = 'youtd-reforged-settings';
-const BEST_KEY = 'youtd-reforged-best';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
@@ -22,6 +26,7 @@ const world = new World($('#app'), $('#overlay'));
 const audio = new Audio();
 const hud = new HUD(world, audio);
 let game = null;
+let runState = null; // what this game already wrote to the profile
 let paused = false;
 
 // Interface scale follows the window (1600x900 is the design size), times the player's preference.
@@ -52,12 +57,38 @@ function renderChoices(id, defs, key) {
     settings[key] = b.dataset.v;
     save(SETTINGS_KEY, settings);
     renderChoices(id, defs, key);
+    renderMods();
     renderBest();
   }));
 }
-function bestKey() { return `${settings.difficulty}/${settings.mode}/${settings.length}`; }
+// The modifiers that will actually apply: known ids the profile has unlocked (God mode ignores locks).
+function activeModifiers(unlocked = unlockedSet(loadProfile().profile).modifiers) {
+  const picked = Array.isArray(settings.modifiers) ? settings.modifiers : [];
+  return picked.filter((m) => MODIFIERS[m] && (settings.god === 'on' || unlocked.has(m)));
+}
+function renderMods() {
+  const unlocked = unlockedSet(loadProfile().profile).modifiers;
+  const active = activeModifiers(unlocked);
+  const box = $('#opt-mods');
+  box.innerHTML = Object.values(MODIFIERS).map((m) => {
+    const open = settings.god === 'on' || unlocked.has(m.id);
+    const src = ACHIEVEMENT_BY_ID[UNLOCKS.modifiers[m.id].from];
+    const tip = open ? m.desc : `Locked. Earn "${src.name}" to unlock: ${src.desc}`;
+    return `<button class="choice mod ${active.includes(m.id) ? 'on' : ''} ${open ? '' : 'locked'}" data-v="${m.id}" data-tip="${esc(tip)}">
+      <b>${esc(m.name)}</b><small>${open ? `+${Math.round(m.score * 100)}% score` : `🔒 ${esc(src.name)}`}</small></button>`;
+  }).join('');
+  box.querySelectorAll('.choice').forEach((b) => b.addEventListener('click', () => {
+    if (b.classList.contains('locked')) return;
+    const set = new Set(active);
+    if (set.has(b.dataset.v)) set.delete(b.dataset.v); else set.add(b.dataset.v);
+    settings.modifiers = [...set];
+    save(SETTINGS_KEY, settings);
+    renderMods();
+    renderBest();
+  }));
+}
 function renderBest() {
-  const best = load(BEST_KEY, {})[bestKey()];
+  const best = loadProfile().profile.records[recordKey({ ...settings, modifiers: activeModifiers() })];
   $('#best-score').textContent = best ? `Best on this setup: wave ${best.level} · score ${best.score.toLocaleString()}` : '';
 }
 renderChoices('#opt-difficulty', DIFFICULTIES, 'difficulty');
@@ -69,7 +100,24 @@ const GOD_OPTIONS = {
   on: { id: 'on', name: 'God mode', desc: 'Testing: all elements mastered, 10M gold, 2000 tomes. Nothing is recorded.' },
 };
 renderChoices('#opt-god', GOD_OPTIONS, 'god');
+renderMods();
 renderBest();
+
+// The chosen title shows under the logo.
+function renderMenuTitle() {
+  const t = loadProfile().profile.title;
+  $('#menu-title').textContent = t ? UNLOCKS.titles[t].name : '';
+  $('#menu-title').classList.toggle('hidden', !t);
+}
+renderMenuTitle();
+// Crest worn by level-cap towers: the chosen one if unlocked, else Gilded once earned.
+function applyCrest(profile = loadProfile().profile) {
+  const crests = unlockedSet(profile).crests;
+  world.crest = crests.has(profile.crest) ? profile.crest : crests.has('gilded') ? 'gilded' : null;
+}
+applyCrest();
+const hall = new Hall((profile) => { renderMenuTitle(); renderMods(); renderBest(); applyCrest(profile); });
+document.querySelectorAll('.open-hall').forEach((b) => b.addEventListener('click', () => { audio.click(); hall.open(); }));
 
 // Tower and item icons are CC BY 3.0 and must be credited where players can see it.
 // With hundreds of icons, credit each author with a count; docs/icon-credits.md lists every icon.
@@ -103,7 +151,9 @@ function showMenu() {
   world.cam.tx = 0; world.cam.tz = 2;
   if (game) { world.game = null; clearWorld(); }
   game = null;
+  renderMods();
   renderBest();
+  renderMenuTitle();
 }
 
 function clearWorld() {
@@ -120,15 +170,16 @@ function startGame() {
   audio.init();
   audio.click();
   if (game) clearWorld();
-  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, autoWave: settings.autoWave, autoTransmute: settings.autoTransmute, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on' });
+  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, autoWave: settings.autoWave, autoTransmute: settings.autoTransmute, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on', modifiers: activeModifiers() });
   world.bind(game, audio);
   hud.setGame(game);
   hud.onAutoWave = (on) => { settings.autoWave = on; save(SETTINGS_KEY, settings); };
   hud.onAutoTransmute = (on) => { settings.autoTransmute = on; save(SETTINGS_KEY, settings); };
   hud.setSpeed(1);
   paused = false;
-  game.on('victory', (sum) => { recordBest(sum); audio.victory(); hud.showEnd(true, sum, settings.length !== 'endless'); });
-  game.on('defeat', (sum) => { recordBest(sum); audio.defeat(); hud.showEnd(false, sum, false); });
+  runState = newRunState();
+  game.on('victory', () => { audio.victory(); endRun(); });
+  game.on('defeat', () => { audio.defeat(); endRun(); });
   $('#menu').classList.add('hidden');
   $('#endscreen').classList.add('hidden');
   $('#hud').classList.remove('hidden');
@@ -142,13 +193,6 @@ function startGame() {
   setTimeout(() => { if (game && game.phase === 'prep') hud.hint(''); }, 9000);
 }
 
-function recordBest(sum) {
-  if (sum.cfg.god) return;
-  const all = load(BEST_KEY, {});
-  const prev = all[bestKey()];
-  if (!prev || sum.score > prev.score) { all[bestKey()] = { level: sum.level, score: sum.score }; save(BEST_KEY, all); }
-}
-
 $('#btn-start').addEventListener('click', startGame);
 // The welcome screen opens on the controls; Start Game moves on to run setup.
 function showMenuStep(setup) {
@@ -159,7 +203,15 @@ function showMenuStep(setup) {
 $('#btn-setup').addEventListener('click', () => showMenuStep(true));
 $('#btn-back').addEventListener('click', () => showMenuStep(false));
 $('#btn-again').addEventListener('click', () => { $('#endscreen').classList.add('hidden'); showMenu(); });
-$('#btn-continue').addEventListener('click', () => {
+// Records the finished run (once per game; God mode is skipped) and shows the summary.
+function endRun() {
+  const sum = game.summary();
+  const result = recordRun(sum, runState);
+  if (result) applyCrest(result.profile);
+  hud.showEnd(sum, result, result?.profile || loadProfile().profile);
+}
+
+$('#btn-endless').addEventListener('click', () => {
   game.finalWave = Infinity;
   game.phase = 'running';
   $('#r-wavemax').textContent = '';
@@ -180,7 +232,12 @@ function openSettings(open) {
 }
 $('#btn-settings').addEventListener('click', () => openSettings(true));
 $('#btn-resume').addEventListener('click', () => openSettings(false));
-$('#btn-quit').addEventListener('click', () => { openSettings(false); showMenu(); });
+// Abandoning ends a run in progress; one that never started a wave just returns to the menu.
+$('#btn-quit').addEventListener('click', () => {
+  openSettings(false);
+  if (!game || game.level < 1 || !game.abandon()) { showMenu(); return; }
+  endRun();
+});
 for (const [id, key, num] of [['#set-ui', 'uiScale', true], ['#set-sfx', 'sfx', true], ['#set-music', 'music', true], ['#set-dmg', 'dmg'], ['#set-edge', 'edge'], ['#set-bloom', 'bloom'], ['#set-shadows', 'shadows']]) {
   $(id).addEventListener('input', (e) => { settings[key] = num ? Number(e.target.value) : e.target.checked; applySettings(); });
 }
@@ -234,7 +291,9 @@ canvas.addEventListener('drop', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#hall').classList.contains('hidden')) { hall.close(); return; }
   if (!game || e.target.closest('input')) return;
+  if (!$('#endscreen').classList.contains('hidden')) return; // the run is over; keys stay inert behind its summary
   const k = e.key.toLowerCase();
   if (k === 'escape') {
     if (hud.placing) hud.stopPlacing();

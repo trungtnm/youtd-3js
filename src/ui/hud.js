@@ -3,6 +3,7 @@
 
 import {
   ELEMENTS, ELEMENT_IDS, RARITIES, ATTACK_TYPES, ARMOR_TYPES, DAMAGE_MATRIX, RACES, SIZES, ECON, xpForLevel, TOWER_MAX_LEVEL,
+  MODIFIERS,
 } from '../data/constants.js';
 import { TOWERS, TOWER_LIST, FAMILIES, nextTier, describeAbility, revealsInvisible, REVEAL_FAMILIES, describeTowerMods } from '../data/towers.js';
 import { ITEMS, describeItem, describeMods } from '../data/items.js';
@@ -12,13 +13,10 @@ import { SPOILS } from '../data/boss-spoils.js';
 import { SPECIALS } from '../sim/waves.js';
 import { COLS, ROWS, TILE, GROUND_ROUTE, AIR_ROUTE, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { fmt } from '../world/world.js';
+import { esc, towerIcon, itemIcon } from './util.js';
+import { EndScreen } from './end-screen.js';
 
 const $ = (s) => document.querySelector(s);
-// Element-tinted tower glyph (SVG used as a CSS mask so currentColor applies).
-const towerIcon = (icon, size = '') => `<span class="ico ${size}" style="--icon:url('${icon}')"></span>`;
-// Item glyphs are tinted by rarity and sized relative to the surrounding font.
-const itemIcon = (d) => `<span class="ico item" style="--icon:url('${d.icon}');color:${RARITIES[d.rarity].css}"></span>`;
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const SIZE_ICON = { mass: '⁂', normal: '☗', air: '🜁', boss: '☠', champion: '♛', challenge: '✪', challengeMass: '✪' };
 const SIZE_LABEL = { mass: 'Mass', normal: 'Normal', air: 'Air', boss: 'Boss', champion: 'Champion', challenge: 'Challenge', challengeMass: 'Challenge' };
 
@@ -87,6 +85,10 @@ export class HUD {
   setGame(game) {
     const g = game;
     this.game = game;
+    const mods = g.cfg.modifiers.map((m) => MODIFIERS[m].name);
+    $('#r-mods').textContent = mods.join(' · ');
+    $('#r-mods').classList.toggle('hidden', !mods.length);
+    $('#r-mods').dataset.tip = mods.length ? `Challenge modifiers: score x${g.scoreMult.toFixed(2)}` : '';
     this.alertDismissed = 0;
     this.selection = null;
     this.placing = null;
@@ -210,16 +212,17 @@ export class HUD {
     $('#r-gold').textContent = fmt(Math.floor(g.gold));
     $('#r-tomes').textContent = g.tomes;
     $('#r-food').textContent = `${g.towers.size}`;
-    $('#r-lives').textContent = `${Math.max(0, Math.round(g.lives))}%`;
-    $('#r-livesbar').style.width = `${Math.max(0, g.lives)}%`;
-    $('.res.lives').classList.toggle('low', g.lives < 30);
+    const integrity = Math.max(0, g.lives) / g.maxLives * 100;
+    $('#r-lives').textContent = `${Math.round(integrity)}%`;
+    $('#r-livesbar').style.width = `${integrity}%`;
+    $('.res.lives').classList.toggle('low', integrity < 30);
     $('#r-wave').textContent = g.level;
     $('#r-score').textContent = fmt(g.score);
     // Auto waves off: the bar stays empty while creeps are alive, then fills over the breather.
     const gap = g.autoWave ? ECON.waveGap + 10 : ECON.clearGap;
     const waiting = g.phase === 'running' && g.level < g.finalWave && (g.autoWave || g.activeWaves.length === 0);
     $('#r-timer').style.width = waiting ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
-    $('#btn-next').disabled = g.level >= g.finalWave || g.phase === 'won' || g.phase === 'lost';
+    $('#btn-next').disabled = g.level >= g.finalWave || g.isOver();
     if (g.phase === 'prep') $('#btn-next').classList.add('pulse');
 
     if (this.tick > 0.2) {
@@ -752,20 +755,9 @@ export class HUD {
     return '';
   }
 
-  // ---------------------------------------------------------------- end screens
+  // ---------------------------------------------------------------- end screen
 
-  showEnd(won, sum, canContinue) {
-    const box = $('#endscreen');
-    box.classList.remove('hidden');
-    box.querySelector('.end').classList.toggle('lost', !won);
-    $('#end-title').textContent = won ? 'Victory' : 'The Portal Has Fallen';
-    $('#end-sub').textContent = won ? `You held the line through all ${sum.level} waves.` : `Your defense broke on wave ${sum.level}.`;
-    const mins = Math.floor(sum.time / 60);
-    $('#end-stats').innerHTML = [
-      ['Score', fmt(sum.score)], ['Wave', sum.level], ['Kills', fmt(sum.kills)],
-      ['Damage', fmt(sum.damage)], ['Gold earned', fmt(sum.gold)], ['Items found', sum.items],
-      ['Towers', sum.towers], ['Leaks', sum.leaks], ['Time', `${mins}m`],
-    ].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
-    $('#btn-continue').classList.toggle('hidden', !canContinue);
+  showEnd(sum, result, profile) {
+    (this.endScreen ||= new EndScreen()).show(sum, result, profile);
   }
 }

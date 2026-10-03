@@ -438,6 +438,35 @@ export function buildTowerModel(def) {
   return g;
 }
 
+// ------------------------------------------------------------------ crests
+
+// Cosmetic mark floating over towers at the level cap. Geometry and materials come
+// from the shared caches, so crests are never disposed per tower.
+export function buildCrest(style) {
+  const g = new THREE.Group();
+  const spin = [], flicker = [];
+  const ring = (r, color, ei, tilt = 0) => add(g, torG(r, 0.045, 6, 40), glow(color, ei), 0, 0, 0, Math.PI / 2 + tilt);
+  if (style === 'ember') {
+    flicker.push(ring(0.5, 0xff6a1f, 3.2));
+    add(g, octG(0.12), glow(0xffb040, 3), 0, 0, 0);
+  } else if (style === 'eternal') {
+    spin.push({ obj: ring(0.52, 0x9fd0ff, 2.6, 0.5), axis: 'z', speed: 1.4 }, { obj: ring(0.42, 0xd8f0ff, 2.6, -0.5), axis: 'z', speed: -1.8 });
+  } else if (style === 'obsidian') {
+    add(g, torG(0.52, 0.07, 6, 40), mat(0x1a1420, { rough: 0.25, metal: 0.6 }), 0, 0, 0, Math.PI / 2);
+    ring(0.4, 0xb070ff, 3);
+  } else if (style === 'dice') {
+    const die = add(g, boxG(0.32, 0.32, 0.32), mat(0xf4ecd8, { rough: 0.35, emissive: 0xffe6a0, ei: 0.6 }), 0, 0, 0, 0.6, 0, 0.6);
+    spin.push({ obj: die, axis: 'x', speed: 1.1 });
+  } else {
+    ring(0.5, 0xffcc55, 2.4);
+    add(g, octG(0.1), glow(0xffe08a, 2.8), 0, 0, 0);
+  }
+  for (const c of g.children) c.castShadow = false;
+  g.userData.spin = spin;
+  g.userData.flicker = flicker;
+  return g;
+}
+
 // ------------------------------------------------------------------ creeps
 
 const RACE_COLORS = {

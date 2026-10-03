@@ -778,7 +778,7 @@ function scaleValue(game, t, kind, target, opts = {}) {
   switch (kind) {
     case 'mana': return t.mana || 0;
     case 'gold': return Math.sqrt(Math.max(0, game.gold));
-    case 'livesLost': return 100 - game.lives;
+    case 'livesLost': return game.maxLives - game.lives;
     case 'towers': return game.towers.size;
     case 'towersInRange': return towersNear(game, t.x, t.z, opts.range ?? t.stats.range).length - 1;
     case 'elementTowers': return [...game.towers.values()].filter((o) => o.def.element === t.def.element).length;
