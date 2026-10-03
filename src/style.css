@@ -501,5 +501,5 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* Wave banner moves down while boss spoils are shown at the top centre. */
 #banner.low { top: 37%; }
 .controls-title { margin: calc(var(--s) * 26px) 0 0; text-align: center; color: var(--gold); font-family: var(--serif); font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; font-size: calc(var(--s) * 14px); text-shadow: 0 1px 0 #000; }
-#btn-continue { margin-top: calc(var(--s) * 24px); }
+#btn-setup { margin-top: calc(var(--s) * 24px); }
 #btn-back { margin-top: calc(var(--s) * 18px); }

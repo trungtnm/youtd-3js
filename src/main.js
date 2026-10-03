@@ -141,7 +141,7 @@ function showMenuStep(setup) {
   $('#menu-setup').classList.toggle('hidden', !setup);
   $('#menu').scrollTop = 0;
 }
-$('#btn-continue').addEventListener('click', () => showMenuStep(true));
+$('#btn-setup').addEventListener('click', () => showMenuStep(true));
 $('#btn-back').addEventListener('click', () => showMenuStep(false));
 $('#btn-again').addEventListener('click', () => { $('#endscreen').classList.add('hidden'); showMenu(); });
 $('#btn-continue').addEventListener('click', () => {
