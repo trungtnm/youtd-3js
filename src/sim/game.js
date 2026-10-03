@@ -543,8 +543,9 @@ export class Game extends Emitter {
     const lvl = t.level;
     const s = {
       // Experience is the main source of power: level 0 deals 35%, level 5 100%,
-      // level 25 ~360%, level 60 ~815%. Items and buffs multiply on top.
-      damageMult: (0.35 + 0.13 * lvl) * (1 + (m.damage || 0) + t.killStacks),
+      // level 20 ~295%, level 30 ~475%. Levels past 20 add a little extra so the
+      // push to the cap pays off. Items and buffs multiply on top.
+      damageMult: (0.35 + 0.13 * lvl + 0.05 * Math.max(0, lvl - 20)) * (1 + (m.damage || 0) + t.killStacks),
       attackSpeed: 1 + (m.attackSpeed || 0) + lvl * 0.02,
       range: t.def.range + (m.range || 0),
       crit: (crit ? crit.chance : 0) + (m.crit || 0) + lvl * 0.004,
@@ -1314,7 +1315,7 @@ export class Game extends Emitter {
     return true;
   }
 
-  trainCost(t) { return Math.round(ECON.trainBase * (1 + t.level * 0.5) * (1 + t.trained * 0.04)); }
+  trainCost(t) { return Math.round(ECON.trainBase * (1 + t.level * 0.5) * (1 + t.trained * 0.02)); }
 
   // Spend gold to grant experience: the gold sink once the tower limit is full.
   train(t) {
@@ -1375,8 +1376,8 @@ export class Game extends Emitter {
       case 'wisdom': for (const t of this.towers.values()) this.giveXp(t, xpForLevel(t.level) * o.value / (1 + t.stats.xp)); break;
       case 'mend': this.lives = Math.min(100, this.lives + o.value); break;
       case 'hero': {
-        // Your highest-level tower gains whole levels.
-        const best = [...this.towers.values()].sort((a, b) => b.level - a.level || b.stats.dps - a.stats.dps)[0];
+        // Your highest-level tower below the cap gains whole levels.
+        const best = [...this.towers.values()].filter((t) => t.level < TOWER_MAX_LEVEL).sort((a, b) => b.level - a.level || b.stats.dps - a.stats.dps)[0];
         if (best) for (let i = 0; i < o.value; i++) this.giveXp(best, (xpForLevel(best.level) - best.xp) / (1 + best.stats.xp) + 0.01);
         break;
       }

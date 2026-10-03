@@ -53,13 +53,13 @@ once. Proc triggers (`attack`, `hit`, `kill`, `periodic`, `enter`, `crit`, `cast
 
 `computeStats(t)` gathers modifiers from the tower definition (per-level YouTD
 modifiers), items, oils, perks, buffs and auras. Damage is multiplied by a level
-factor of `0.35 + 0.13 * level`, so untrained towers are weak and levels are the
-main power source.
+factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap of
+30), so untrained towers are weak and levels are the main power source.
 
 ## Data (`src/data/`)
 
 - `constants.js`: elements, rarities, attack and armor types, damage matrix,
-  creep sizes, difficulties, economy (`ECON`), experience curve, level cap (60).
+  creep sizes, difficulties, economy (`ECON`), experience curve, level cap (30).
 - `towers.js`: builds `TOWERS`, `FAMILIES`, `TOWER_LIST` from the YouTD data
   (see [youtd-port.md](youtd-port.md)).
 - `items.js`: builds `ITEMS` from the YouTD data, including oils and consumables.

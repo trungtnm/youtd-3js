@@ -27,14 +27,20 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
 
 ## Tower growth
 
-- **Levels** (0-60): experience comes mostly from kills (the killer gets half,
-  the rest is split by damage dealt). Damage multiplier is `0.35 + 0.13 * level`
-  (35% at level 0, 100% at 5, about 360% at 25, about 815% at 60). Attack speed
-  rises 2% per level. YouTD per-level stat bonuses also apply.
+- **Levels** (0-30): level 30 is the goal for a run's carries. Experience comes
+  mostly from kills (the killer gets half, the rest is split by damage dealt).
+  The per-level requirement grows quadratically up to level 15 and linearly
+  after it, so about 13,800 experience reaches the cap. Damage multiplier is
+  `0.35 + 0.13 * level`, plus `0.05` per level above 20 (35% at level 0, 100%
+  at 5, about 295% at 20, about 475% at 30). Attack speed rises 2% per level.
+  YouTD per-level stat bonuses also apply. With `CAP=10` the bot's top tower
+  reaches 30 around wave 60-80 when the run lasts that long.
 - **Train**: spend gold for 35% of the current level's experience. Cost grows
-  with level. This is the main gold sink once the core towers are built.
+  with level and 2% per session already spent on that tower. This is the main
+  gold sink once the core towers are built.
 - **Perks**: every 5 levels the tower offers three perks and keeps one
-  (`src/data/tower-perks.js`). Strong perks unlock at higher levels; three
+  (`src/data/tower-perks.js`), six in all. Strong perks unlock at levels 20,
+  25 and 30, with Living Legend reserved for the cap; three
   repeatable perks keep late milestones useful. Towers with a perk waiting are
   listed in the "Perks to choose" toast.
 - **Items**: every tower has 6 slots. All towers start with 1 open slot and gain
@@ -58,7 +64,7 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
 Killing a boss (or a challenge boss) offers three rewards; the player keeps one.
 One option is always a rolled rare-or-better item. The others come from gold,
 tomes, experience for all towers, an oil, portal repair, or levels for the
-highest-level tower (`src/data/boss-spoils.js`).
+highest-level tower still below the cap (`src/data/boss-spoils.js`).
 
 ## Balance targets
 
@@ -68,8 +74,8 @@ Measured with the balance bot focusing about 10 towers in two elements
 
 | Difficulty | Bot reaches |
 |---|---|
-| Beginner | wave ~86 |
-| Medium | waves ~45-59 (fire/storm seeds 1-3, ice/astral) |
+| Beginner | wave ~91-100 |
+| Medium | waves ~45-71 (fire/storm seeds 1-3, ice/astral 46-51) |
 | Hard | wave ~39-43 |
 | Extreme | wave ~29-33 |
 

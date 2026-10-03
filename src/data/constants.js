@@ -108,9 +108,10 @@ export const ECON = {
   rerollCost: 2,            // random mode: tomes per reroll
 };
 
-export const TOWER_MAX_LEVEL = 60;
-// Experience needed to go from level n to n+1.
-export const xpForLevel = (lvl) => Math.round(12 + lvl * 9 + lvl * lvl * 1.6);
+export const TOWER_MAX_LEVEL = 30;
+// Experience needed to go from level n to n+1. Quadratic up to level 15, then
+// linear so the climb to the level 30 cap stays within reach of a full run.
+export const xpForLevel = (lvl) => Math.round(12 + lvl * 9 + lvl * Math.min(lvl, 15) * 1.6);
 
 export const ARMOR_REDUCTION = (armor) => armor >= 0
   ? (0.05 * armor) / (1 + 0.05 * armor)
