@@ -89,6 +89,15 @@ export const MODES = {
   random: { id: 'random', name: 'Random', desc: 'Each wave grants random towers to your stash. Upgrades stay free to pick.' },
 };
 
+// Challenge modifiers: each makes a run harder in one way and raises the score
+// earned. They are unlocked by achievements and never add power.
+export const MODIFIERS = {
+  glass:  { id: 'glass',  name: 'Glass Portal', desc: 'Portal integrity starts and caps at 30.', score: 0.3 },
+  frugal: { id: 'frugal', name: 'Frugal',       desc: 'No interest is paid at the end of a wave.', score: 0.2 },
+  swarm:  { id: 'swarm',  name: 'Swarm',        desc: 'Creeps move 15% faster.', score: 0.25 },
+  naked:  { id: 'naked',  name: 'No Items',     desc: 'Creeps drop no items and boss spoils never offer items or oils.', score: 0.35 },
+};
+
 export const ECON = {
   startGold: 90,
   startTomes: 24,
@@ -109,9 +118,10 @@ export const ECON = {
   rerollCost: 2,            // random mode: tomes per reroll
 };
 
-export const TOWER_MAX_LEVEL = 60;
-// Experience needed to go from level n to n+1.
-export const xpForLevel = (lvl) => Math.round(12 + lvl * 9 + lvl * lvl * 1.6);
+export const TOWER_MAX_LEVEL = 30;
+// Experience needed to go from level n to n+1. Quadratic up to level 15, then
+// linear so the climb to the level 30 cap stays within reach of a full run.
+export const xpForLevel = (lvl) => Math.round(12 + lvl * 9 + lvl * Math.min(lvl, 15) * 1.6);
 
 export const ARMOR_REDUCTION = (armor) => armor >= 0
   ? (0.05 * armor) / (1 + 0.05 * armor)

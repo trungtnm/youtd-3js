@@ -11,9 +11,9 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { buildEnvironment, updateEnvironment, SUN_DIR } from './environment.js';
-import { buildTowerModel, buildCreepModel, preloadCreepModels, RACE_COLORS } from './models.js';
+import { buildTowerModel, buildCrest, buildCreepModel, preloadCreepModels, RACE_COLORS } from './models.js';
 import { FX } from './fx.js';
-import { ELEMENTS, RARITIES } from '../data/constants.js';
+import { TOWER_MAX_LEVEL, ELEMENTS, RARITIES } from '../data/constants.js';
 import { worldToTile, tileToWorld, isBuildable, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { mulberry32 } from '../sim/rng.js';
 
@@ -510,6 +510,23 @@ export class World {
     this.towerViews.set(t.uid, view);
   }
 
+  // Towers at the level cap wear the player's crest (null when none is unlocked).
+  // Checked every frame, so level ups, upgrades and crest changes all apply.
+  _syncCrest(t, v, dt, T) {
+    const want = t.level >= TOWER_MAX_LEVEL ? this.crest : null;
+    if (v.crestStyle !== want) {
+      if (v.crest) v.group.remove(v.crest);
+      v.crest = want ? buildCrest(want) : null;
+      v.crestStyle = want;
+      if (v.crest) { v.crest.position.y = v.muzzleY + 1.3; v.group.add(v.crest); }
+    }
+    if (!v.crest) return;
+    v.crest.rotation.y += dt * 0.8;
+    v.crest.position.y = v.muzzleY + 1.3 + Math.sin(T * 1.6 + t.uid) * 0.08;
+    for (const s of v.crest.userData.spin) s.obj.rotation[s.axis] += s.speed * dt;
+    for (const f of v.crest.userData.flicker) f.scale.setScalar(1 + Math.sin(T * 11 + t.uid) * 0.06);
+  }
+
   _removeTower(uid) {
     const v = this.towerViews.get(uid);
     if (!v) return;
@@ -662,14 +679,14 @@ export class World {
     nx.crystal.position.y = 3.9 + Math.sin(T * 1.3) * 0.2;
     nx.ring1.rotation.x = T * 0.7; nx.ring2.rotation.y = T * 0.5; nx.ring2.rotation.x = 1.2;
     this.nexusHit = Math.max(0, (this.nexusHit || 0) - dt * 2);
-    const lives = this.game ? this.game.lives : 100;
-    // Amber at full health, draining toward a dim red as lives fall.
-    nx.crystalMat.emissive.setRGB(1.0, 0.25 + 0.3 * (lives / 100) + this.nexusHit * 0.5, 0.05 + 0.1 * (lives / 100) + this.nexusHit * 0.6);
-    nx.crystalMat.emissiveIntensity = 2.0 + this.nexusHit * 4 + (lives < 30 ? Math.sin(T * 8) * 0.8 : 0);
+    const integrity = this.game ? Math.max(0, this.game.lives) / this.game.maxLives : 1;
+    // Amber at full integrity, draining toward a dim red as the portal weakens.
+    nx.crystalMat.emissive.setRGB(1.0, 0.25 + 0.3 * integrity + this.nexusHit * 0.5, 0.05 + 0.1 * integrity + this.nexusHit * 0.6);
+    nx.crystalMat.emissiveIntensity = 2.0 + this.nexusHit * 4 + (integrity < 0.3 ? Math.sin(T * 8) * 0.8 : 0);
     nx.pillarMat.opacity = 0.08 + 0.05 * Math.sin(T * 2) + this.nexusHit * 0.2;
     this.grade.uniforms.uFlash.value = Math.max(0, this.grade.uniforms.uFlash.value - dt * 2.5);
     this.grade.uniforms.uTime.value = T;
-    this.grade.uniforms.uLow.value = lives < 25 && this.game?.phase === 'running' ? 1 : 0;
+    this.grade.uniforms.uLow.value = integrity < 0.25 && this.game?.phase === 'running' ? 1 : 0;
 
     this.grade.uniforms.uWhite.value = this.fx.flash;
 
@@ -694,6 +711,7 @@ export class World {
         v.born = Math.min(1, v.born + dt * 2.2);
         v.group.scale.setScalar(Math.max(0.01, easeOutBack(v.born)));
       }
+      this._syncCrest(t, v, dt, T);
       const A = v.anim;
       A.mixer?.update(dt);
       for (const s of A.spin) s.obj.rotation[s.axis] += s.speed * dt;

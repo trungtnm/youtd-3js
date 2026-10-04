@@ -3,22 +3,21 @@
 
 import {
   ELEMENTS, ELEMENT_IDS, RARITIES, ATTACK_TYPES, ARMOR_TYPES, DAMAGE_MATRIX, RACES, SIZES, ECON, xpForLevel, TOWER_MAX_LEVEL,
+  MODIFIERS,
 } from '../data/constants.js';
 import { TOWERS, TOWER_LIST, FAMILIES, nextTier, describeAbility, revealsInvisible, REVEAL_FAMILIES, describeTowerMods } from '../data/towers.js';
 import { ITEMS, describeItem, describeMods } from '../data/items.js';
 import { describeSkill } from '../data/tower-skills.js';
 import { PERKS, PERK_LEVELS } from '../data/tower-perks.js';
 import { SPOILS } from '../data/boss-spoils.js';
+import { AUTO_TRANSMUTE_RARITIES } from '../sim/game.js';
 import { SPECIALS } from '../sim/waves.js';
 import { COLS, ROWS, TILE, GROUND_ROUTE, AIR_ROUTE, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { fmt } from '../world/world.js';
+import { esc, towerIcon, itemIcon } from './util.js';
+import { EndScreen } from './end-screen.js';
 
 const $ = (s) => document.querySelector(s);
-// Element-tinted tower glyph (SVG used as a CSS mask so currentColor applies).
-const towerIcon = (icon, size = '') => `<span class="ico ${size}" style="--icon:url('${icon}')"></span>`;
-// Item glyphs are tinted by rarity and sized relative to the surrounding font.
-const itemIcon = (d) => `<span class="ico item" style="--icon:url('${d.icon}');color:${RARITIES[d.rarity].css}"></span>`;
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const SIZE_ICON = { mass: '⁂', normal: '☗', air: '🜁', boss: '☠', champion: '♛', challenge: '✪', challengeMass: '✪' };
 const SIZE_LABEL = { mass: 'Mass', normal: 'Normal', air: 'Air', boss: 'Boss', champion: 'Champion', challenge: 'Challenge', challengeMass: 'Challenge' };
 
@@ -46,7 +45,18 @@ export class HUD {
   _bindStatic() {
     $('#btn-next').addEventListener('click', () => { this.audio.click(); this.game?.callNextWave(); });
     $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.setAutoWave(!this.game.autoWave); });
-    $('#btn-autotx').addEventListener('click', () => { this.audio.click(); this.game?.setAutoTransmute(!this.game.autoTransmute); });
+    // Auto transmute: the button opens a menu of rarities to combine automatically.
+    $('#btn-autotx').addEventListener('click', (e) => { e.stopPropagation(); this.audio.click(); $('#autotx-menu').classList.toggle('hidden'); });
+    $('#autotx-menu').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const b = e.target.closest('[data-r]');
+      if (!b || !this.game) return;
+      this.audio.click();
+      const set = new Set(this.game.autoTransmute);
+      if (set.has(b.dataset.r)) set.delete(b.dataset.r); else set.add(b.dataset.r);
+      this.game.setAutoTransmute([...set]);
+    });
+    document.addEventListener('click', () => $('#autotx-menu').classList.add('hidden'));
     document.querySelectorAll('.speed button').forEach((b) => b.addEventListener('click', () => this.setSpeed(Number(b.dataset.speed))));
     $('#btn-transmute').addEventListener('click', () => {
       if (!this.game) return;
@@ -54,6 +64,21 @@ export class HUD {
     });
     // Tooltips
     const tip = $('#tooltip');
+    let dock = null;
+    const placeTip = (e) => {
+      const r = tip.getBoundingClientRect();
+      let x, y;
+      if (dock) {
+        // Tips from the build menu sit beside it, level with the cursor, so they never cover the list.
+        x = Math.max(8, dock.getBoundingClientRect().left - r.width - 10);
+        y = Math.max(8, Math.min(e.clientY - 16, window.innerHeight - r.height - 8));
+      } else {
+        x = e.clientX + 16; y = e.clientY + 16;
+        if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - 16;
+        if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - 12;
+      }
+      tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+    };
     document.addEventListener('mouseover', (e) => {
       const el = e.target.closest('[data-tip],[data-tt]');
       if (!el) { tip.classList.add('hidden'); return; }
@@ -61,20 +86,31 @@ export class HUD {
       if (!html) { tip.classList.add('hidden'); return; }
       tip.innerHTML = html;
       tip.classList.remove('hidden');
+      dock = el.closest('#right');
+      placeTip(e);
     });
     document.addEventListener('mousemove', (e) => {
-      if (tip.classList.contains('hidden')) return;
-      const r = tip.getBoundingClientRect();
-      let x = e.clientX + 16, y = e.clientY + 16;
-      if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - 16;
-      if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - 12;
-      tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+      if (!tip.classList.contains('hidden')) placeTip(e);
     });
+  }
+
+  renderAutoTransmute() {
+    const on = this.game.autoTransmute;
+    $('#btn-autotx').classList.toggle('on', on.length > 0);
+    // A short label keeps the Items header on one line; bars under it show the checked rarities.
+    $('#btn-autotx').innerHTML = `Auto<span class="atx-dots">${AUTO_TRANSMUTE_RARITIES.map((r) => `<i class="${on.includes(r) ? 'on' : ''}" style="color:${RARITIES[r].css}"></i>`).join('')}</span>`;
+    $('#btn-autotx').dataset.tip = on.length ? `Auto transmute: ${on.map((r) => RARITIES[r].name).join(', ')}. Click to change.` : 'Auto transmute is off. Click to choose rarities.';
+    $('#autotx-menu').innerHTML = `<div class="atx-title">Auto transmute</div>${AUTO_TRANSMUTE_RARITIES.map((r) => `<button class="atx-r ${on.includes(r) ? 'on' : ''}" data-r="${r}" style="color:${RARITIES[r].css}"><i></i>${RARITIES[r].name}</button>`).join('')}
+      <div class="atx-note">Combines 3 spare items of each checked rarity as they arrive. Uniques, oils, consumables and items that were equipped are never used.</div>`;
   }
 
   setGame(game) {
     const g = game;
     this.game = game;
+    const mods = g.cfg.modifiers.map((m) => MODIFIERS[m].name);
+    $('#r-mods').textContent = mods.join(' · ');
+    $('#r-mods').classList.toggle('hidden', !mods.length);
+    $('#r-mods').dataset.tip = mods.length ? `Challenge modifiers: score x${g.scoreMult.toFixed(2)}` : '';
     this.alertDismissed = 0;
     this.selection = null;
     this.placing = null;
@@ -90,11 +126,11 @@ export class HUD {
       this.toast(on ? 'Auto waves on: waves arrive on a timer' : 'Auto waves off: the next wave waits for a clear field', 'gold');
       this.onAutoWave?.(on);
     });
-    $('#btn-autotx').classList.toggle('on', game.autoTransmute);
-    game.on('autoTransmute', (on) => {
-      $('#btn-autotx').classList.toggle('on', on);
-      this.toast(on ? 'Auto transmute on: spare items combine in threes' : 'Auto transmute off', 'gold');
-      this.onAutoTransmute?.(on);
+    this.renderAutoTransmute();
+    game.on('autoTransmute', (rarities) => {
+      this.renderAutoTransmute();
+      this.toast(rarities.length ? `Auto transmute: spare ${rarities.map((r) => RARITIES[r].name.toLowerCase()).join(', ')} items combine in threes` : 'Auto transmute off', 'gold');
+      this.onAutoTransmute?.(rarities);
     });
     game.on('error', (msg) => { this.toast(msg, 'error'); this.audio.error(); });
     game.on('notice', ({ text, kind }) => this.toast(text, kind));
@@ -198,16 +234,17 @@ export class HUD {
     $('#r-gold').textContent = fmt(Math.floor(g.gold));
     $('#r-tomes').textContent = g.tomes;
     $('#r-food').textContent = `${g.towers.size}`;
-    $('#r-lives').textContent = `${Math.max(0, Math.round(g.lives))}%`;
-    $('#r-livesbar').style.width = `${Math.max(0, g.lives)}%`;
-    $('.res.lives').classList.toggle('low', g.lives < 30);
+    const integrity = Math.max(0, g.lives) / g.maxLives * 100;
+    $('#r-lives').textContent = `${Math.round(integrity)}%`;
+    $('#r-livesbar').style.width = `${integrity}%`;
+    $('.res.lives').classList.toggle('low', integrity < 30);
     $('#r-wave').textContent = g.level;
     $('#r-score').textContent = fmt(g.score);
     // Auto waves off: the bar stays empty while creeps are alive, then fills over the breather.
     const gap = g.autoWave ? ECON.waveGap + 10 : ECON.clearGap;
     const waiting = g.phase === 'running' && g.level < g.finalWave && (g.autoWave || g.activeWaves.length === 0);
     $('#r-timer').style.width = waiting ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
-    $('#btn-next').disabled = g.level >= g.finalWave || g.phase === 'won' || g.phase === 'lost';
+    $('#btn-next').disabled = g.level >= g.finalWave || g.isOver();
     if (g.phase === 'prep') $('#btn-next').classList.add('pulse');
 
     if (this.tick > 0.2) {
@@ -740,20 +777,9 @@ export class HUD {
     return '';
   }
 
-  // ---------------------------------------------------------------- end screens
+  // ---------------------------------------------------------------- end screen
 
-  showEnd(won, sum, canContinue) {
-    const box = $('#endscreen');
-    box.classList.remove('hidden');
-    box.querySelector('.end').classList.toggle('lost', !won);
-    $('#end-title').textContent = won ? 'Victory' : 'The Portal Has Fallen';
-    $('#end-sub').textContent = won ? `You held the line through all ${sum.level} waves.` : `Your defense broke on wave ${sum.level}.`;
-    const mins = Math.floor(sum.time / 60);
-    $('#end-stats').innerHTML = [
-      ['Score', fmt(sum.score)], ['Wave', sum.level], ['Kills', fmt(sum.kills)],
-      ['Damage', fmt(sum.damage)], ['Gold earned', fmt(sum.gold)], ['Items found', sum.items],
-      ['Towers', sum.towers], ['Leaks', sum.leaks], ['Time', `${mins}m`],
-    ].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
-    $('#btn-continue').classList.toggle('hidden', !canContinue);
+  showEnd(sum, result, profile) {
+    (this.endScreen ||= new EndScreen()).show(sum, result, profile);
   }
 }

@@ -10,6 +10,12 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
 - Mode: Build (any researched tower) or Random (towers are drafted into a stash
   each wave).
 - Length: 80 waves, 120 waves, or endless.
+- Challenge modifiers (`MODIFIERS` in `src/data/constants.js`), unlocked by
+  achievements: Glass Portal (integrity capped at 30, +30% score), Frugal (no
+  interest, +20%), Swarm (creeps 15% faster, +25%) and No Items (no drops or item
+  spoils, +35%). Multipliers add up. Records are kept per modifier set.
+- God mode (testing): every element mastered, 10M gold, 2000 tomes. Nothing is
+  recorded.
 
 ## Economy
 
@@ -27,23 +33,29 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
 
 ## Tower growth
 
-- **Levels** (0-60): experience comes mostly from kills (the killer gets half,
-  the rest is split by damage dealt). Damage multiplier is `0.35 + 0.13 * level`
-  (35% at level 0, 100% at 5, about 360% at 25, about 815% at 60). Attack speed
-  rises 2% per level. YouTD per-level stat bonuses also apply.
+- **Levels** (0-30): level 30 is the goal for a run's carries. Experience comes
+  mostly from kills (the killer gets half, the rest is split by damage dealt).
+  The per-level requirement grows quadratically up to level 15 and linearly
+  after it, so about 13,800 experience reaches the cap. Damage multiplier is
+  `0.35 + 0.13 * level`, plus `0.05` per level above 20 (35% at level 0, 100%
+  at 5, about 295% at 20, about 475% at 30). Attack speed rises 2% per level.
+  YouTD per-level stat bonuses also apply. With `CAP=10` the bot's top tower
+  reaches 30 around wave 60-80 when the run lasts that long.
 - **Train**: spend gold for 35% of the current level's experience. Cost grows
-  with level. This is the main gold sink once the core towers are built.
+  with level and 2% per session already spent on that tower. This is the main
+  gold sink once the core towers are built.
 - **Perks**: every 5 levels the tower offers three perks and keeps one
-  (`src/data/tower-perks.js`). Strong perks unlock at higher levels; three
+  (`src/data/tower-perks.js`), six in all. Strong perks unlock at levels 20,
+  25 and 30, with Living Legend reserved for the cap; three
   repeatable perks keep late milestones useful. Towers with a perk waiting are
   listed in the "Perks to choose" toast.
 - **Items**: every tower has 6 slots. All towers start with 1 open slot and gain
-  one every 10 waves (6 at wave 50). A tower may carry only one unique item.
+  one every 10 waves (6 at wave 50). There is no limit on unique items per tower.
   Oils are consumed into a tower permanently. Three items of one rarity can be
   transmuted into a random item of the next rarity.
-- Auto transmute (Items panel toggle, off by default, remembered in settings):
-  whenever an item reaches the stash, spare common, uncommon and rare equipment
-  is combined in threes, cheapest first, and the results can cascade. This
+- Auto transmute (Items panel menu, off by default, remembered in settings): the
+  player picks which of common, uncommon and rare to combine. Whenever an item
+  reaches the stash, spare equipment of those rarities is combined in threes, cheapest first, and the results can cascade. This
   covers every source: creep drops, item and tower skills, Pocket Emporium
   purchases, boss spoils and Strange Item copies. Uniques, oils, consumables,
   items the player ever equipped, items with grown stats and item copies held
@@ -72,7 +84,28 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
 Killing a boss (or a challenge boss) offers three rewards; the player keeps one.
 One option is always a rolled rare-or-better item. The others come from gold,
 tomes, experience for all towers, an oil, portal repair, or levels for the
-highest-level tower (`src/data/boss-spoils.js`).
+highest-level tower still below the cap (`src/data/boss-spoils.js`).
+
+## Progression across runs
+
+Meta progression never adds power: a fresh profile and a full one play the same
+game. What carries over is a profile with records, the last 25 runs, lifetime
+totals and achievements (`src/data/achievements.js`, 32 in five categories).
+Achievements unlock titles (shown on the menu and end screen), the challenge
+modifiers above, and crests that float over towers at level 30.
+
+- "Clear wave N" counts waves cleared in order, not waves called early.
+- A win needs every wave of the run's length cleared; endless runs cannot be
+  won. A run continued after victory stays won, and integrity goals read the
+  portal at the moment of victory.
+- Abandoned runs count toward history and totals but earn achievements only
+  from 10 cleared waves on. Closed tabs are not recorded.
+
+The end screen shows an overview with the MVP (most damage), a sortable tower
+table including sold towers, damage by element, attack type and spells, portal
+damage by creep size, race and wave, gold and tomes spent, and the achievements
+earned with the next goals. The Hall of Records holds the rest and offers
+export, import and reset.
 
 ## Balance targets
 
@@ -82,8 +115,8 @@ Measured with the balance bot focusing about 10 towers in two elements
 
 | Difficulty | Bot reaches |
 |---|---|
-| Beginner | wave ~86 |
-| Medium | waves ~45-59 (fire/storm seeds 1-3, ice/astral) |
+| Beginner | wave ~91-100 |
+| Medium | waves ~45-71 (fire/storm seeds 1-3, ice/astral 46-51) |
 | Hard | wave ~39-43 |
 | Extreme | wave ~29-33 |
 

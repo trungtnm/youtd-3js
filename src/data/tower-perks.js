@@ -1,8 +1,8 @@
 // Level-milestone perks. At each milestone a tower offers three perks and the
 // player keeps one, so two towers of the same type can grow in different directions.
 
-// A perk every 5 levels up to the level cap of 60.
-export const PERK_LEVELS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+// A perk every 5 levels up to the level cap of 30.
+export const PERK_LEVELS = [5, 10, 15, 20, 25, 30];
 
 // `mods` use the same stat channels as items. `minLevel` gates stronger perks,
 // `needs` restricts a perk to towers where it does something.
@@ -20,9 +20,9 @@ export const PERKS = {
   trigger:    { name: 'Hair Trigger',    icon: '⚡', mods: { trigger: 0.25 }, desc: '+25% chance for every proc.', needs: 'procs' },
   rhythm:     { name: 'Deadly Rhythm',   icon: '🥁', mods: { multicrit: 1, crit: 0.03 }, desc: '+1 multicrit, +3% crit chance.', minLevel: 10 },
   overload:   { name: 'Overload',        icon: '🔱', mods: { multishot: 1, damage: -0.1 }, desc: '+1 target per attack, -10% damage.', minLevel: 15 },
-  ascendant:  { name: 'Ascendant',       icon: '👑', mods: { damage: 0.35, attackSpeed: 0.1 }, desc: '+35% damage, +10% attack speed.', minLevel: 25 },
-  apex:       { name: 'Apex Predator',   icon: '🦁', mods: { damage: 0.5, multicrit: 1 }, desc: '+50% damage, +1 multicrit.', minLevel: 40 },
-  legend:     { name: 'Living Legend',   icon: '🌟', mods: { damage: 0.6, attackSpeed: 0.2, range: 1 }, desc: '+60% damage, +20% attack speed, +1 range.', minLevel: 55 },
+  ascendant:  { name: 'Ascendant',       icon: '👑', mods: { damage: 0.35, attackSpeed: 0.1 }, desc: '+35% damage, +10% attack speed.', minLevel: 20 },
+  apex:       { name: 'Apex Predator',   icon: '🦁', mods: { damage: 0.5, multicrit: 1 }, desc: '+50% damage, +1 multicrit.', minLevel: 25 },
+  legend:     { name: 'Living Legend',   icon: '🌟', mods: { damage: 0.6, attackSpeed: 0.2, range: 1 }, desc: '+60% damage, +20% attack speed, +1 range.', minLevel: 30 },
   // Repeatable perks keep late milestones meaningful once the named ones are taken.
   might:      { name: 'Might',           icon: '💪', mods: { damage: 0.15 }, desc: '+15% damage. Can be taken repeatedly.', repeatable: true },
   fervor:     { name: 'Fervor',          icon: '🔥', mods: { attackSpeed: 0.1 }, desc: '+10% attack speed. Can be taken repeatedly.', repeatable: true },
