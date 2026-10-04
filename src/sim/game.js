@@ -306,6 +306,7 @@ export class Game extends Emitter {
     this.recalcAll();
     this.emit('stash');
     this.emit('equip', { tower, item });
+    this.autoTransmuteStash();
     return true;
   }
 
@@ -322,6 +323,7 @@ export class Game extends Emitter {
     this.stash.push(item);
     this.recalcAll();
     this.emit('stash');
+    this.autoTransmuteStash(); // copies an item placed on the tower by itself are spare
     return true;
   }
 
@@ -412,6 +414,7 @@ export class Game extends Emitter {
     if (to) { to.items[dest] = item; this.itemHook(to, item, 'equip'); } else this.stash.push(item);
     this.recalcAll();
     this.emit('stash');
+    if (!to) this.autoTransmuteStash();
     return true;
   }
 
@@ -494,11 +497,12 @@ export class Game extends Emitter {
     this.autoTransmuteStash();
   }
 
-  // Auto transmute only eats spare drops: equipment below unique that has never
-  // been worn and carries no grown stats, charges or copies.
+  // Auto transmute only eats spare items: equipment below unique that the player
+  // never equipped and that has not grown stats. Fresh per-instance state (Strange
+  // Item copies, carried experience) does not protect an item, since it was never used.
   spareForTransmute(item) {
     const d = ITEMS[item.id];
-    return d.kind === 'equip' && d.rarity !== 'unique' && !item.worn && !item.state && !item.bound && !item.copyOf;
+    return d.kind === 'equip' && d.rarity !== 'unique' && !item.worn && !item.bound && !item.copyOf;
   }
 
   // Combines spare items three at a time, cheapest first and lowest rarity first,

@@ -43,9 +43,12 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   transmuted into a random item of the next rarity.
 - Auto transmute (Items panel toggle, off by default, remembered in settings):
   whenever an item reaches the stash, spare common, uncommon and rare equipment
-  is combined in threes, cheapest first, and the results can cascade. Uniques,
-  oils, consumables, items that were ever equipped, and items with grown stats,
-  charges or copies are never used.
+  is combined in threes, cheapest first, and the results can cascade. This
+  covers every source: creep drops, item and tower skills, Pocket Emporium
+  purchases, boss spoils and Strange Item copies. Uniques, oils, consumables,
+  items the player ever equipped, items with grown stats and item copies held
+  by another item are never used. It also runs when an item returns to the stash
+  from a tower.
 
 ## Waves
 
