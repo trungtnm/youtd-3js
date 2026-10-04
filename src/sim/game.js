@@ -330,7 +330,6 @@ export class Game extends Emitter {
     const prev = tower.items[slot];
     this.stash.splice(idx, 1);
     tower.items[slot] = item;
-    item.worn = true; // auto transmute leaves items the player has used alone
     if (prev) { this.itemHook(tower, prev, 'unequip'); this.stash.push(prev); }
     this.itemHook(tower, item, 'equip');
     if (def.rarity === 'unique') {
@@ -534,12 +533,12 @@ export class Game extends Emitter {
     this.autoTransmuteStash();
   }
 
-  // Auto transmute only eats spare items: equipment below unique that the player
-  // never equipped and that has not grown stats. Fresh per-instance state (Strange
-  // Item copies, carried experience) does not protect an item, since it was never used.
+  // Auto transmute only eats spare items: stashed equipment below unique that has not
+  // grown stats. Items taken off a tower count as spare again; per-instance state
+  // (Strange Item copies, carried experience) does not protect an item.
   spareForTransmute(item) {
     const d = ITEMS[item.id];
-    return d.kind === 'equip' && d.rarity !== 'unique' && !item.worn && !item.bound && !item.copyOf;
+    return d.kind === 'equip' && d.rarity !== 'unique' && !item.bound && !item.copyOf;
   }
 
   // Combines spare items of the chosen rarities three at a time, cheapest first and

@@ -58,9 +58,9 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   reaches the stash, spare equipment of those rarities is combined in threes, cheapest first, and the results can cascade. This
   covers every source: creep drops, item and tower skills, Pocket Emporium
   purchases, boss spoils and Strange Item copies. Uniques, oils, consumables,
-  items the player ever equipped, items with grown stats and item copies held
-  by another item are never used. It also runs when an item returns to the stash
-  from a tower.
+  items with grown stats and item copies held by another item are never used.
+  It also runs when an item returns to the stash from a tower (unequip, swap or
+  sell), and those items count as spare again.
 
 ## Waves
 
