@@ -97,7 +97,9 @@ export class HUD {
   renderAutoTransmute() {
     const on = this.game.autoTransmute;
     $('#btn-autotx').classList.toggle('on', on.length > 0);
-    $('#btn-autotx').textContent = on.length ? `Auto ${on.length}/${AUTO_TRANSMUTE_RARITIES.length}` : 'Auto';
+    // A short label keeps the Items header on one line; bars under it show the checked rarities.
+    $('#btn-autotx').innerHTML = `Auto<span class="atx-dots">${AUTO_TRANSMUTE_RARITIES.map((r) => `<i class="${on.includes(r) ? 'on' : ''}" style="color:${RARITIES[r].css}"></i>`).join('')}</span>`;
+    $('#btn-autotx').dataset.tip = on.length ? `Auto transmute: ${on.map((r) => RARITIES[r].name).join(', ')}. Click to change.` : 'Auto transmute is off. Click to choose rarities.';
     $('#autotx-menu').innerHTML = `<div class="atx-title">Auto transmute</div>${AUTO_TRANSMUTE_RARITIES.map((r) => `<button class="atx-r ${on.includes(r) ? 'on' : ''}" data-r="${r}" style="color:${RARITIES[r].css}"><i></i>${RARITIES[r].name}</button>`).join('')}
       <div class="atx-note">Combines 3 spare items of each checked rarity as they arrive. Uniques, oils, consumables and items that were equipped are never used.</div>`;
   }
