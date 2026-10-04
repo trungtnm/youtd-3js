@@ -10,26 +10,29 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-import { buildEnvironment, updateEnvironment, SUN_DIR } from './environment.js';
+import { buildEnvironment, disposeEnvironment, updateEnvironment, MAPS, DEFAULT_MAP } from './environment.js';
 import { buildTowerModel, buildCrest, buildCreepModel, preloadCreepModels, RACE_COLORS } from './models.js';
 import { FX } from './fx.js';
 import { TOWER_MAX_LEVEL, ELEMENTS, RARITIES } from '../data/constants.js';
 import { worldToTile, tileToWorld, isBuildable, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { mulberry32 } from '../sim/rng.js';
 
+const WHITE = new THREE.Color(1, 1, 1);
+
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uFlash: { value: 0 }, uTime: { value: 0 }, uLow: { value: 0 }, uWhite: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uFlash: { value: 0 }, uTime: { value: 0 }, uLow: { value: 0 }, uWhite: { value: 0 }, uShadowTint: { value: new THREE.Vector3() }, uHighlightTint: { value: new THREE.Vector3() } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uFlash; uniform float uTime; uniform float uLow; uniform float uWhite; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uFlash; uniform float uTime; uniform float uLow; uniform float uWhite;
+    uniform vec3 uShadowTint; uniform vec3 uHighlightTint; varying vec2 vUv;
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
       vec2 d = vUv - 0.5;
       float v = smoothstep(0.85, 0.25, length(d * vec2(1.0, 0.8)));
       c.rgb *= mix(0.55, 1.0, v);
-      // Dusk split-tone: violet in the shadows, amber in the highlights, a touch more contrast.
+      // Per-map split-tone (shadow and highlight tints), a touch more saturation and contrast.
       float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-      c.rgb += mix(vec3(0.012, 0.0, 0.022), vec3(0.035, 0.012, -0.025), smoothstep(0.15, 0.7, lum));
+      c.rgb += mix(uShadowTint, uHighlightTint, smoothstep(0.15, 0.7, lum));
       c.rgb = mix(vec3(lum), c.rgb, 1.08);
       c.rgb = (c.rgb - 0.5) * 1.06 + 0.5;
       float edge = smoothstep(0.35, 0.75, length(d));
@@ -69,8 +72,8 @@ export class World {
     this.renderer = renderer;
 
     const scene = new THREE.Scene();
-    // Warm dusk haze: mountains fade into rose, the field stays clear.
-    scene.fog = new THREE.FogExp2(0x5c3e3c, 0.0042);
+    // Fog, lights, exposure and grade come from the active map (setMap).
+    scene.fog = new THREE.FogExp2(0x000000, 0.004);
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environmentIntensity = 0.35;
@@ -78,10 +81,9 @@ export class World {
 
     this.camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.5, 1200);
 
-    // Lighting: a low sunset sun behind the field, violet sky fill, and a cool
-    // front fill so faces turned toward the camera stay readable.
-    const sun = new THREE.DirectionalLight(0xffb070, 3.6);
-    sun.position.copy(SUN_DIR).multiplyScalar(80);
+    // Lighting: a sun with shadows, a hemisphere sky fill, and a front fill so faces
+    // turned toward the camera stay readable. Each map sets their colours and angles.
+    const sun = new THREE.DirectionalLight(0xffffff, 3);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     const sc = sun.shadow.camera;
@@ -91,13 +93,10 @@ export class World {
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.04;
     scene.add(sun);
-    scene.add(new THREE.HemisphereLight(0xc8b0a8, 0x3a2a1e, 0.8));
-    const rim = new THREE.DirectionalLight(0x8a98d0, 0.7);
-    rim.position.set(-20, 35, 50);
-    scene.add(rim);
+    this.hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 0.8);
+    this.fill = new THREE.DirectionalLight(0xffffff, 0.7);
+    scene.add(this.hemi, this.fill);
     this.sun = sun;
-
-    this.env = buildEnvironment(scene, mulberry32(1337));
 
     this.fx = new FX(scene, this.camera, overlay);
 
@@ -117,6 +116,7 @@ export class World {
     composer.addPass(this.smaa);
     composer.addPass(new OutputPass());
     this.composer = composer;
+    this.setMap(DEFAULT_MAP);
 
     // Selection visuals
     this.rangeRing = this._ring(0x9fe8ff, 0.5);
@@ -246,6 +246,32 @@ export class World {
   }
 
   focus(x, z) { this.cam.tx = x; this.cam.tz = z; this._clamp(); }
+
+  // Swaps the scenery to another map theme and applies its lighting, fog and grade.
+  // The gameplay layout is the same on every map, so this can happen at any time.
+  setMap(id) {
+    const map = MAPS[id] || MAPS[DEFAULT_MAP];
+    if (this.env?.map === map) return;
+    const shown = this.env?.grid.material.uniforms.uShow.value || 0;
+    if (this.env) disposeEnvironment(this.scene, this.env);
+    this.env = buildEnvironment(this.scene, mulberry32(1337), map.id);
+    this.env.grid.material.uniforms.uShow.value = shown;
+    const L = map.lighting;
+    this.sun.color.set(L.sunColor); this.sun.intensity = L.sunIntensity;
+    this.sun.position.copy(L.sunDir).multiplyScalar(80);
+    this.hemi.color.set(L.hemiSky); this.hemi.groundColor.set(L.hemiGround); this.hemi.intensity = L.hemiIntensity;
+    this.fill.color.set(L.fillColor); this.fill.intensity = L.fillIntensity;
+    this.fill.position.copy(L.fillDir).multiplyScalar(60);
+    this.scene.fog.color.set(L.fogColor); this.scene.fog.density = L.fogDensity;
+    this.renderer.toneMappingExposure = L.exposure;
+    this.grade.uniforms.uShadowTint.value.set(...L.gradeShadow);
+    this.grade.uniforms.uHighlightTint.value.set(...L.gradeHighlight);
+    // Bright daylight maps raise the bloom threshold so white models do not wash out.
+    this.bloom.strength = L.bloomStrength ?? 0.75;
+    this.bloom.threshold = L.bloomThreshold ?? 0.82;
+    this.nexusFull = new THREE.Color(L.nexusFull);
+    this.nexusLow = new THREE.Color(L.nexusLow);
+  }
 
   // dt here is real time, independent of game speed or pause.
   _updateCamera(dt) {
@@ -676,12 +702,12 @@ export class World {
     updateEnvironment(env, T);
     const nx = env.nexus.userData;
     nx.crystal.rotation.y += dt * 0.6;
-    nx.crystal.position.y = 3.9 + Math.sin(T * 1.3) * 0.2;
+    nx.crystal.position.y = nx.crystalY + Math.sin(T * 1.3) * 0.2;
     nx.ring1.rotation.x = T * 0.7; nx.ring2.rotation.y = T * 0.5; nx.ring2.rotation.x = 1.2;
     this.nexusHit = Math.max(0, (this.nexusHit || 0) - dt * 2);
     const integrity = this.game ? Math.max(0, this.game.lives) / this.game.maxLives : 1;
-    // Amber at full integrity, draining toward a dim red as the portal weakens.
-    nx.crystalMat.emissive.setRGB(1.0, 0.25 + 0.3 * integrity + this.nexusHit * 0.5, 0.05 + 0.1 * integrity + this.nexusHit * 0.6);
+    // The map's portal colour at full integrity, draining toward its low colour; hits flash white.
+    nx.crystalMat.emissive.copy(this.nexusLow).lerp(this.nexusFull, integrity).lerp(WHITE, this.nexusHit * 0.5);
     nx.crystalMat.emissiveIntensity = 2.0 + this.nexusHit * 4 + (integrity < 0.3 ? Math.sin(T * 8) * 0.8 : 0);
     nx.pillarMat.opacity = 0.08 + 0.05 * Math.sin(T * 2) + this.nexusHit * 0.2;
     this.grade.uniforms.uFlash.value = Math.max(0, this.grade.uniforms.uFlash.value - dt * 2.5);

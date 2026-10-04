@@ -114,14 +114,21 @@ factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap o
 - `world.js`: renderer (pixel ratio capped at 1.5), EffectComposer with half
   resolution bloom, SMAA on low-DPI screens only, RTS camera with velocity-based
   panning and grab-pan, picking, per-frame sync of towers, creeps and projectiles.
-- `environment.js`: the dusk battlefield. A walled plateau with a flagstone road
-  (a standard-material plane whose shader draws stones inside the road's distance
-  field), ruined walls and arches, columns, autumn woods, graves and war debris
-  (instanced), braziers (a few with point lights), rippling banners, rolling
-  hills and mountains, a sunset sky, ground fog that stays thin over the field,
-  embers, the spawn gatehouse, the portal shrine and the placement grid overlay.
-  `updateEnvironment` animates it each frame. The sun direction (`SUN_DIR`) is
-  shared with the world's lighting.
+- `environment.js`: registry of map themes (`MAPS`, `DEFAULT_MAP`). Builds the
+  chosen map plus the shared placement grid, disposes it on a switch, animates it
+  each frame, and exposes the active map's `terrainHeight` for effects.
+  `World.setMap(id)` swaps the scenery and applies the map's lighting, fog,
+  exposure, grade tints and portal colours; the player picks the map on the
+  setup screen and the menu backdrop follows the choice.
+- `maps/`: one module per theme, all built around the same gameplay layout, so
+  the map never affects balance. `shared.js` documents the module interface and
+  holds the common helpers (noise, road distance, instancing, direction ribbon,
+  air lane, grid overlay, rift shader). Themes: `isle.js` (Twilight Isle, the
+  original lake island), `dusk.js` (Dusk Battlefield: walled field, flagstone
+  road drawn by a shader in the road's distance field, ruins, braziers, autumn
+  woods, sunset sky, ground fog, embers), `frost.js` (Frozen Night), `sky.js`
+  (Sky Island) and `elements.js` (Elemental Realms, one region per element along
+  the road).
 - `models.js`: procedural tower and creep models built from primitives,
   `buildCrest()` for level-cap towers (`world.crest`, synced per frame), and the
   tower dais. Daises grow with rarity (steps, bronze or gold trim, corner posts,

@@ -1,6 +1,7 @@
 // Entry point: menu, game lifecycle, input routing and the main loop.
 
 import { World } from './world/world.js';
+import { MAPS, DEFAULT_MAP } from './world/environment.js';
 import { HUD } from './ui/hud.js';
 import { Audio } from './audio/audio.js';
 import { Game } from './sim/game.js';
@@ -20,9 +21,10 @@ const SETTINGS_KEY = 'youtd-reforged-settings';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
-const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', autoWave: false, autoTransmute: [], god: 'off' });
+const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', map: DEFAULT_MAP, autoWave: false, autoTransmute: [], god: 'off' });
 
 const world = new World($('#app'), $('#overlay'));
+world.setMap(settings.map);
 const audio = new Audio();
 const hud = new HUD(world, audio);
 let game = null;
@@ -50,13 +52,14 @@ applySettings();
 
 // ---------------------------------------------------------------- menu
 
-function renderChoices(id, defs, key) {
+function renderChoices(id, defs, key, onChange) {
   const box = $(id);
   box.innerHTML = Object.values(defs).map((d) => `<button class="choice ${settings[key] === d.id ? 'on' : ''}" data-v="${d.id}"><b>${d.name}</b><small>${d.desc}</small></button>`).join('');
   box.querySelectorAll('.choice').forEach((b) => b.addEventListener('click', () => {
     settings[key] = b.dataset.v;
     save(SETTINGS_KEY, settings);
-    renderChoices(id, defs, key);
+    renderChoices(id, defs, key, onChange);
+    onChange?.(b.dataset.v);
     renderMods();
     renderBest();
   }));
@@ -91,6 +94,8 @@ function renderBest() {
   const best = loadProfile().profile.records[recordKey({ ...settings, modifiers: activeModifiers() })];
   $('#best-score').textContent = best ? `Best on this setup: wave ${best.level} · score ${best.score.toLocaleString()}` : '';
 }
+// The menu backdrop switches to the chosen map at once.
+renderChoices('#opt-map', MAPS, 'map', (id) => world.setMap(id));
 renderChoices('#opt-difficulty', DIFFICULTIES, 'difficulty');
 renderChoices('#opt-mode', MODES, 'mode');
 renderChoices('#opt-length', LENGTHS, 'length');
