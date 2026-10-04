@@ -640,6 +640,7 @@ export class HUD {
           <div class="sel-actions">
             ${next ? `<button class="btn ${upErr ? '' : 'gold'}" id="btn-upgrade" ${upErr ? 'disabled' : ''} data-tt="tower:${next.id}">Upgrade [U] · ${fmt(next.cost)} ◉${next.tomeCost ? ` ${next.tomeCost} 📘` : ''}</button>` : ''}
             ${t.level < TOWER_MAX_LEVEL ? `<button class="btn" id="btn-train" ${g.gold < g.trainCost(t) ? 'disabled' : ''} data-tip="Spend gold to train this tower: +${Math.round(ECON.trainXpPct * 100)}% of a level's experience. The cost rises with level. [T]">Train · ${fmt(g.trainCost(t))}</button>` : ''}
+            ${t.level < TOWER_MAX_LEVEL ? `<button class="btn" id="btn-train-max" ${g.gold < g.trainCost(t) ? 'disabled' : ''} data-tip="Train repeatedly with the gold you have, up to level ${TOWER_MAX_LEVEL}. [Shift+T]">Buy Max</button>` : ''}
             <button class="btn danger" id="btn-sell" data-tip="Sell for ${Math.floor(t.invested * ECON.sellRefund)} gold. Items return to your stash. [X]">Sell · ${fmt(Math.floor(t.invested * ECON.sellRefund))}</button>
           </div>
         </div>
@@ -671,6 +672,7 @@ export class HUD {
     $('#btn-upgrade')?.addEventListener('click', () => this.upgradeSelected());
     $('#btn-sell').addEventListener('click', () => this.sellSelected());
     $('#btn-train')?.addEventListener('click', () => this.trainSelected());
+    $('#btn-train-max')?.addEventListener('click', () => this.trainSelected(true));
     box.querySelectorAll('[data-perk]').forEach((b) => b.addEventListener('click', () => { g.choosePerk(t, b.dataset.perk); this.audio.upgrade(); }));
   }
 
@@ -699,9 +701,15 @@ export class HUD {
     if (t && t.actives[i]) this.game.castActive(t, i);
   }
 
-  trainSelected() {
+  trainSelected(max = false) {
     const t = this.selection?.type === 'tower' && this.game.towers.get(this.selection.uid);
-    if (t && this.game.train(t)) this.audio.levelUp();
+    if (!t) return;
+    const before = t.level;
+    const gold = this.game.gold;
+    if (!max) { if (this.game.train(t)) this.audio.levelUp(); return; }
+    if (!this.game.trainMax(t)) return;
+    this.audio.levelUp();
+    this.toast(`Trained to level ${t.level} (+${t.level - before}) · ${fmt(gold - this.game.gold)} gold`, 'gold');
   }
 
   upgradeSelected() {

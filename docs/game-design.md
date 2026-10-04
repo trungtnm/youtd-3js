@@ -43,7 +43,8 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   reaches 30 around wave 60-80 when the run lasts that long.
 - **Train**: spend gold for 35% of the current level's experience. Cost grows
   with level and 2% per session already spent on that tower. This is the main
-  gold sink once the core towers are built.
+  gold sink once the core towers are built. **Buy Max** (Shift+T) repeats
+  Train until gold runs out or the tower reaches level 30.
 - **Perks**: every 5 levels the tower offers three perks and keeps one
   (`src/data/tower-perks.js`), six in all. Strong perks unlock at levels 20,
   25 and 30, with Living Legend reserved for the cap; three

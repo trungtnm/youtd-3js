@@ -311,7 +311,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'p') hud.setSpeed(hud.speed === 0 ? 1 : 0);
   else if (k === '1' || k === '2' || k === '3') hud.setSpeed(Number(k));
   else if (k === 'u') hud.upgradeSelected();
-  else if (k === 't') hud.trainSelected();
+  else if (k === 't') hud.trainSelected(e.shiftKey);
   else if (k === 'f') hud.castSelected(0);
   else if (k === 'g') hud.castSelected(1);
   else if (k === 'x' || k === 'delete') hud.sellSelected();

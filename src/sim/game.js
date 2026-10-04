@@ -1420,6 +1420,15 @@ export class Game extends Emitter {
     return true;
   }
 
+  // Trains repeatedly while gold lasts, up to max level. Returns the levels gained.
+  trainMax(t) {
+    const start = t.level;
+    if (t.level >= TOWER_MAX_LEVEL) { this.emit('error', 'Tower is at max level'); return 0; }
+    if (this.gold < this.trainCost(t)) { this.emit('error', 'Not enough gold'); return 0; }
+    while (t.level < TOWER_MAX_LEVEL && this.gold >= this.trainCost(t)) this.train(t);
+    return t.level - start;
+  }
+
   // ------------------------------------------------------------------ boss spoils
 
   // Items of a rarity that may drop at this wave (falls back to the whole rarity).
