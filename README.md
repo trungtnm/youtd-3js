@@ -6,8 +6,8 @@ items, not about covering the map with towers.
 
 - 690 towers and 315 items from YouTD, with their behavior scripts ported.
 - Five difficulties, Build or Random mode, 80 waves, 120 waves or endless.
-- Five map themes around the same layout: Twilight Isle, Dusk Battlefield,
-  Frozen Night, Sky Island and Elemental Realms.
+- Five map themes around the same layout: Sky Island, Elemental Realms,
+  Frozen Night, Dusk Battlefield and Twilight Isle.
 - Element research with knowledge tomes, tower training, perks every 5 levels,
   boss spoils, and challenge waves every 8th wave.
 - Plain JavaScript ES modules built with Vite. No framework.

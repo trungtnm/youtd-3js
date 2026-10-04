@@ -8,7 +8,7 @@ import sky from './maps/sky.js';
 import elements from './maps/elements.js';
 import { buildGridOverlay } from './maps/shared.js';
 
-export const MAPS = Object.fromEntries([isle, dusk, frost, sky, elements].map((m) => [m.id, m]));
+export const MAPS = Object.fromEntries([sky, elements, frost, dusk, isle].map((m) => [m.id, m]));
 export const DEFAULT_MAP = 'dusk';
 
 let current = MAPS[DEFAULT_MAP];
