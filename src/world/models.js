@@ -45,17 +45,65 @@ const STONE = 0x5d5a66, STONE_D = 0x3c3a44, WOOD = 0x6b4a2f, WOOD_D = 0x4a321f, 
 
 // ------------------------------------------------------------------ towers
 
-function pedestal(g, rarity, element, tier) {
+// Daises grow with rarity: commons sit on a plain stone block, uncommons gain a
+// bronze-trimmed step, rares a third step with corner posts and element gems,
+// uniques a gilded dais with four obelisks burning in the element's colour.
+// Returns { top, anim parts } so the tower stands on the highest step.
+const GOLD = 0xd8a440, BRONZE = 0xa0703a;
+function pedestal(g, rarity, element, tier, A) {
   const r = RARITIES[rarity], e = ELEMENTS[element];
-  add(g, cylG(1.0, 1.15, 0.35, 6), mat(STONE_D, { rough: 0.9, flat: true }), 0, 0.175, 0);
-  add(g, cylG(0.88, 0.98, 0.3, 6), mat(STONE, { rough: 0.85, flat: true }), 0, 0.5, 0);
-  add(g, torG(0.9, 0.05, 6, 6), glow(r.color, rarity === 'common' ? 0.6 : 1.8), 0, 0.66, 0, Math.PI / 2, 0, Math.PI / 6);
-  // Tier pips around the pedestal
-  for (let i = 0; i <= tier; i++) {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    add(g, octG(0.09), glow(e.color, 2.5), Math.cos(a) * 1.02, 0.36, Math.sin(a) * 1.02);
+  const stone = mat(STONE, { rough: 0.85, flat: true }), dark = mat(STONE_D, { rough: 0.9, flat: true });
+  const level = r.idx;
+  let y = 0;
+  const step = (rt, rb, h, m) => { add(g, cylG(rt, rb, h, 6), m, 0, y + h / 2, 0, 0, Math.PI / 6); y += h; };
+  if (level === 0) {
+    step(1.0, 1.12, 0.32, dark); step(0.86, 0.96, 0.28, stone);
+  } else if (level === 1) {
+    step(1.12, 1.22, 0.3, dark); step(1.0, 1.08, 0.22, stone);
+    add(g, torG(1.02, 0.045, 6, 6), mat(BRONZE, { metal: 0.8, rough: 0.35 }), 0, y, 0, Math.PI / 2, 0, Math.PI / 6);
+    step(0.84, 0.92, 0.22, stone);
+  } else if (level === 2) {
+    step(1.2, 1.3, 0.3, dark); step(1.06, 1.14, 0.26, stone); step(0.88, 0.96, 0.26, dark);
+    add(g, torG(0.9, 0.05, 6, 6), mat(BRONZE, { metal: 0.8, rough: 0.3 }), 0, y, 0, Math.PI / 2, 0, Math.PI / 6);
+    // Corner posts topped with element gems.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      add(g, boxG(0.2, 1.0, 0.2), stone, Math.cos(a) * 1.08, 0.5 + 0.3, Math.sin(a) * 1.08);
+      const gem = add(g, octG(0.13), glow(e.color, 2.8), Math.cos(a) * 1.08, 1.45, Math.sin(a) * 1.08);
+      A.bob.push({ obj: gem, amp: 0.06, speed: 2 + i * 0.3 });
+    }
+  } else {
+    const gold = mat(GOLD, { metal: 0.9, rough: 0.25 });
+    step(1.3, 1.42, 0.32, dark); step(1.14, 1.24, 0.28, stone);
+    add(g, torG(1.16, 0.06, 6, 6), gold, 0, y, 0, Math.PI / 2, 0, Math.PI / 6);
+    step(0.96, 1.04, 0.3, dark);
+    add(g, torG(0.98, 0.05, 6, 6), gold, 0, y, 0, Math.PI / 2, 0, Math.PI / 6);
+    // Obelisks with element fire, and a rune ring turning slowly above the dais.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      add(g, cylG(0.08, 0.17, 1.9, 4), stone, Math.cos(a) * 1.22, 1.25, Math.sin(a) * 1.22, 0, Math.PI / 4);
+      add(g, coneG(0.13, 0.25, 4), gold, Math.cos(a) * 1.22, 2.3, Math.sin(a) * 1.22, 0, Math.PI / 4);
+      const fire = add(g, octG(0.15), glow(e.color, 3.5), Math.cos(a) * 1.22, 2.62, Math.sin(a) * 1.22);
+      A.flicker.push(fire);
+    }
+    const runes = add(g, torG(1.05, 0.025, 4, 64), glow(e.color, 2.2), 0, y + 0.08, 0, Math.PI / 2);
+    A.spin.push({ obj: runes, axis: 'z', speed: 0.6 });
   }
-  return 0.65;
+  // Rarity glow line on the top step, and tier pips around the base.
+  add(g, torG(level >= 2 ? 0.82 : 0.84, 0.04, 6, 6), glow(r.color, level === 0 ? 0.6 : 1.8), 0, y + 0.01, 0, Math.PI / 2, 0, Math.PI / 6);
+  const pr = [1.04, 1.16, 1.24, 1.34][level];
+  for (let i = 0; i <= tier; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    add(g, octG(0.09), glow(e.color, 2.5), Math.cos(a) * pr, 0.34, Math.sin(a) * pr);
+  }
+  return y;
+}
+
+// Towers grow with their cost (log scale, so a 5000-gold unique stands about
+// twice as tall as a 30-gold common), with a little extra for rarity.
+export function towerScale(def) {
+  const byCost = 0.8 + 0.4 * Math.log10(Math.max(30, def.cost) / 30);
+  return byCost + [0, 0.04, 0.1, 0.2][RARITIES[def.rarity].idx];
 }
 
 const TOWER_BUILDERS = {
@@ -418,24 +466,28 @@ export function buildTowerModel(def) {
   const g = new THREE.Group();
   const anim = { spin: [], bob: [], orbit: [], flicker: [], flap: [], pulse: [], head: null, headYaw: false };
   const color = ELEMENTS[def.element].color;
-  const y = pedestal(g, def.rarity, def.element, def.tier);
+  const y = pedestal(g, def.rarity, def.element, def.tier, anim);
   const top = new THREE.Group();
+  top.position.y = y;
   g.add(top);
-  const s = 0.9 + def.tier * 0.1;
+  const s = towerScale(def);
   // A curated model replaces the procedural one; if it is still loading, the
   // procedural model stands in and is swapped out when the file arrives.
-  const onSwap = (muzzleY) => { g.userData.muzzleY = muzzleY * s; g.dispatchEvent({ type: 'modelswap' }); };
-  let muzzle = def.glb ? attachTowerGlb(top, def.glb, anim, y, onSwap) : null;
-  if (muzzle == null) muzzle = (TOWER_BUILDERS[def.model] || TOWER_BUILDERS.crystal)(top, color, y, def.tier, anim);
+  // The top group stands on the dais and scales about its base, so the model
+  // grows upward instead of sinking into the steps.
+  const onSwap = (muzzleY) => { g.userData.muzzleY = y + muzzleY * s; g.dispatchEvent({ type: 'modelswap' }); };
+  let muzzle = def.glb ? attachTowerGlb(top, def.glb, anim, 0, onSwap) : null;
+  if (muzzle == null) muzzle = (TOWER_BUILDERS[def.model] || TOWER_BUILDERS.crystal)(top, color, 0, def.tier, anim);
   top.scale.setScalar(s);
   if (def.rarity === 'unique') {
-    const halo = add(g, torG(1.25, 0.04, 6, 48), glow(RARITIES.unique.color, 2.5), 0, 0.1, 0, Math.PI / 2);
+    const halo = add(g, torG(1.5, 0.04, 6, 48), glow(RARITIES.unique.color, 2.5), 0, 0.1, 0, Math.PI / 2);
     anim.spin.push({ obj: halo, axis: 'z', speed: 0.4 });
   }
   // Record base positions for bobbing parts.
   for (const b of anim.bob) b.base = b.obj.position.y;
   g.userData.anim = anim;
-  g.userData.muzzleY = muzzle * s;
+  g.userData.muzzleY = y + muzzle * s;
+  g.userData.height = y + muzzle * s;
   return g;
 }
 

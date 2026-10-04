@@ -10,7 +10,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-import { buildEnvironment } from './environment.js';
+import { buildEnvironment, updateEnvironment, SUN_DIR } from './environment.js';
 import { buildTowerModel, buildCreepModel, preloadCreepModels, RACE_COLORS } from './models.js';
 import { FX } from './fx.js';
 import { ELEMENTS, RARITIES } from '../data/constants.js';
@@ -27,7 +27,11 @@ const GradeShader = {
       vec2 d = vUv - 0.5;
       float v = smoothstep(0.85, 0.25, length(d * vec2(1.0, 0.8)));
       c.rgb *= mix(0.55, 1.0, v);
-      c.rgb = mix(c.rgb, c.rgb * vec3(1.05, 1.0, 0.95), 0.5);
+      // Dusk split-tone: violet in the shadows, amber in the highlights, a touch more contrast.
+      float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      c.rgb += mix(vec3(0.012, 0.0, 0.022), vec3(0.035, 0.012, -0.025), smoothstep(0.15, 0.7, lum));
+      c.rgb = mix(vec3(lum), c.rgb, 1.08);
+      c.rgb = (c.rgb - 0.5) * 1.06 + 0.5;
       float edge = smoothstep(0.35, 0.75, length(d));
       float danger = uFlash + uLow * (0.25 + 0.15 * sin(uTime * 4.0));
       c.rgb = mix(c.rgb, vec3(0.9, 0.05, 0.05), edge * danger * 0.6);
@@ -65,7 +69,8 @@ export class World {
     this.renderer = renderer;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x2a2440, 0.0065);
+    // Warm dusk haze: mountains fade into rose, the field stays clear.
+    scene.fog = new THREE.FogExp2(0x5c3e3c, 0.0042);
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environmentIntensity = 0.35;
@@ -73,27 +78,26 @@ export class World {
 
     this.camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.5, 1200);
 
-    // Lighting: low golden sun, cool sky fill.
-    const sun = new THREE.DirectionalLight(0xffd2a0, 2.6);
-    sun.position.set(45, 55, 28);
+    // Lighting: a low sunset sun behind the field, violet sky fill, and a cool
+    // front fill so faces turned toward the camera stay readable.
+    const sun = new THREE.DirectionalLight(0xffb070, 3.6);
+    sun.position.copy(SUN_DIR).multiplyScalar(80);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     const sc = sun.shadow.camera;
     // Tight frustum around the compact playfield keeps 1024px shadows crisp.
-    sc.left = -38; sc.right = 38; sc.top = 24; sc.bottom = -24; sc.near = 20; sc.far = 140;
+    // The low sun stretches the field in light space, so the frustum is taller than the map.
+    sc.left = -40; sc.right = 40; sc.top = 34; sc.bottom = -34; sc.near = 10; sc.far = 190;
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.04;
     scene.add(sun);
-    scene.add(new THREE.HemisphereLight(0x9fb8ff, 0x3a2a24, 0.75));
-    const rim = new THREE.DirectionalLight(0x8a9cff, 0.6);
-    rim.position.set(-40, 30, -40);
+    scene.add(new THREE.HemisphereLight(0xc8b0a8, 0x3a2a1e, 0.8));
+    const rim = new THREE.DirectionalLight(0x8a98d0, 0.7);
+    rim.position.set(-20, 35, 50);
     scene.add(rim);
     this.sun = sun;
 
     this.env = buildEnvironment(scene, mulberry32(1337));
-    this.env.water.material.uniforms.uSun.value.copy(sun.position).normalize();
-    this.env.water.material.uniforms.uFogColor.value.copy(scene.fog.color);
-    this.env.water.material.uniforms.uFogDensity.value = scene.fog.density;
 
     this.fx = new FX(scene, this.camera, overlay);
 
@@ -494,8 +498,10 @@ export class World {
     const group = buildTowerModel(t.def);
     group.position.set(t.x, 0, t.z);
     // Invisible picking cylinder
-    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.6, 8), new THREE.MeshBasicMaterial({ visible: false }));
-    hit.position.y = 1.3;
+    // Picking cylinder covers the whole tower, which can be twice as tall for costly ones.
+    const hitH = Math.max(2.6, group.userData.height || 0);
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, hitH, 8), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = hitH / 2;
     hit.userData.pick = { type: 'tower', uid: t.uid };
     group.add(hit);
     this.scene.add(group);
@@ -650,20 +656,16 @@ export class World {
     this.time += dt;
     const T = this.time;
     const env = this.env;
-    env.water.material.uniforms.uTime.value = T;
-    env.sky.material.uniforms.uTime.value = T;
-    env.ribbon.material.uniforms.uTime.value = T;
-    env.fireflies.material.uniforms.uTime.value = T;
-    env.grid.material.uniforms.uTime.value = T;
-    env.gate.userData.vortex.uniforms.uTime.value = T;
+    updateEnvironment(env, T);
     const nx = env.nexus.userData;
     nx.crystal.rotation.y += dt * 0.6;
-    nx.crystal.position.y = 3.6 + Math.sin(T * 1.3) * 0.2;
+    nx.crystal.position.y = 3.9 + Math.sin(T * 1.3) * 0.2;
     nx.ring1.rotation.x = T * 0.7; nx.ring2.rotation.y = T * 0.5; nx.ring2.rotation.x = 1.2;
     this.nexusHit = Math.max(0, (this.nexusHit || 0) - dt * 2);
     const lives = this.game ? this.game.lives : 100;
-    nx.crystalMat.emissive.setRGB(0.18 + this.nexusHit * 0.8, 0.66 * (lives / 100), 1.0 * (lives / 100) + 0.1);
-    nx.crystalMat.emissiveIntensity = 2.2 + this.nexusHit * 4 + (lives < 30 ? Math.sin(T * 8) * 0.8 : 0);
+    // Amber at full health, draining toward a dim red as lives fall.
+    nx.crystalMat.emissive.setRGB(1.0, 0.25 + 0.3 * (lives / 100) + this.nexusHit * 0.5, 0.05 + 0.1 * (lives / 100) + this.nexusHit * 0.6);
+    nx.crystalMat.emissiveIntensity = 2.0 + this.nexusHit * 4 + (lives < 30 ? Math.sin(T * 8) * 0.8 : 0);
     nx.pillarMat.opacity = 0.08 + 0.05 * Math.sin(T * 2) + this.nexusHit * 0.2;
     this.grade.uniforms.uFlash.value = Math.max(0, this.grade.uniforms.uFlash.value - dt * 2.5);
     this.grade.uniforms.uTime.value = T;

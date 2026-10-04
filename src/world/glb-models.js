@@ -57,16 +57,23 @@ function fitted(gltf, { maxH, maxR, yaw }) {
   return { root, model, height: size.y * k };
 }
 
-// Clears the procedural parts' animation hooks so they stop driving removed meshes.
-function clearHooks(anim, lists, keys) {
-  for (const key of lists) if (anim[key]) anim[key].length = 0;
+// Drops the animation hooks of parts inside `root` (the procedural model being
+// replaced), keeping hooks on anything else such as the dais or boss rings.
+function clearHooks(anim, root, lists, keys) {
+  const inside = (o) => { for (let p = o; p; p = p.parent) if (p === root) return true; return false; };
+  for (const key of lists) {
+    if (!anim[key]) continue;
+    const kept = anim[key].filter((h) => !inside(h.obj || h.l || h));
+    anim[key].length = 0;
+    anim[key].push(...kept);
+  }
   for (const key of keys) delete anim[key];
 }
 
 // ---------------------------------------------------------------- towers
 
-const TOWER_H = 2.1;   // tallest a model may stand above the pedestal (before tier scale)
-const TOWER_R = 0.95;  // widest it may reach from the pedestal centre
+const TOWER_H = 2.2;   // model height on the dais before the tower's cost scale
+const TOWER_R = 1.4;   // widest it may reach from the centre; long models (lizards, boats) overhang the dais
 
 function towerInstance(gltf, spec) {
   const inst = fitted(gltf, { maxH: spec.h ?? TOWER_H, maxR: TOWER_R, yaw: spec.yaw });
@@ -100,7 +107,7 @@ export function attachTowerGlb(top, spec, anim, baseY, onSwap) {
     if (!gltf) return null;
     const inst = towerInstance(gltf, spec);
     inst.root.position.y = baseY;
-    clearHooks(anim, ['spin', 'bob', 'orbit', 'flicker', 'flap', 'pulse'], ['barrels', 'press', 'hammer', 'scythe']);
+    clearHooks(anim, top, ['spin', 'bob', 'orbit', 'flicker', 'flap', 'pulse'], ['barrels', 'press', 'hammer', 'scythe']);
     top.clear();
     top.add(inst.root);
     anim.head = inst.root;
@@ -128,7 +135,7 @@ export function attachCreepGlb(body, spec, anim, air, onSwap) {
   const apply = (gltf) => {
     if (!gltf) return null;
     const inst = fitted(gltf, { maxH: spec.h ?? (air ? CREEP_AIR_H : CREEP_H), maxR: CREEP_R, yaw: spec.yaw });
-    clearHooks(anim, ['legs', 'arms', 'orbit'], ['flap', 'head', 'body']);
+    clearHooks(anim, body, ['legs', 'arms', 'orbit'], ['flap', 'head', 'body']);
     anim.float = false;
     for (const part of [...body.children]) if (!part.userData.keep) body.remove(part);
     if (air) { inst.root.position.y = FLY_Y - inst.height / 2; anim.body = inst.root; anim.bodyY = inst.root.position.y; }

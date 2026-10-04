@@ -77,9 +77,18 @@ main power source.
 - `world.js`: renderer (pixel ratio capped at 1.5), EffectComposer with half
   resolution bloom, SMAA on low-DPI screens only, RTS camera with velocity-based
   panning and grab-pan, picking, per-frame sync of towers, creeps and projectiles.
-- `environment.js`: island terrain, water, sky, path ribbon, decoration
-  (instanced), spawn gate, nexus, placement grid overlay.
-- `models.js`: procedural tower and creep models built from primitives.
+- `environment.js`: the dusk battlefield. A walled plateau with a flagstone road
+  (a standard-material plane whose shader draws stones inside the road's distance
+  field), ruined walls and arches, columns, autumn woods, graves and war debris
+  (instanced), braziers (a few with point lights), rippling banners, rolling
+  hills and mountains, a sunset sky, ground fog that stays thin over the field,
+  embers, the spawn gatehouse, the portal shrine and the placement grid overlay.
+  `updateEnvironment` animates it each frame. The sun direction (`SUN_DIR`) is
+  shared with the world's lighting.
+- `models.js`: procedural tower and creep models built from primitives, and the
+  tower dais. Daises grow with rarity (steps, bronze or gold trim, corner posts,
+  burning obelisks for uniques) and towers scale with cost (`towerScale`, log
+  scale), so a 5000-gold unique stands about twice as tall as a 30-gold common.
 - `glb-models.js`: loads curated tower and creep models (`public/models/`,
   chosen in `src/data/model-map.js`) and fits them where the procedural model
   would stand. Towers play their idle clip and an attack clip on each shot;
