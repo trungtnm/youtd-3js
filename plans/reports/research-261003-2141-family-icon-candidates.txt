@@ -1,0 +1,235 @@
+OK astral   Astral Lantern                     lantern, paper-lantern, lantern-flame, pumpkin-lantern, old-lantern, asian-lantern
+OK astral   Astral Rift                        portal, magic-portal
+OK astral   Basic Knowledge                    gift-of-knowledge, classical-knowledge
+OK astral   Drake Whisperer                    sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+OK astral   Glowing Solar Orb                  glowing-hands, glowing-artifact, sun, heraldic-sun, tarot-19-the-sun, sun-radiations
+OK astral   Healing Obelisk                    healing, healing-shield, obelisk
+OK astral   Holy Energy                        holy-grail, holy-symbol, holy-water, holy-hand-grenade, holy-oak, spiked-halo
+OK astral   Initiate Elementalist              wizard-staff, wizard-face
+OK astral   Lesser Astral Defender             shield, acid-shield, round-shield, surrounded-shield, broken-shield, magic-shield
+OK astral   Lesser Priest                      sun-priest
+OK astral   Library of Alexandria              white-book, black-book, open-book, book-aura, burning-book, evil-book
+OK astral   Lunar Sentinel                     moon, tarot-18-the-moon, moon-claws, evil-moon, falcon-moon, moon-orbit
+OK astral   Magic Battery                      magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK astral   Mana-Touched Drake                 sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+OK astral   Minor Magic Ruin                   magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK astral   Nortrom the Silencer               silence, mute
+OK astral   Owl of Wisdom                      owl, barn-owl, wisdom
+OK astral   Planar Gate                        portal, magic-portal, gate, magic-gate, triple-gate, india-gate
+OK astral   Princess of Light                  tiara, light-thorny-triskelion, candle-light, light-bulb, light-sabers, double-street-lights
+OK astral   Ruined Sun Pedestal                sun, heraldic-sun, tarot-19-the-sun, sun-radiations, boomerang-sun, barbed-sun
+OK astral   Small Light                        light-thorny-triskelion, candle-light, light-bulb, light-sabers, double-street-lights, traffic-lights-green
+OK astral   Small Serpent Ward                 snake, snake-totem, snake-bite, snake-tongue, snake-jar, snake-egg
+OK astral   Solar Emitter                      sun, heraldic-sun, tarot-19-the-sun, sun-radiations, boomerang-sun, barbed-sun
+OK astral   Sorceress                          witch-flight, witch-face, wizard-staff, wizard-face
+OK astral   Star Gazer                         star, tarot-17-the-star, star-satellites, barbed-star, flexible-star, wrapping-star
+OK astral   Sun Crusader                       sun, heraldic-sun, tarot-19-the-sun, sun-radiations, boomerang-sun, barbed-sun
+OK astral   Teacher                            teacher, white-book, black-book, open-book, book-aura, burning-book
+OK astral   Time Manipulator                   hourglass, empty-hourglass, time, time-bomb, time-trap, sands-of-time
+-- astral   Timevault                          
+OK astral   Warrior of Light                   sword-hilt, shard-sword, dervish-swords, sword-array, striped-sword, sword-spade
+OK astral   Witch Doctor                       witch-flight, witch-face, doctor-face, plague-doctor-profile
+OK darkness Black Dragon Roost                 sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+OK darkness Bone Shrine                        broken-bone, bone-gnawer, crossed-bones, bone-knife, skull-crossed-bones, dinosaur-bones
+OK darkness Broken Cage                        cage, circle-cage, zigzag-cage, bird-cage
+OK darkness Buried Soul                        soul, soul-vessel, ghost, ghost-ally, floating-ghost
+OK darkness Chaos Warlock                      warlock-eye, warlock-hood, wizard-staff, wizard-face
+OK darkness Cursed Grounds                     cursed-star
+OK darkness Dark Battery                       dark-squad, battery-pack, battery-pack-alt, heart-battery, car-battery, battery-50
+OK darkness Dark Fire Pit                      dark-squad, fire, celebration-fire, small-fire, fire-zone, fire-breath
+OK darkness Death Knight                       tarot-13-death, death-skull, death-zone, death-note, death-juice, death-star
+OK darkness Dreadlord                          vampire-dracula, vampire-cape, resting-vampire
+OK darkness Dutchman's Grave                   s-brick, tombstone, pirate-grave, hasty-grave, grave-flowers
+-- darkness Essence of Fury                    
+OK darkness Hall of Souls                      soul, soul-vessel, ghost, ghost-ally, floating-ghost
+-- darkness Harby                              
+-- darkness Haunted Rubble                     
+-- darkness It                                 
+OK darkness Kraken                             kraken-tentacle, tentacles-skull, tentacle-heart, tentacle-strike, suckered-tentacle, spiral-tentacle
+OK darkness Lesser Dark Defender               dark-squad, shield, acid-shield, round-shield, surrounded-shield, broken-shield
+OK darkness Lesser Skeletal Mage               skeleton, sauropod-skeleton, leaf-skeleton, skeleton-inside, skeleton-key, raise-skeleton
+OK darkness Lunar Emitter                      moon, tarot-18-the-moon, moon-claws, evil-moon, falcon-moon, moon-orbit
+-- darkness Mister Fireflies                   
+-- darkness Monolith of Chaos                  
+OK darkness Necromantic Altar                  star-altar, sword-altar
+OK darkness Plagued Crypt                      crypt-entrance
+OK darkness Sacrificial Lamb                   sacrificial-dagger, sheep
+OK darkness Shadow                             shadow-follower, lightning-shadow, shadow-grasp, two-shadows, bottled-shadow
+OK darkness Shard of Souls                     shard-sword, soul, soul-vessel, ghost, ghost-ally, floating-ghost
+OK darkness Small Bug Nest                     long-antennae-bug, spotted-bug, alien-bug, bug-net, scarab-beetle, beetle-shell
+OK darkness Small Frost Fire                   fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+OK darkness Soul Vault                         soul, soul-vessel, ghost, ghost-ally, floating-ghost
+-- darkness Soulflame Device                   
+OK darkness Spider Queen                       spider-web, hanging-spider, angular-spider, masked-spider, long-legged-spider, spider-alt
+OK darkness Tentacle Spawn                     tentacles-skull, tentacle-heart, tentacle-strike, suckered-tentacle, spiral-tentacle, thorny-tentacle
+-- darkness The Council of Demons              
+OK darkness Thief Apprentice                   hood, robin-hood-hat, executioner-hood, warlock-hood
+OK darkness Tombstone                          tombstone, pirate-grave, hasty-grave, grave-flowers
+OK darkness Undisturbed Crypt                  crypt-entrance
+OK darkness Village Witch                      village, medieval-village-01, huts-village, witch-flight, witch-face
+OK darkness Void Drake                         black-hole-bolas, sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath
+-- fire     Area Roaster                       
+-- fire     Ash Geyser                         
+OK fire     Black Rock Totem                   rock, falling-rocks, rock-golem, totem, totem-head, totem-mask
+OK fire     Broken Fire Pit                    fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+OK fire     Burning Watchtower                 burning-blobs, burning-meteor, burning-embers, burning-book, burning-passion, three-burning-balls
+OK fire     Caged Fire                         cage, circle-cage, zigzag-cage, bird-cage, fire, celebration-fire
+OK fire     Crimson Wyrm                       sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+OK fire     Cruel Fire                         fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+OK fire     Dragon Sorcerer                    sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+OK fire     Embershell Turtle Hatchling        turtle, turtle-shell, sea-turtle
+-- fire     Felweed                            
+OK fire     Fenced Flames                      spiked-fence, wooden-fence, icicles-fence, stakes-fence
+OK fire     Fiery Dog                          dog-bowl, hot-dog, sitting-dog, sniffing-dog, balloon-dog, dog-house
+OK fire     Fiery Pebble                       stone-sphere, stone-block, stone-tower, stone-spear, rune-stone, stone-axe
+OK fire     Fire Battery                       fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+OK fire     Fire Star                          fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+-- fire     Firestorm Cell                     
+OK fire     Geothermal Extractor               drill, needle-drill, oil-drum, oil-rig, oil-can, oil-pump
+OK fire     Inflamed Stone                     stone-sphere, stone-block, stone-tower, stone-spear, rune-stone, stone-axe
+OK fire     Lesser Elemental Ghost             ghost, ghost-ally, floating-ghost
+OK fire     Lesser Flamy Defender              shield, acid-shield, round-shield, surrounded-shield, broken-shield, magic-shield
+-- fire     Little Phoenix                     
+OK fire     Living Volcano                     volcano, smoking-volcano
+OK fire     Meteor Totem                       burning-meteor, meteor-impact, fragmented-meteor, totem, totem-head, totem-mask
+OK fire     Portal to Swine Purgatory          portal, magic-portal, nothing-to-say, traffic-lights-ready-to-go, face-to-face, pig
+OK fire     Servant of the Twin Flames         twin-shell
+-- fire     Shaman                             
+OK fire     Small Brazier                      fire-bowl
+OK fire     Small Fire Sprayer                 fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+OK fire     Small Torch                        torch, primitive-torch
+OK fire     The Fire Lord                      fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+OK fire     The Furnace                        furnace
+OK fire     The Omnislasher                    sword-hilt, shard-sword, dervish-swords, sword-array, striped-sword, sword-spade
+OK fire     Vulshok, the Berserker             stone-axe, wood-axe, crossed-axes, axe-in-stump, battle-axe, axe-swing
+OK ice      Abominable Snowman                 snowman
+OK ice      Baby Tuskin                        mammoth, walrus-head
+OK ice      Chilled Spire                      clock-tower, tarot-16-the-tower, tower-fall, white-tower, stone-tower, guarded-tower
+OK ice      Cold Obelisk                       snow-bottle, obelisk
+OK ice      Cold Troll                         snow-bottle, troll
+OK ice      Ebonfrost Crystal                  crystal-wand, floating-crystal, crystal-shine, crystal-bars, crystal-eye, crystal-cluster
+OK ice      Fisherman                          fishing, fishing-net, fishing-hook, small-fishing-sailboat, boat-fishing, fishing-lure
+OK ice      Frost Root                         root-tip, tree-roots, plant-roots
+OK ice      Frosty Rock                        snow-bottle, rock, falling-rocks, rock-golem
+OK ice      Frozen Well                        frozen-arrow, frozen-block, frozen-orb, frozen-ring, frozen-body, ice
+OK ice      Genis Sage                         wizard-staff, wizard-face
+OK ice      Ice Battery                        ice, ice-shield, ice-bolt, ice-spear, ice-cube, ice-bomb
+OK ice      Icy Core                           ice, ice-shield, ice-bolt, ice-spear, ice-cube, ice-bomb
+OK ice      Icy Skulls                         ice, ice-shield, ice-bolt, ice-spear, ice-cube, ice-bomb
+OK ice      Icy Spirit                         ice, ice-shield, ice-bolt, ice-spear, ice-cube, ice-bomb
+OK ice      Igloo                              igloo
+OK ice      Lesser Ice Defender                ice, ice-shield, ice-bolt, ice-spear, ice-cube, ice-bomb
+OK ice      Lich King                          skull, death-skull, tentacles-skull, skull-bolt, goo-skull, desert-skull
+OK ice      Magna Warrior                      sword-hilt, shard-sword, dervish-swords, sword-array, striped-sword, sword-spade
+OK ice      Polar Bear Cub                     polar-bear, bear-face, bear-head
+OK ice      Safiron's Cold Grave               s-brick, snow-bottle, tombstone, pirate-grave, hasty-grave, grave-flowers
+OK ice      Sea Turtle                         sea-dragon, at-sea, sea-serpent, sea-creature, sea-urchin, black-sea
+OK ice      Small Frozen Mushroom              frozen-arrow, frozen-block, frozen-orb, frozen-ring, frozen-body, ice
+OK ice      Small Ice Mine                     ice, ice-shield, ice-bolt, ice-spear, ice-cube, ice-bomb
+OK ice      Snowy Pebble                       snow-bottle, stone-sphere, stone-block, stone-tower, stone-spear, rune-stone
+OK ice      Taita, The Hermit                  tarot-09-the-hermit
+OK ice      The Frozen Wyrm                    frozen-arrow, frozen-block, frozen-orb, frozen-ring, frozen-body, ice
+OK ice      Tidewater Stream                   static-waves, wave-crest, fire-wave, psychic-waves, big-wave, wave-strike
+OK ice      Tundra Stalker                     tiger, tiger-head, claws, grasping-claws, steel-claws, flame-claws
+OK ice      Ymir                               giant, giant-squid
+OK ice      Young Northern Troll               troll
+OK iron     Abandoned Pit                      fire, celebration-fire, small-fire, fire-zone, fire-breath, fire-tail
+OK iron     Ball Lightning Accelerator         cracked-ball-dunk, wrecking-ball, striking-balls, caged-ball, dragon-balls, noodle-ball
+OK iron     Bomb Turret                        time-bomb, paper-bomb, letter-bomb, rolling-bomb, unlit-bomb, fire-bomb
+OK iron     Bronze Dragon Roost                sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+OK iron     Burrow                             hole, black-hole-bolas, wind-hole, hole-ladder, dig-hole
+OK iron     Coin Machine                       coins, two-coins, coins-pile, crown-coin
+OK iron     Contraption                        gears, cog, cog-lock
+OK iron     Dwarven Forgery                    anvil, anvil-impact
+OK iron     Energy Junction                    energy-arrow, energy-breath, energy-shield, embrassed-energy, rolling-energy, energy-sword
+OK iron     Gatling Gun                        minigun, laser-gun, bolter-gun, ray-gun, sentry-gun, field-gun
+OK iron     Glaive Master                      glaive, chakram
+OK iron     Goblin Stronghold                  goblin, goblin-camp, goblin-head, castle, elven-castle, castle-ruins
+OK iron     Grab-o-Bot                         grab, robot-grab, o-brick, vintage-robot, robot-golem, robot-leg
+OK iron     Helicopter Zone                    helicopter, helicopter-tail, death-zone, broken-heart-zone, fire-zone
+OK iron     Lesser Iron Defender               soldering-iron, iron-mask, iron-cross, tire-iron-cross, tire-iron, iron-hulled-warship
+OK iron     Marine                             flamethrower-soldier
+OK iron     Militia Watchtower                 watchtower, clock-tower, tarot-16-the-tower, tower-fall, white-tower, stone-tower
+OK iron     Miner                              mining, mining-helmet
+OK iron     Mossy Acid Sprayer                 acid, acid-shield, acid-tube, acid-blob
+OK iron     Nuclear Missile Launcher           nuclear, nuclear-bomb, nuclear-waste, nuclear-plant, missile-pod, missile-mech
+OK iron     Obelisk of Fortuity                obelisk
+OK iron     Particle Accelerator               atom, atom-core
+OK iron     Rowing Boat                        boat-horizon, boat-fishing, paper-boat, fishing-boat, speed-boat, boat-propeller
+OK iron     Rundown Iron Sentry                soldering-iron, iron-mask, iron-cross, tire-iron-cross, tire-iron, iron-hulled-warship
+OK iron     Sewer Connection                   pipe-organ, pipes, straight-pipe, smoking-pipe, lead-pipe, warp-pipe
+OK iron     Silver Knight                      silver-bullet, chess-knight, mounted-knight, knight-banner, black-knight-helm
+OK iron     Small Pocket Rocket                rocket, firework-rocket, rocket-flight, incoming-rocket, rocket-thruster
+OK iron     Small Ray Blaster                  ray-gun, target-laser, laser-gun, laser-warning, laser-sparks, laser-blast
+OK iron     Sniper                             rifle, winchester-rifle
+OK iron     Solar Collector                    sun, heraldic-sun, tarot-19-the-sun, sun-radiations, boomerang-sun, barbed-sun
+OK iron     The Steam Engine                   steam, steam-locomotive, steam-blast
+OK iron     Trash Heap                         trash-can
+OK iron     Valor                              shield, acid-shield, round-shield, surrounded-shield, broken-shield, magic-shield
+OK iron     Wooden Trap                        wooden-sign, wooden-door, wooden-fence, wooden-helmet, wooden-clogs, wooden-pegleg
+OK iron     Xeno Research Facility             cracked-alien-skull, alien-skull, alien-fire, alien-stare, alien-bug, alien-egg
+OK nature   Afflicted Obelisk                  obelisk
+OK nature   Annoyed Tree                       birch-trees, willow-tree, tree-branch, lightning-tree, checkbox-tree, pine-tree
+OK nature   Baby Plant                         sprout, sprout-disc, ground-sprout, plants-and-animals, plant-roots, plant-seed
+OK nature   Bonk, the Living Mountain          mountain, mountain-climbing, mountains, mountain-cave, mountain-road
+OK nature   Cenarion                           stag-head
+OK nature   Coconut Sapling                    coconuts, sprout, sprout-disc, ground-sprout, palm, magic-palm
+OK nature   Cute Small Spider                  spider-web, hanging-spider, angular-spider, masked-spider, long-legged-spider, spider-alt
+OK nature   Forest Archer                      forest, circle-forest, forest-entrance, forest-camp, burning-forest, archer
+OK nature   Forest Protectress                 forest, circle-forest, forest-entrance, forest-camp, burning-forest
+OK nature   Forest Troll                       forest, circle-forest, forest-entrance, forest-camp, burning-forest, troll
+OK nature   Garden of Eden                     shiny-apple, apple-seeds, apple-maggot, apple-core
+OK nature   Green Dragon Roost                 sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+-- nature   Greyfang                           
+OK nature   Inexperienced Huntress             archer
+OK nature   Jungle Stalker                     jungle, tiger, tiger-head, claws, grasping-claws, steel-claws
+OK nature   Lesser Natural Defender            shield, acid-shield, round-shield, surrounded-shield, broken-shield, magic-shield
+OK nature   Lesser Wolves Den                  wolf-howl, wolf-trap, wolf-head
+OK nature   Magic Mushroom                     magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK nature   Morphling                          water, water-mill, water-drop, water-splash, water-bolt, water-flask
+OK nature   Mud Golem                          robot-golem, golem-head, metal-golem-head, ice-golem, rock-golem
+OK nature   Nature Sprites                     fairy, fairy-wand, fairy-wings
+OK nature   Poison Battery                     poison, poison-cloud, poison-bottle, poison-gas, battery-pack, battery-pack-alt
+-- nature   Razorboar Thornweaver              
+OK nature   Regenerating Well                  well
+OK nature   Rooted Chasm                       spiky-pit
+OK nature   Sacred Altar                       star-altar, sword-altar
+OK nature   Skink                              lizard-tongue, gecko
+OK nature   Small Cactus                       cactus, cactus-pot, cactus-tap
+OK nature   Tiny Shrub                         berry-bush
+OK nature   Tree Stump                         birch-trees, willow-tree, tree-branch, lightning-tree, checkbox-tree, pine-tree
+OK nature   Wild Warbeast                      beast-eye, wolf-howl, wolf-trap, wolf-head
+OK storm    Ancient Energy Converter           energy-arrow, energy-breath, energy-shield, embrassed-energy, rolling-energy, energy-sword
+OK storm    Arcane Storm                       lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Broken Circle of Wind              circle, circle-sparks, circle-cage, fangs-circle, circle-claws, circle-forest
+OK storm    Broken Lightning Rod               chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber, heavy-lightning
+OK storm    Chaining Storm                     lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Charged Obelisk                    charged-arrow, obelisk
+OK storm    Cloud Warrior                      cloud, poison-cloud, mushroom-cloud, dust-cloud, cloud-ring, fluffy-cloud
+OK storm    Cloudy Temple of Absorption        cloudy-fork, byzantin-temple, temple-gate, greek-temple, temple-door, egyptian-temple
+OK storm    Dimensional Flux Collector         vortex, solar-power, solar-system, solar-time
+OK storm    Gnoll Thunder Mage                 hyena-head, thunder-struck, thunder-skull, thunder-blade, wizard-staff, wizard-face
+OK storm    Green Lightning                    chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber, heavy-lightning
+OK storm    Gryphon Rider                      griffin-shield, griffin-symbol
+OK storm    Harpy Witch                        harpy, witch-flight, witch-face
+OK storm    Lesser Storm Defender              lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Lightning Eye                      chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber, heavy-lightning
+OK storm    Lightning Generator                chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber, heavy-lightning
+OK storm    Lightning Totem                    chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber, heavy-lightning
+OK storm    Phantom                            ghost, ghost-ally, floating-ghost
+OK storm    Prince of Lightning                frog-prince, chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Red Ball Lightning                 cracked-ball-dunk, wrecking-ball, striking-balls, caged-ball, dragon-balls, noodle-ball
+OK storm    Rotted Flashing Grave              tombstone, pirate-grave, hasty-grave, grave-flowers
+-- storm    Ruined Monolith                    
+OK storm    Ruined Storm Cap                   lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Ruined Wind Tower                  wind-slap, wind-hole, wind-turbine, clock-tower, tarot-16-the-tower, tower-fall
+OK storm    Scales                             scales, shoulder-scales, metal-scales, dorsal-scales, fish-scales, stegosaurus-scales
+OK storm    Spell Collector                    music-spell, spell-book, ice-spell-cast, fire-spell-cast, bolt-spell-cast, solar-power
+OK storm    Storm Battery                      lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Storm Coil                         lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Storm Focus                        lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Stormy Dog                         dog-bowl, hot-dog, sitting-dog, sniffing-dog, balloon-dog, dog-house
+OK storm    The Conduit                        chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber, heavy-lightning
+OK storm    Tiny Storm Lantern                 lightning-storm, book-storm, chain-lightning, lightning-frequency, lightning-tree, lightning-saber
+OK storm    Zealot                             monk-face
+OK storm    Zeus                               zeus-sword, chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber

@@ -1,0 +1,315 @@
+OK unique   Artifact of Skadi                  glowing-artifact
+OK common   Claws of Attack                    claws, grasping-claws, steel-claws, flame-claws, interleaved-claws, wolverine-claws
+OK uncommon Vulshok's Claws                    s-brick, claws, grasping-claws, steel-claws, flame-claws, interleaved-claws
+OK uncommon Dragon's Heart                     sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+OK uncommon Archer's Hood                      archer, pocket-bow, lightning-bow, bow-string, bow-tie-ribbon, bow-arrow
+OK uncommon Wizard Staff                       wizard-staff, wizard-face, crescent-staff, skull-staff
+OK uncommon Heavy Gun                          stapler-heavy-duty, heavy-thorny-triskelion, heavy-rain, heavy-lightning, heavy-timer, heavy-fall
+OK rare     Enchanted Mining Pick              mining, mining-helmet, card-pick, pick-of-destiny, war-pick
+OK unique   Backpack                           backpack, light-backpack
+OK rare     Cursed Claw                        cursed-star, claw, plate-claw, grasping-claws, steel-claws, flame-claws
+OK common   Land Mine                          land-mine, mine-explosion, teller-mine, mine-truck, mine-wagon, gold-mine
+-- common   Magical Essence                    
+OK unique   Stasis Trap                        time-trap, sinking-trap, wolf-trap, trap-mask, grease-trap, gift-trap
+OK rare     Fist of Doom                       fist, mailed-fist, thor-fist
+OK common   Outworn Spell Book                 music-spell, spell-book, ice-spell-cast, fire-spell-cast, bolt-spell-cast, white-book
+OK common   Ninja Glaive                       ninja-mask, ninja-star, ninja-heroic-stance, running-ninja, ninja-head, ninja-velociraptor
+OK unique   Cruel Torch                        torch, primitive-torch
+OK unique   Enchanted Knives                   kitchen-knives
+OK uncommon Survival Kit                       drum-kit, first-aid-kit
+OK uncommon Combat Gloves                      gloves, winter-gloves
+OK common   Orc War Spear                      orc-head, war-pick, war-bonnet, war-axe, great-war-tank, spear-hook
+OK rare     Divine Shield                      shield, acid-shield, round-shield, surrounded-shield, broken-shield, magic-shield
+OK rare     Love Potion                        love-injection, self-love, love-howl, love-song, royal-love, love-mystery
+-- uncommon Moonsilver Circlet                 
+OK uncommon Crystal Staff                      crystal-wand, floating-crystal, crystal-shine, crystal-bars, crystal-eye, crystal-cluster
+OK uncommon Lightning Boots                    chain-lightning, lightning-storm, lightning-frequency, lightning-tree, lightning-saber, heavy-lightning
+OK uncommon Claws of the Bear                  claws, grasping-claws, steel-claws, flame-claws, interleaved-claws, wolverine-claws
+OK uncommon Ceremonial Skull                   ceremonial-mask, skull, death-skull, tentacles-skull, skull-bolt, goo-skull
+OK common   Scroll of Myths                    tied-scroll, scroll-unfurled, scroll-quill
+OK uncommon Tome of Shadow Magic               shadow-follower, lightning-shadow, shadow-grasp, two-shadows, bottled-shadow, magic-shield
+OK uncommon Zombie Hand                        raise-zombie, shambling-zombie, hand, evil-hand, metal-hand, glowing-hands
+OK rare     Phoenix Egg                        big-egg, egg-pod, egg-clutch, dinosaur-egg, egg-defense, alien-egg
+OK common   Bomb Shells                        time-bomb, paper-bomb, letter-bomb, rolling-bomb, unlit-bomb, fire-bomb
+OK uncommon Hand of Ruin                       hand, evil-hand, metal-hand, glowing-hands, black-hand-shield, poker-hand
+OK unique   Bonk's Face                        s-brick, pig-face, double-face-mask, doctor-face, bear-face, spider-face
+OK common   Magic Branch                       magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK common   Mini Sheep                         mini-submarine, sheep
+OK common   Pirate Map                         pirate-skull, pirate-grave, pirate-flag, pirate-hat, pirate-hook, pirate-captain
+OK common   Piece of Meat                      piece-skull, jigsaw-piece, meat, meat-hook, meat-cleaver, manual-meat-grinder
+OK common   Gargoyle Wing                      gargoyle, evil-wings, curly-wing, bat-wing, wing-cloak, feathered-wing
+-- uncommon Ancient Figurine                   
+-- unique   Sleeve of Rage                     
+OK uncommon Wine of Aluqah                     wine-glass, wine-bottle
+OK uncommon Mask of Sanity                     android-mask, pumpkin-mask, drama-masks, totem-mask, lightning-mask, iron-mask
+-- unique   Excalibur                          
+OK uncommon Minds Key                          key, three-keys, skeleton-key, usb-key, key-card, star-key
+OK common   Mana Shell                         opening-shell, turtle-shell, backbone-shell, sewed-shell, twin-shell, armoured-shell
+OK rare     Lucky Dice                         lucky-fisherman, inverted-dice-6, inverted-dice-5, inverted-dice-4, inverted-dice-1, inverted-dice-3
+OK rare     Scepter of the Lunar Light         winged-scepter, bird-scepter, moon, tarot-18-the-moon, moon-claws, evil-moon
+OK rare     Magic Hammer                       magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK uncommon Battle Suit                        battle-gear, battle-axe, battle-tank, battle-mech, suits, space-suit
+OK uncommon Zombie Head                        raise-zombie, shambling-zombie, deer-head, hyena-head, head-shot, mace-head
+-- uncommon Morgul Slave                       
+OK uncommon Tiny Rabbit                        rabbit, rabbit-head
+OK uncommon Flaming Arrow                      flaming-trident, flaming-arrow, flaming-sheet, flaming-claw, frozen-arrow, energy-arrow
+OK unique   Bhaal's Essence                    s-brick
+OK common   Electrified Horseshoe              horseshoe
+OK unique   War Drum                           war-pick, war-bonnet, war-axe, great-war-tank, drum, drum-kit
+OK rare     Silver Armor                       silver-bullet, armor-blueprint, armor-vest, spiked-armor, layered-armor, trench-body-armor
+OK unique   Flag of the Allegiance             flying-flag, black-flag, tusks-flag, golf-flag, pirate-flag, checkered-flag
+-- unique   Golden Decoration                  
+OK unique   Jewels of the Moon                 moon, tarot-18-the-moon, moon-claws, evil-moon, falcon-moon, moon-orbit
+OK uncommon Magic Vial                         magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK common   Small Stone                        stone-sphere, stone-block, stone-tower, stone-spear, rune-stone, stone-axe
+OK common   Fairy's Wand                       fairy, fairy-wand, fairy-wings, s-brick, orb-wand, crystal-wand
+OK common   Fancy Lights                       double-street-lights, traffic-lights-green, traffic-lights-ready-to-go, traffic-lights-orange, traffic-lights-red
+OK common   Floating Mark                      floating-crystal, floating-tentacles, floating-platforms, floating-ghost, skid-mark, cross-mark
+OK common   Blunt Club                         club, card-jack-clubs, card-queen-clubs, card-6-clubs, card-10-clubs, card-7-clubs
+-- common   Ledger                             
+-- common   Collection of Stories              
+OK common   Old Spear                          spear-hook, barbed-spear, stone-spear, thrown-spear, spears, ice-spear
+OK common   Primitive Flute                    primitive-necklace, primitive-torch, flute, pan-flute
+OK common   Wooden Leg                         wooden-sign, wooden-door, wooden-fence, wooden-helmet, wooden-clogs, wooden-pegleg
+OK uncommon Axe of Decapitation                stone-axe, wood-axe, crossed-axes, axe-in-stump, battle-axe, axe-swing
+OK common   Void Vial                          black-hole-bolas, vial
+OK rare     Claws of Ursus                     claws, grasping-claws, steel-claws, flame-claws, interleaved-claws, wolverine-claws
+OK uncommon Claws of Wisdom                    claws, grasping-claws, steel-claws, flame-claws, interleaved-claws, wolverine-claws
+-- common   Inscribed Bark                     
+OK common   Rusted Rifle                       rifle, winchester-rifle
+OK common   Short Sword                        underwear-shorts, shorts, sword-hilt, shard-sword, dervish-swords, sword-array
+-- uncommon Pillage Tools                      
+OK uncommon Touch of a Spirit                  spark-spirit, ghost, ghost-ally, floating-ghost
+OK uncommon Periscope                          periscope
+-- uncommon Ancient Inscribed Bark             
+OK uncommon Blessed Holy Scepter               holy-grail, holy-symbol, holy-water, holy-hand-grenade, holy-oak, spiked-halo
+OK uncommon Blunderbuss Rifle                  blunderbuss, rifle, winchester-rifle
+OK uncommon Thick Tree Branch                  birch-trees, willow-tree, tree-branch, lightning-tree, checkbox-tree, pine-tree
+OK uncommon Undead Spiked Claws                clover-spiked, spiked-halo, spiked-snail, spiked-collar, spiked-tentacle, spiked-armor
+OK common   Dull Axe                           stone-axe, wood-axe, crossed-axes, axe-in-stump, battle-axe, axe-swing
+OK uncommon Hunting Map                        hunting-horn, hunting-bolas, treasure-map
+-- common   Shimmerweed                        
+OK common   Inscribed Pebble                   stone-sphere, stone-block, stone-tower, stone-spear, rune-stone, stone-axe
+OK common   Gift of the Wild                   gift-of-knowledge, gift-trap
+OK common   Mining Lamp                        mining, mining-helmet, magic-lamp, desk-lamp, flexible-lamp, bed-lamp
+OK uncommon Voodoo Doll                        voodoo-doll, matryoshka-dolls
+OK uncommon Spiked Club                        clover-spiked, spiked-halo, spiked-snail, spiked-collar, spiked-tentacle, spiked-armor
+OK uncommon Mini Tank                          mini-submarine, tank, battle-tank, chemical-tank, tank-tread, water-tank
+OK common   Faded Gloves                       gloves, winter-gloves
+OK common   Rusty Mining Pick                  rusty-sword, mining, mining-helmet, card-pick, pick-of-destiny, war-pick
+OK uncommon Arcane Eye                         eye, semi-closed-eye, eye-shield, sheikah-eye, worried-eyes, brass-eye
+OK rare     Thunder Gloves                     thunder-struck, thunder-skull, thunder-blade, gloves, winter-gloves
+-- uncommon Polarisator                        
+OK unique   Priest Figurine                    sun-priest
+OK common   Old Crystal Ball                   crystal-wand, floating-crystal, crystal-shine, crystal-bars, crystal-eye, crystal-cluster
+-- rare     Spiderling                         
+OK common   Spider Silk                        spider-web, hanging-spider, angular-spider, masked-spider, long-legged-spider, spider-alt
+OK common   Troll Voodoo Mask                  troll, voodoo-doll, android-mask, pumpkin-mask, drama-masks, totem-mask
+OK uncommon Expanding Mind                     hive-mind
+OK uncommon Magic Flower                       magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK uncommon Mark of the Talon                  skid-mark, cross-mark, check-mark, tally-mark-5
+OK uncommon Mark of the Claw                   skid-mark, cross-mark, check-mark, tally-mark-5, claw, plate-claw
+-- uncommon Flawless Sapphire                  
+OK common   Small Orb                          orb-wand, extraction-orb, orb-direction, smoking-orb, unstable-orb, double-ringed-orb
+OK uncommon Support Column                     life-support, ancient-columns, ionic-column, column-vase
+-- uncommon Obsidian Figurine                  
+OK uncommon Shadowfoot's Mantle                s-brick
+OK uncommon Blood Crown                        blood, crown, crown-of-thorns, sharp-crown, queen-crown, laurel-crown
+OK uncommon Sage's Mask                        wizard-staff, wizard-face, s-brick, android-mask, pumpkin-mask, drama-masks
+OK uncommon Knowing Mind                       hive-mind
+OK rare     Purifying Gloves                   gloves, winter-gloves
+OK common   Basic Wand                         orb-wand, crystal-wand, fairy-wand, lunar-wand
+-- rare     Medallion of Opulence              
+OK uncommon Troll Charm                        troll, charm
+OK uncommon Scroll of Piercing Magic           tied-scroll, scroll-unfurled, scroll-quill, piercing-sword, magic-shield, magic-lamp
+OK uncommon Mystical Shell                     opening-shell, turtle-shell, backbone-shell, sewed-shell, twin-shell, armoured-shell
+OK rare     Forcefield Generator               power-generator
+OK rare     Crescent Stone                     electrical-crescent, crescent-blade, concentric-crescents, crescent-staff, stone-sphere, stone-block
+-- uncommon Dumpster                           
+OK common   Plain Staff                        plain-dagger, plain-arrow, plain-square, plain-padlock, plain-circle, wizard-staff
+OK rare     Hippogryph Egg                     big-egg, egg-pod, egg-clutch, dinosaur-egg, egg-defense, alien-egg
+OK rare     Mana Stone                         stone-sphere, stone-block, stone-tower, stone-spear, rune-stone, stone-axe
+OK unique   Dagger of Bane                     sacrificial-dagger, thrown-daggers, cloak-dagger, broad-dagger, flying-dagger, diving-dagger
+-- rare     The Sucona                         
+OK uncommon Beast Head                         beast-eye, deer-head, hyena-head, head-shot, mace-head, totem-head
+OK common   Training Manual                    manual-juicer, manual-water-pump, manual-meat-grinder
+OK uncommon Grand Seal of Pickiness            grand-piano, wax-seal, juggling-seal
+OK unique   Pendant of Promptness              gem-pendant, tribal-pendant, pendant-key
+OK rare     Bartuc's Spirit                    s-brick, spark-spirit, ghost, ghost-ally, floating-ghost
+OK uncommon Diamond of Greed                   diamond, card-7-diamonds, card-6-diamonds, card-jack-diamonds, card-king-diamonds, card-ace-diamonds
+-- unique   Chrono Jumper                      
+OK uncommon Magician's Doorkey                 tarot-01-the-magician, s-brick
+OK unique   Jah'Rakal's Fury                   s-brick
+OK common   Blunt Dagger                       sacrificial-dagger, thrown-daggers, cloak-dagger, broad-dagger, flying-dagger, diving-dagger
+OK uncommon Wanted List                        wanted-reward
+OK uncommon Shiny Emerald                      shiny-apple, shiny-purse, shiny-entrance, shiny-omega, shiny-iris, emerald
+OK rare     Toy Boy                            toy-mallet
+OK common   Dull Gem                           gem-pendant, gems, gem-necklace, gem-chain, fire-gem
+OK uncommon Naga Trident                       trident, flaming-trident, harpoon-trident, trident-shield, magic-trident
+OK unique   Jungle Stalker's Doll              jungle, tiger, tiger-head, claws, grasping-claws, steel-claws
+OK uncommon Panda Dress                        panda, dress, ample-dress, large-dress, travel-dress
+OK uncommon Wise Man's Cooking Recipe          tarot-12-the-hanged-man, gingerbread-man, strong-man, vitruvian-man, air-man, magnet-man
+OK rare     Writer's Knowledge                 s-brick, gift-of-knowledge, classical-knowledge
+OK common   Ring of Luck                       ring, fire-ring, linked-rings, engagement-ring, cloud-ring, swirl-ring
+OK rare     Elite Sharp Shooter                sharp-lips, sharp-crown, sharp-smile, sharp-shuriken, sharp-axe, sharp-halberd
+OK common   Holy Axe                           holy-grail, holy-symbol, holy-water, holy-hand-grenade, holy-oak, spiked-halo
+OK rare     Sign of Energy Infusion            hazard-sign, wooden-sign, hanging-sign, stop-sign, direction-signs, tavern-sign
+OK common   Enchanted Bird Figurine            bird-twitter, bird-limb, bird-mask, bird-claw, bird-house, bird-cage
+OK uncommon Mining Tools                       mining, mining-helmet
+OK uncommon Charged Disk                       charged-arrow
+OK common   Young Thief's Cloak                hood, robin-hood-hat, executioner-hood, warlock-hood, s-brick, cloak
+-- rare     Commander                          
+OK unique   Glaive of Supreme Follow Up        glaive, chakram, muscle-up, weight-lifting-up, thumb-up, up-card
+OK common   Skull Trophy                       skull, death-skull, tentacles-skull, skull-bolt, goo-skull, desert-skull
+OK common   Tooth Trophy                       tooth, saber-tooth, trophy, diamond-trophy, trophy-cup, laurels-trophy
+-- rare     Basics of Calculus                 
+OK rare     Wand of Mana Zap                   orb-wand, crystal-wand, fairy-wand, lunar-wand
+-- rare     Never-ending Keg                   
+OK common   Scarab Amulet                      scarab-beetle, gold-scarab
+OK common   Tree Branch                        birch-trees, willow-tree, tree-branch, lightning-tree, checkbox-tree, pine-tree
+OK uncommon Crystallized Scales                scales, shoulder-scales, metal-scales, dorsal-scales, fish-scales, stegosaurus-scales
+OK rare     Eternium Blade                     blade-fall, blade-drag, relic-blade, spinning-blades, blade-bite, crescent-blade
+OK common   Sacred Halo                        spiked-halo
+-- common   Railgun                            
+-- rare     Essence of Rot                     
+-- uncommon Toxic Chemicals                    
+OK common   Runed Wood                         wood-axe, dead-wood, wood-beam, wood-frame, full-wood-bucket-handle, wood-cabin
+OK common   Undead Claws                       claws, grasping-claws, steel-claws, flame-claws, interleaved-claws, wolverine-claws
+OK unique   Dark Matter Trident                dark-squad, matter-states, trident, flaming-trident, harpoon-trident, trident-shield
+-- rare     Ritual Talisman                    
+-- rare     Libram of Grace                    
+OK rare     Bloodthirsty Wheel of Fortune      spinning-wheel, tarot-10-wheel-of-fortune, bucket-wheel-excavator, steering-wheel, ship-wheel, car-wheel
+OK uncommon Spider Broach                      spider-web, hanging-spider, angular-spider, masked-spider, long-legged-spider, spider-alt
+OK unique   Mighty Tree's Acorns               mighty-spanner, mighty-boosh, mighty-horn, mighty-force, birch-trees, willow-tree
+OK unique   Soul Collectors Cloak              soul, soul-vessel, ghost, ghost-ally, floating-ghost, cloak
+OK common   Sniper                             rifle, winchester-rifle
+OK rare     Liquid Gold                        liquid-soap, gold-bar, gold-shell, gold-scarab, gold-stack, gold-nuggets
+OK uncommon Ogre Staff of Wisdom               ogre, wizard-staff, crescent-staff, skull-staff, wisdom
+OK rare     Staff of the Wild Equus            wizard-staff, crescent-staff, skull-staff
+OK common   Heavy Crossbow                     stapler-heavy-duty, heavy-thorny-triskelion, heavy-rain, heavy-lightning, heavy-timer, heavy-fall
+OK uncommon Demonic Orb                        orb-wand, extraction-orb, orb-direction, smoking-orb, unstable-orb, double-ringed-orb
+OK uncommon Speed Demon's Reward               speed-boat, s-brick, wanted-reward
+OK uncommon Deep Shadows                       two-shadows
+OK unique   Staff of Essence                   wizard-staff, crescent-staff, skull-staff
+OK uncommon Bones of Essence                   crossed-bones, skull-crossed-bones, dinosaur-bones
+OK uncommon Aqueous Vapor                      bottle-vapors
+OK uncommon Glowing Gauntlets                  glowing-hands, glowing-artifact
+OK rare     Magnetic Field                     field, bubble-field, forward-field, spiky-field, field-gun, footy-field
+OK unique   Frog Pipe                          frog, frog-mouth-helm, paper-frog, frog-foot, frog-prince, pipe-organ
+OK uncommon Dowsing Rod                        rod-of-asclepius
+-- unique   Spellbook of Item Mastery          
+OK unique   Even More Magical Hammer           gear-hammer, claw-hammer, flat-hammer, hammer-nails, hammer-drop, hammer-sickle
+OK rare     Optimist's Preserved Face          s-brick, pig-face, double-face-mask, doctor-face, bear-face, spider-face
+OK rare     Sword of Reckoning                 sword-hilt, shard-sword, dervish-swords, sword-array, striped-sword, sword-spade
+OK uncommon Sparkling Staff                    sparkling-sabre, wizard-staff, crescent-staff, skull-staff
+OK rare     Sword of Decay                     sword-hilt, shard-sword, dervish-swords, sword-array, striped-sword, sword-spade
+-- rare     Mindleecher                        
+OK unique   M.E.F.I.S. Rocket                  f-clef, sverd-i-fjell, i-brick, i-beam, s-brick, rocket
+OK unique   Fragmentation Round                round-potion, round-shield, round-struck, round-bottom-flask, burning-round-shot, round-table
+OK unique   Grounding Gloves                   gloves, winter-gloves
+OK uncommon Orb of Souls                       orb-wand, extraction-orb, orb-direction, smoking-orb, unstable-orb, double-ringed-orb
+OK uncommon Bloodthirsty Axe                   stone-axe, wood-axe, crossed-axes, axe-in-stump, battle-axe, axe-swing
+OK rare     Shining Rock                       shining-claw, shining-heart, shining-sword, rock, falling-rocks, rock-golem
+OK rare     Lich Mask                          skull, death-skull, tentacles-skull, skull-bolt, goo-skull, desert-skull
+OK rare     Brimstone Helmet                   helmet, warlord-helmet, helmet-head-shot, crested-helmet, wooden-helmet, brodie-helmet
+OK unique   Overcharge Shot                    head-shot, cpu-shot, hydra-shot, high-shot, helmet-head-shot, target-shot
+OK unique   Pendant of Mana Supremacy          gem-pendant, tribal-pendant, pendant-key
+OK rare     Share Knowledge                    share, gift-of-knowledge, classical-knowledge
+OK uncommon Blaster Staff                      ray-gun, target-laser, laser-gun, laser-warning, laser-sparks, laser-blast
+OK uncommon Enchanted Telescope                telescope
+OK rare     Book of Knowledge                  white-book, black-book, open-book, book-aura, burning-book, evil-book
+OK uncommon Iron Leg                           soldering-iron, iron-mask, iron-cross, tire-iron-cross, tire-iron, iron-hulled-warship
+OK uncommon Master Thief's Shroud              hood, robin-hood-hat, executioner-hood, warlock-hood, s-brick
+OK uncommon Fiery Assassination Arrow          frozen-arrow, energy-arrow, cupidon-arrow, striking-arrows, slicing-arrow, chemical-arrow
+OK uncommon Unstable Current                   unstable-projectile, unstable-orb
+OK unique   Lunar Essence                      moon, tarot-18-the-moon, moon-claws, evil-moon, falcon-moon, moon-orbit
+OK rare     Bloody Key                         bloody-sword, bloody-stash, key, three-keys, skeleton-key, usb-key
+OK uncommon Razor Sharp Dagger                 razor, razor-blade, sharp-lips, sharp-crown, sharp-smile, sharp-shuriken
+OK unique   The Divine Wings of Tragedy        evil-wings, angel-wings, heart-wings, fairy-wings, arrow-wings
+OK rare     Currency Converter                 credits-currency
+OK uncommon Ring of Chance                     ring, fire-ring, linked-rings, engagement-ring, cloud-ring, swirl-ring
+-- common   Strange Item                       
+OK common   Elegant Ring                       ring, fire-ring, linked-rings, engagement-ring, cloud-ring, swirl-ring
+OK uncommon Hermit Staff                       tarot-09-the-hermit, wizard-staff, crescent-staff, skull-staff
+OK uncommon Veteran's Tome of Battle           s-brick, battle-gear, battle-axe, battle-tank, battle-mech
+OK rare     Enchanted Gear                     battle-gear, gear-hammer, gears, big-gear, gear-stick-pattern, tribal-gear
+OK rare     Secret Tome of Magic               secret-door, secret-book, magic-shield, magic-lamp, magic-palm, magic-portal
+OK rare     Secret Tome of Mana                secret-door, secret-book
+OK unique   Mini Forest Troll                  mini-submarine, forest, circle-forest, forest-entrance, forest-camp, burning-forest
+OK unique   Holy Hand Grenade                  holy-grail, holy-symbol, holy-water, holy-hand-grenade, holy-oak, spiked-halo
+OK rare     Old Hunter                         hunter-eyes
+-- uncommon Monocle                            
+OK rare     Arms Dealer                        master-of-arms
+OK unique   Circle of Power                    circle, circle-sparks, circle-cage, fangs-circle, circle-claws, circle-forest
+OK rare     Haunted Hand                       hand, evil-hand, metal-hand, glowing-hands, black-hand-shield, poker-hand
+OK rare     Chameleons Soul                    soul, soul-vessel, ghost, ghost-ally, floating-ghost
+OK unique   Pocket Emporium                    rocket, firework-rocket, rocket-flight, incoming-rocket, rocket-thruster
+OK unique   Golden Trident                     trident, flaming-trident, harpoon-trident, trident-shield, magic-trident
+OK unique   Crit Blade                         blade-fall, blade-drag, relic-blade, spinning-blades, blade-bite, crescent-blade
+-- rare     Arcane Script                      
+OK unique   Soul Collector's Scythe            soul, soul-vessel, ghost, ghost-ally, floating-ghost, solar-power
+OK unique   Doom's Ensign                      s-brick, boar-ensign
+-- unique   Distorted Idol                     
+OK rare     Ball Lightning                     cracked-ball-dunk, wrecking-ball, striking-balls, caged-ball, dragon-balls, noodle-ball
+OK uncommon Dragon Claws                       sea-dragon, double-dragon, dragon-balls, dragon-head, dragon-breath, dragon-spiral
+-- uncommon Shrapnel Ammunition                
+OK rare     Spear of the Malphai               spear-hook, barbed-spear, stone-spear, thrown-spear, spears, ice-spear
+OK uncommon Quicktrigger Blade                 blade-fall, blade-drag, relic-blade, spinning-blades, blade-bite, crescent-blade
+OK rare     Crystalline Arrow                  frozen-arrow, energy-arrow, cupidon-arrow, striking-arrows, slicing-arrow, chemical-arrow
+OK unique   Vampiric Skull                     skull, death-skull, tentacles-skull, skull-bolt, goo-skull, desert-skull
+OK rare     Granite Hammer                     gear-hammer, claw-hammer, flat-hammer, hammer-nails, hammer-drop, hammer-sickle
+OK uncommon Ogre Battle Axe                    ogre, battle-gear, battle-axe, battle-tank, battle-mech, stone-axe
+OK unique   Spear of Loki                      spear-hook, barbed-spear, stone-spear, thrown-spear, spears, ice-spear
+OK uncommon Magic Link                         magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK unique   Elunes Bow                         pocket-bow, lightning-bow, bow-string, bow-tie-ribbon, bow-arrow, ship-bow
+OK unique   Elunes Quiver                      quiver
+OK unique   Soul Extractor                     soul, soul-vessel, ghost, ghost-ally, floating-ghost, drill
+-- rare     Stunner                            
+OK rare     El Bastardo                        rub-el-hizb
+OK common   Magic Gloves                       magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+OK rare     Scroll of Strength                 tied-scroll, scroll-unfurled, scroll-quill, strength, tarot-08-strength
+OK rare     Scroll of Speed                    tied-scroll, scroll-unfurled, scroll-quill, speed-boat
+OK unique   Portable Tombstone                 tombstone, pirate-grave, hasty-grave, grave-flowers
+-- unique   Workbench                          
+OK rare     Phase Gloves                       gloves, winter-gloves
+OK common   Assassination Arrow                frozen-arrow, energy-arrow, cupidon-arrow, striking-arrows, slicing-arrow, chemical-arrow
+OK rare     Amulet of Strength                 strength, tarot-08-strength
+OK unique   Magic Conductor                    magic-shield, magic-lamp, magic-palm, magic-portal, magic-gate, magic-swirl
+-- uncommon Unyielding Maul                    
+OK unique   Faithful Staff                     wizard-staff, crescent-staff, skull-staff
+OK unique   Lucky Gem                          lucky-fisherman, gem-pendant, gems, gem-necklace, gem-chain, fire-gem
+OK rare     Shackles of Time                   hourglass, empty-hourglass, time, time-bomb, time-trap, sands-of-time
+OK unique   Chameleon Glaive                   chameleon-glyph, glaive, chakram
+OK unique   Helm of Insanity                   frog-mouth-helm, cracked-helm, heavy-helm, visored-helm, horned-helm, brutal-helm
+OK common   Oil of Sharpness                   oil-drum, oil-rig, oil-can, oil-pump
+OK uncommon Arcane Oil of Sharpness            oil-drum, oil-rig, oil-can, oil-pump
+OK rare     Divine Oil of Sharpness            oil-drum, oil-rig, oil-can, oil-pump
+OK common   Oil of Magic                       oil-drum, oil-rig, oil-can, oil-pump, magic-shield, magic-lamp
+OK uncommon Arcane Oil of Magic                oil-drum, oil-rig, oil-can, oil-pump, magic-shield, magic-lamp
+OK rare     Divine Oil of Magic                oil-drum, oil-rig, oil-can, oil-pump, magic-shield, magic-lamp
+OK common   Oil of Accuracy                    oil-drum, oil-rig, oil-can, oil-pump
+OK uncommon Arcane Oil of Accuracy             oil-drum, oil-rig, oil-can, oil-pump
+OK rare     Divine Oil of Accuracy             oil-drum, oil-rig, oil-can, oil-pump
+OK common   Oil of Swiftness                   oil-drum, oil-rig, oil-can, oil-pump
+OK uncommon Arcane Oil of Swiftness            oil-drum, oil-rig, oil-can, oil-pump
+OK rare     Divine Oil of Swiftness            oil-drum, oil-rig, oil-can, oil-pump
+OK common   Oil of Sorcery                     oil-drum, oil-rig, oil-can, oil-pump
+OK uncommon Arcane Oil of Sorcery              oil-drum, oil-rig, oil-can, oil-pump
+OK rare     Divine Oil of Sorcery              oil-drum, oil-rig, oil-can, oil-pump
+OK uncommon Oil of Exuberance                  oil-drum, oil-rig, oil-can, oil-pump
+OK rare     Arcane Oil of Exuberance           oil-drum, oil-rig, oil-can, oil-pump
+OK uncommon Seeker's Oil                       s-brick, oil-drum, oil-rig, oil-can, oil-pump
+OK rare     Seeker's Arcane Oil                s-brick, oil-drum, oil-rig, oil-can, oil-pump
+OK uncommon Oil of Lore                        oil-drum, oil-rig, oil-can, oil-pump
+OK rare     Arcane Oil of Lore                 oil-drum, oil-rig, oil-can, oil-pump
+-- unique   Tears of the Gods                  
+-- unique   Pure Aether                        
+OK unique   Wizard's Soul                      wizard-staff, wizard-face, s-brick, soul, soul-vessel, ghost
+OK common   Book of Force                      white-book, black-book, open-book, book-aura, burning-book, evil-book
+OK common   Consumable Plant                   sprout, sprout-disc, ground-sprout, plants-and-animals, plant-roots, plant-seed
+OK uncommon Consumable Chicken                 chicken, roast-chicken, chicken-leg, chicken-oven
+OK rare     Mine Cart                          land-mine, mine-explosion, teller-mine, mine-truck, mine-wagon, gold-mine
+OK rare     Consumable Piggy                   piggy-bank
+OK uncommon Arcane Book of Power               white-book, black-book, open-book, book-aura, burning-book, evil-book
+OK rare     Divine Book of Omnipotence         white-book, black-book, open-book, book-aura, burning-book, evil-book
+OK unique   Consumable Hobbit                  hobbit-dwelling, hobbit-door
