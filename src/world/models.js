@@ -2,8 +2,9 @@
 // the game ships without external assets; bloom does the heavy lifting on glow.
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ELEMENTS, RARITIES, RACES } from '../data/constants.js';
-import { attachTowerGlb, attachCreepGlb, loadGlb } from './glb-models.js';
+import { attachTowerGlb, attachCreepGlb, prepareCreepGlb } from './glb-models.js';
 import { CREEP_MODEL_MAP } from '../data/model-map.js';
 
 const matCache = new Map();
@@ -462,6 +463,62 @@ const TOWER_BUILDERS = {
   },
 };
 
+// ------------------------------------------------------------------ static batching
+
+// Objects an animation hook moves; meshes under them must stay separate.
+function animatedRoots(anim) {
+  const out = new Set();
+  const put = (o) => { if (o?.isObject3D) out.add(o); };
+  for (const k of ['spin', 'bob', 'orbit']) for (const h of anim[k]) put(h.obj);
+  for (const f of anim.flicker) put(f);
+  for (const p of anim.pulse) put(p);
+  for (const f of anim.flap) { put(f.l); put(f.r); }
+  for (const k of ['head', 'barrels', 'press', 'hammer', 'scythe']) put(anim[k]);
+  return out;
+}
+
+const attrKey = (geo) => Object.keys(geo.attributes).sort().join(',');
+
+// Merged static geometry per tower kind, shared by every tower of that kind.
+const batchCache = new Map();
+
+// Replaces the static meshes under `root` (skipping `skip` and animated parts) with
+// one merged mesh per material and shadow setting, so a tower costs a few draw calls
+// instead of dozens. Transforms are baked relative to `root`.
+function mergeStatic(root, anim, skip, key) {
+  const moving = animatedRoots(anim);
+  const statics = [];
+  // Glowing parts barely darken anything; skipping them saves shadow-pass draws.
+  root.traverse((o) => { if (o.isMesh && o.material.emissiveIntensity >= 1.5) o.castShadow = false; });
+  root.updateMatrixWorld(true);
+  const rootInv = root.matrixWorld.clone().invert();
+  root.traverse((o) => {
+    if (!o.isMesh || o.isSkinnedMesh || Array.isArray(o.material) || !o.visible) return;
+    for (let p = o; p && p !== root; p = p.parent) if (moving.has(p) || p === skip) return;
+    statics.push(o);
+  });
+  if (statics.length < 2) return;
+  let batches = batchCache.get(key);
+  if (!batches) {
+    const groups = new Map();
+    for (const m of statics) {
+      const geo = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrixWorld.clone().premultiply(rootInv));
+      const k = `${m.material.uuid}|${m.castShadow}|${m.receiveShadow}|${attrKey(geo)}`;
+      if (!groups.has(k)) groups.set(k, { material: m.material, cast: m.castShadow, receive: m.receiveShadow, geos: [] });
+      groups.get(k).geos.push(geo);
+    }
+    batches = [...groups.values()].map((b) => ({ ...b, geometry: mergeGeometries(b.geos), geos: null }));
+    batchCache.set(key, batches);
+  }
+  for (const m of statics) m.removeFromParent();
+  for (const b of batches) {
+    const mesh = new THREE.Mesh(b.geometry, b.material);
+    mesh.castShadow = b.cast; mesh.receiveShadow = b.receive;
+    mesh.userData.batched = true;
+    root.add(mesh);
+  }
+}
+
 export function buildTowerModel(def) {
   const g = new THREE.Group();
   const anim = { spin: [], bob: [], orbit: [], flicker: [], flap: [], pulse: [], head: null, headYaw: false };
@@ -476,7 +533,8 @@ export function buildTowerModel(def) {
   // The top group stands on the dais and scales about its base, so the model
   // grows upward instead of sinking into the steps.
   const onSwap = (muzzleY) => { g.userData.muzzleY = y + muzzleY * s; g.dispatchEvent({ type: 'modelswap' }); };
-  let muzzle = def.glb ? attachTowerGlb(top, def.glb, anim, 0, onSwap) : null;
+  const muzzleFromGlb = def.glb ? attachTowerGlb(top, def.glb, anim, 0, onSwap) : null;
+  let muzzle = muzzleFromGlb;
   if (muzzle == null) muzzle = (TOWER_BUILDERS[def.model] || TOWER_BUILDERS.crystal)(top, color, 0, def.tier, anim);
   top.scale.setScalar(s);
   if (def.rarity === 'unique') {
@@ -485,6 +543,10 @@ export function buildTowerModel(def) {
   }
   // Record base positions for bobbing parts.
   for (const b of anim.bob) b.base = b.obj.position.y;
+  // A procedural stand-in for a curated model still loading is about to be swapped
+  // out of `top`, so only the dais is merged in that case.
+  const standIn = def.glb && muzzleFromGlb == null;
+  mergeStatic(g, anim, standIn ? top : null, `${def.id}|${standIn ? 'dais' : 'all'}`);
   g.userData.anim = anim;
   g.userData.muzzleY = y + muzzle * s;
   g.userData.height = y + muzzle * s;
@@ -621,7 +683,9 @@ function creepModelSpec(creep) {
 
 // Creep models are few and needed from the first wave, so fetch them up front.
 export function preloadCreepModels() {
-  for (const kinds of Object.values(CREEP_MODEL_MAP)) for (const v of Object.values(kinds)) loadGlb(typeof v === 'string' ? v : v.id);
+  for (const kinds of Object.values(CREEP_MODEL_MAP)) {
+    for (const [kind, v] of Object.entries(kinds)) prepareCreepGlb(typeof v === 'string' ? { id: v } : v, kind === 'air');
+  }
 }
 
 export function buildCreepModel(creep) {
@@ -659,6 +723,7 @@ export function buildCreepModel(creep) {
   }
   const gild = () => {
     if (size === 'challenge' || size === 'challengeMass') {
+      if (A.crowd) A.crowd.gold = true;
       g.traverse((m) => { if (m.isMesh && !m.userData.keep && !(m.material.emissiveIntensity && m.material.emissive?.getHex())) m.material = mat(0xffd34a, { metal: 0.9, rough: 0.25 }); });
     }
   };

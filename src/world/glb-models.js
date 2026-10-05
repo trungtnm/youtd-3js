@@ -129,15 +129,40 @@ const CREEP_AIR_H = 1.3; // flyer body height; it hovers at FLY_Y
 const CREEP_R = 1.1;     // long-bodied creeps (wolves, dinosaurs) need room along their walk direction
 const FLY_Y = 2.6;
 
+// When set (by the game world), curated creeps are drawn by this CreepCrowd instead
+// of a cloned model per creep. The gallery leaves it unset and clones as before.
+let crowd = null;
+export function setCreepCrowd(c) { crowd = c; }
+
 // Replaces the procedural body in `body` (the creep's inner group) with the
 // model. Returns the model height, or null while loading.
+const crowdKey = (spec, air) => `${spec.id}|${air ? 'air' : 'ground'}|${spec.h ?? ''}|${spec.yaw ?? ''}`;
+const fitCreep = (gltf, spec, air) => fitted(gltf, { maxH: spec.h ?? (air ? CREEP_AIR_H : CREEP_H), maxR: CREEP_R, yaw: spec.yaw });
+const crowdModel = (gltf, spec, air) => crowd.get(crowdKey(spec, air))
+  || crowd.add(crowdKey(spec, air), fitCreep(gltf, spec, air), gltf.animations.length ? pickMove(gltf.animations, air) || pickIdle(gltf.animations) : null);
+
+// Loads a creep model and bakes it for the crowd ahead of the first spawn.
+export function prepareCreepGlb(spec, air) {
+  return loadGlb(spec.id).then((gltf) => { if (gltf && crowd) crowdModel(gltf, spec, air); });
+}
+
 export function attachCreepGlb(body, spec, anim, air, onSwap) {
   const apply = (gltf) => {
     if (!gltf) return null;
-    const inst = fitted(gltf, { maxH: spec.h ?? (air ? CREEP_AIR_H : CREEP_H), maxR: CREEP_R, yaw: spec.yaw });
+    const fit = () => fitCreep(gltf, spec, air);
     clearHooks(anim, body, ['legs', 'arms', 'orbit'], ['flap', 'head', 'body']);
     anim.float = false;
     for (const part of [...body.children]) if (!part.userData.keep) body.remove(part);
+    if (crowd) {
+      // The crowd draws the model at an empty anchor that animations move like the model.
+      const model = crowdModel(gltf, spec, air);
+      const anchor = new THREE.Group();
+      if (air) { anchor.position.y = FLY_Y - model.height / 2; anim.body = anchor; anim.bodyY = anchor.position.y; }
+      body.add(anchor);
+      anim.crowd = { model, anchor, time: Math.random() * model.dur, gold: false };
+      return air ? FLY_Y + model.height / 2 : model.height;
+    }
+    const inst = fit();
     if (air) { inst.root.position.y = FLY_Y - inst.height / 2; anim.body = inst.root; anim.bodyY = inst.root.position.y; }
     body.add(inst.root);
     if (gltf.animations.length) {

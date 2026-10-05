@@ -21,7 +21,7 @@ const SETTINGS_KEY = 'youtd-reforged-settings';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
-const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, difficulty: 'medium', mode: 'build', length: 'full', map: DEFAULT_MAP, autoWave: false, autoTransmute: [], god: 'off' });
+const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, quality: 'high', difficulty: 'medium', mode: 'build', length: 'full', map: DEFAULT_MAP, autoWave: false, autoTransmute: [], god: 'off' });
 
 const world = new World($('#app'), $('#overlay'));
 world.setMap(settings.map);
@@ -46,6 +46,7 @@ function applySettings() {
   world.edgeScroll = settings.edge;
   world.bloom.enabled = settings.bloom;
   world.sun.castShadow = settings.shadows;
+  world.setQuality(settings.quality);
   save(SETTINGS_KEY, settings);
 }
 applySettings();
@@ -233,6 +234,7 @@ function openSettings(open) {
     $('#set-sfx').value = settings.sfx; $('#set-music').value = settings.music;
     $('#set-dmg').checked = settings.dmg; $('#set-edge').checked = settings.edge;
     $('#set-bloom').checked = settings.bloom; $('#set-shadows').checked = settings.shadows;
+    $('#set-quality').value = settings.quality;
   }
 }
 $('#btn-settings').addEventListener('click', () => openSettings(true));
@@ -246,6 +248,7 @@ $('#btn-quit').addEventListener('click', () => {
 for (const [id, key, num] of [['#set-ui', 'uiScale', true], ['#set-sfx', 'sfx', true], ['#set-music', 'music', true], ['#set-dmg', 'dmg'], ['#set-edge', 'edge'], ['#set-bloom', 'bloom'], ['#set-shadows', 'shadows']]) {
   $(id).addEventListener('input', (e) => { settings[key] = num ? Number(e.target.value) : e.target.checked; applySettings(); });
 }
+$('#set-quality').addEventListener('change', (e) => { settings.quality = e.target.value; applySettings(); });
 
 // ---------------------------------------------------------------- world input
 

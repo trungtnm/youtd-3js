@@ -16,6 +16,10 @@ import { FX } from './fx.js';
 import { TOWER_MAX_LEVEL, ELEMENTS, RARITIES } from '../data/constants.js';
 import { worldToTile, tileToWorld, isBuildable, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
 import { mulberry32 } from '../sim/rng.js';
+import { CreepOverlays } from './creep-overlays.js';
+import { CreepCrowd } from './creep-crowd.js';
+import { TowerBatcher } from './tower-batcher.js';
+import { setCreepCrowd } from './glb-models.js';
 
 const WHITE = new THREE.Color(1, 1, 1);
 
@@ -53,6 +57,14 @@ const STREAKS = [
   { n: 24, name: 'Extinction' },
 ];
 
+// Render quality presets. Shadow-map casting by creeps and the bloom buffer size are
+// the largest costs that scale with crowd size and screen size.
+export const QUALITY = {
+  low:    { pixelRatioCap: 1,    creepShadows: false, bloomScale: 0.25 },
+  medium: { pixelRatioCap: 1.25, creepShadows: false, bloomScale: 0.5 },
+  high:   { pixelRatioCap: 1.5,  creepShadows: true,  bloomScale: 0.5 },
+};
+
 const easeOutBack = (k) => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
 
 export class World {
@@ -60,8 +72,9 @@ export class World {
     this.container = container;
     this.overlay = overlay;
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    this.quality = QUALITY.high;
     // 1.5x is visually close to native on retina screens at roughly half the pixel cost.
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatioCap));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -99,14 +112,16 @@ export class World {
     this.sun = sun;
 
     this.fx = new FX(scene, this.camera, overlay);
+    this.overlays = new CreepOverlays(scene);
+    this.towerBatcher = new TowerBatcher(scene);
 
     // Post-processing
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.75, 0.55, 0.82);
-    // Bloom is blurry by nature: run it at half resolution.
+    // Bloom is blurry by nature: run it at a fraction of the resolution.
     const bloomSetSize = this.bloom.setSize.bind(this.bloom);
-    this.bloom.setSize = (w, h) => bloomSetSize(Math.round(w / 2), Math.round(h / 2));
+    this.bloom.setSize = (w, h) => bloomSetSize(Math.round(w * this.quality.bloomScale), Math.round(h * this.quality.bloomScale));
     composer.addPass(this.bloom);
     this.grade = new ShaderPass(GradeShader);
     composer.addPass(this.grade);
@@ -140,6 +155,10 @@ export class World {
     this.dying = [];
     // Hit flash: creep meshes swap to this shared material for a few frames.
     this.flashMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.5, 1.4) });
+    // Curated creep models are drawn as instanced crowds (see creep-crowd.js).
+    this.crowd = new CreepCrowd(scene, this.unseenMat, new THREE.MeshStandardMaterial({ color: 0xffd34a, metalness: 0.9, roughness: 0.25 }));
+    this.crowd.setShadows(this.quality.creepShadows);
+    setCreepCrowd(this.crowd);
     this.hitStop = 0;
     this.killTimes = [];
     this.streak = { tier: -1, last: -10 };
@@ -173,7 +192,31 @@ export class World {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
+  }
+
+  // Applies a QUALITY preset by name: pixel ratio and bloom size now, creep shadows
+  // for creeps spawned from here on and those already on the field.
+  setQuality(name) {
+    const q = QUALITY[name] || QUALITY.high;
+    if (q === this.quality) return;
+    this.quality = q;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatioCap));
+    this.resize();
+    for (const v of this.creepViews.values()) this._creepShadow(v);
+    this.crowd.setShadows(q.creepShadows);
+  }
+
+  // Debug switch: false makes creeps spawned from now on clone their model again.
+  setCrowd(on) { setCreepCrowd(on ? this.crowd : null); }
+
+  // Draws a crowd creep at its anchor; `dt` advances its walk clip.
+  _putCrowd(v, dt) {
+    const C = v.anim.crowd;
+    C.time += dt;
+    C.anchor.updateWorldMatrix(true, false);
+    this.crowd.put(C.model, C.anchor.matrixWorld, C.time, v.flash > 0 ? 1 : 0, v.unseen, C.gold);
   }
 
   // ---------------------------------------------------------------- input
@@ -458,7 +501,7 @@ export class World {
     // Teleported towers (Chrono Jumper) keep their tile; only the body moves.
     game.on('towerMoved', (t) => {
       const v = this.towerViews.get(t.uid);
-      if (v) v.group.position.set(t.x, 0, t.z);
+      if (v) { v.group.position.set(t.x, 0, t.z); this.towerBatcher.update(v.batch, v.group); }
       fx.puff(t.x, 0.5, t.z, 0x8fb8ff, 16, 0.9, 1);
     });
     game.on('levelUp', (t) => { fx.levelUp(t); fx.text(t.x, 3.5, t.z, `Level ${t.level}`, 'level'); audio?.levelUp(); });
@@ -532,6 +575,7 @@ export class World {
     group.add(hit);
     this.scene.add(group);
     const view = { group, hit, anim: group.userData.anim, muzzleY: group.userData.muzzleY, born: animate ? 0 : 1, recoil: 0, yaw: t.aim || 0, beamCd: 0 };
+    view.batch = this.towerBatcher.add(group);
     group.addEventListener('modelswap', () => { view.muzzleY = group.userData.muzzleY; });
     this.towerViews.set(t.uid, view);
   }
@@ -557,6 +601,7 @@ export class World {
     const v = this.towerViews.get(uid);
     if (!v) return;
     this.scene.remove(v.group);
+    this.towerBatcher.remove(v.batch);
     v.hit.geometry.dispose();
     this.towerViews.delete(uid);
   }
@@ -564,19 +609,9 @@ export class World {
   _addCreep(c) {
     const group = buildCreepModel(c);
     const h = group.userData.height;
-    // Health bar billboard
-    const bar = new THREE.Group();
-    const w = c.size === 'boss' || c.size === 'challenge' ? 3.4 : c.size === 'champion' ? 2.0 : c.size === 'mass' ? 1.2 : 1.6;
-    const bg = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.1, 0.26), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.7, depthTest: false }));
-    const fill = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.18), new THREE.MeshBasicMaterial({ color: 0x5aff5a, transparent: true, depthTest: false }));
-    const shield = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.06), new THREE.MeshBasicMaterial({ color: 0x8fd8ff, transparent: true, depthTest: false }));
-    fill.geometry.translate(w / 2, 0, 0); fill.position.x = -w / 2;
-    shield.geometry.translate(w / 2, 0, 0); shield.position.set(-w / 2, 0.1, 0);
-    shield.visible = c.maxShield > 0;
-    bg.renderOrder = 20; fill.renderOrder = 21; shield.renderOrder = 22;
-    bar.add(bg, fill, shield);
-    bar.position.y = h + 0.5;
-    group.add(bar);
+    // Health bar and blob shadow are drawn by this.overlays from these sizes.
+    const barW = c.size === 'boss' || c.size === 'challenge' ? 3.4 : c.size === 'champion' ? 2.0 : c.size === 'mass' ? 1.2 : 1.6;
+    const blobR = (c.air ? 0.45 : 0.75) * group.userData.inner.scale.x;
     const hit = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.8, h * 0.45), 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
     hit.position.y = c.air ? 2.6 : h * 0.5;
     hit.userData.pick = { type: 'creep', uid: c.uid };
@@ -585,15 +620,16 @@ export class World {
     this.scene.add(group);
     const inner = group.userData.inner;
     const meshes = [];
-    const collect = () => { meshes.length = 0; inner.traverse((o) => { if (o.isMesh) meshes.push({ o, base: o.material }); }); };
+    const collect = () => { meshes.length = 0; inner.traverse((o) => { if (o.isMesh) meshes.push({ o, base: o.material, cast: o.castShadow }); }); };
     collect();
     const v = {
-      group, bar, fill, shield, hit, anim: group.userData.anim, inner, meshes, look: null,
+      group, barW, barY: h + 0.5, blobR, hit, anim: group.userData.anim, inner, meshes, look: null,
       baseScale: inner.scale.x, air: c.air, weight: c.size === 'boss' || c.size === 'challenge' ? 0.35 : c.size === 'champion' ? 0.7 : 1,
       phase: Math.random() * 6, lastHp: c.hp + c.shield, dmgAcc: 0, hitCd: 0, flash: 0, squash: 0, yaw: Math.atan2(c.dx, c.dz),
     };
     // A curated model that finishes loading late replaces the meshes the hit flash and shimmer swap.
-    group.addEventListener('modelswap', () => { collect(); v.look = undefined; this._look(v); if (v.unseen) this._setUnseen(v, true); });
+    group.addEventListener('modelswap', () => { collect(); v.look = undefined; this._look(v); this._creepShadow(v); if (v.unseen) this._setUnseen(v, true); });
+    this._creepShadow(v);
     this.creepViews.set(c.uid, v);
     return v;
   }
@@ -601,9 +637,14 @@ export class World {
   // Unrevealed invisible creeps render as a faint shimmer with no health bar.
   _setUnseen(v, unseen) {
     v.unseen = unseen;
-    for (const e of v.meshes) e.o.castShadow = !unseen;
-    v.bar.visible = !unseen;
+    this._creepShadow(v);
     this._look(v);
+  }
+
+  // Creeps cast shadow-map shadows only on the high preset, and never while unseen.
+  _creepShadow(v) {
+    const on = this.quality.creepShadows && !v.unseen;
+    for (const e of v.meshes) e.o.castShadow = on && e.cast;
   }
 
   // Pick the material set for a creep: shimmer when unseen, white during a hit flash.
@@ -721,6 +762,7 @@ export class World {
     let vdt = dt;
     if (this.hitStop > 0) { this.hitStop -= realDt; vdt = dt * 0.06; }
     if (this.game) this._syncGame(vdt, T);
+    else { this.overlays.begin(this.camera); this.overlays.end(); this.crowd.begin(); this.crowd.end(); }
     this.showSelection(sel);
     this._updateCamera(realDt);
     this.fx.update(vdt, window.innerWidth, window.innerHeight, realDt);
@@ -736,6 +778,7 @@ export class World {
       if (v.born < 1) {
         v.born = Math.min(1, v.born + dt * 2.2);
         v.group.scale.setScalar(Math.max(0.01, easeOutBack(v.born)));
+        this.towerBatcher.update(v.batch, v.group);
       }
       this._syncCrest(t, v, dt, T);
       const A = v.anim;
@@ -772,7 +815,10 @@ export class World {
     for (const uid of [...this.towerViews.keys()]) if (!g.towers.has(uid)) this._removeTower(uid);
 
     // Creeps
-    const camQ = this.camera.quaternion;
+    // Blob shadows stand in whenever creeps cast no real shadow (preset or Shadows off).
+    this.overlays.blobsOn = !(this.quality.creepShadows && this.sun.castShadow);
+    this.overlays.begin(this.camera);
+    this.crowd.begin();
     for (const c of g.creeps) {
       if (!c.alive) continue;
       let v = this.creepViews.get(c.uid);
@@ -815,7 +861,8 @@ export class World {
       const slow = Math.max(c.slow, c.auraSlow);
       v.phase += dt * (moving ? 9 * (1 - slow * 0.8) : 0);
       const A = v.anim;
-      A.mixer?.update(moving ? dt * (1 - slow * 0.8) : 0);
+      const animDt = moving ? dt * (1 - slow * 0.8) : 0;
+      A.mixer?.update(animDt);
       const sw = Math.sin(v.phase);
       A.legs.forEach((l, i) => { l.rotation.x = (i % 2 ? sw : -sw) * 0.6 * (A.legs.length > 2 && i >= 2 ? -1 : 1); });
       A.arms.forEach((a, i) => { a.rotation.x = (i % 2 ? -sw : sw) * 0.5; });
@@ -824,18 +871,20 @@ export class World {
       if (A.flap) { const a = Math.sin(T * 10 + c.uid) * 0.6; A.flap.l.rotation.z = a; A.flap.r.rotation.z = -a; }
       if (A.body) A.body.position.y = (A.bodyY ?? 2.6) + Math.sin(T * 3 + c.uid) * 0.15;
       v.inner.position.y = A.float ? 0.2 + Math.sin(T * 2 + c.uid) * 0.15 : Math.abs(Math.sin(v.phase)) * 0.06;
-      // Health bar
-      const k = Math.max(0, c.hp / c.maxHp);
-      v.fill.scale.x = Math.max(0.001, k);
-      v.fill.material.color.setHSL(k * 0.33, 0.9, 0.5);
-      if (c.maxShield > 0) { v.shield.scale.x = Math.max(0.001, c.shield / c.maxShield); v.shield.visible = c.shield > 0; }
-      v.bar.quaternion.copy(camQ);
+      if (A.crowd) this._putCrowd(v, animDt);
+      // Health bar and blob shadow (unseen creeps show neither)
+      if (!v.unseen) {
+        const gp = v.group.position;
+        this.overlays.bar(gp.x, v.barY, gp.z, v.barW, Math.max(0, c.hp / c.maxHp), c.maxShield > 0 ? c.shield / c.maxShield : 0);
+        this.overlays.blob(gp.x, gp.z, v.blobR);
+      }
       // Status particles
       if (slow > 0 && Math.random() < dt * 6) this.fx.burst(c.x, 0.6, c.z, 0x9fe8ff, 1, 1, 0.6, 0.18, -1);
       if (c.dots.length && Math.random() < dt * 8) this.fx.burst(c.x, 1, c.z, 0x9fdc4a, 1, 1, 0.5, 0.15, -2);
       if (c.curse > 0 && Math.random() < dt * 5) this.fx.burst(c.x, 1.6, c.z, 0xc04dff, 1, 0.8, 0.6, 0.18, -1);
       if (c.stun > 0 && Math.random() < dt * 10) this.fx.burst(c.x, (c.air ? 3.2 : 2.0), c.z, 0xfff6a0, 1, 1.5, 0.3, 0.12, 0);
     }
+    this.overlays.end();
     // Remove stale creep views (e.g. creeps cleared without events)
     if (this.creepViews.size > g.creeps.length) {
       const alive = new Set(g.creeps.map((c) => c.uid));
@@ -845,7 +894,6 @@ export class World {
     for (const d of this.dying) {
       d.t += dt * d.rate;
       const v = d.v;
-      v.bar.visible = false;
       v.flash -= dt;
       this._look(v);
       const pop = d.t < 0.16 ? Math.sin((d.t / 0.16) * Math.PI) * 0.3 : 0;
@@ -853,6 +901,7 @@ export class World {
       v.inner.scale.setScalar(v.baseScale * (1 + pop) * shrink);
       v.inner.rotation.z = Math.min(1.4, d.t * 4);
       v.group.position.y = -Math.max(0, d.t - 0.3) * 2;
+      if (v.anim.crowd) this._putCrowd(v, 0);
     }
     const finished = this.dying.filter((d) => d.t > 0.9);
     if (finished.length) {
@@ -860,6 +909,7 @@ export class World {
       this.dying = this.dying.filter((d) => d.t <= 0.9);
     }
 
+    this.crowd.end();
     this.fx.syncProjectiles(g.projectiles);
   }
 

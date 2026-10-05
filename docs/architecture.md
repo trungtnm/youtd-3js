@@ -111,9 +111,28 @@ factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap o
 
 ## World (`src/world/`)
 
-- `world.js`: renderer (pixel ratio capped at 1.5), EffectComposer with half
-  resolution bloom, SMAA on low-DPI screens only, RTS camera with velocity-based
-  panning and grab-pan, picking, per-frame sync of towers, creeps and projectiles.
+- `world.js`: renderer, EffectComposer with reduced-resolution bloom, SMAA on
+  low-DPI screens only, RTS camera with velocity-based panning and grab-pan,
+  picking, per-frame sync of towers, creeps and projectiles. `QUALITY` presets
+  (Settings, Graphics quality) set the pixel-ratio cap (1 / 1.25 / 1.5), the bloom
+  buffer scale and whether creeps cast shadow-map shadows (High only; Low and
+  Medium draw blob shadows instead). `World.setQuality(name)` applies one live.
+- `creep-crowd.js`: draws every creep that uses a curated model. Each model's move
+  clip is baked once (when the model loads) into half-float vertex textures, and
+  all creeps of that model draw as one `InstancedMesh` per material whose shader
+  blends the two baked frames around each creep's clip time. A creep keeps an
+  empty anchor in its transform tree, so knockback, squash, yaw, flight bob and the
+  death topple still drive it; the crowd copies the anchor's world matrix each
+  frame. Hit flash is a per-instance value, unseen creeps draw through an additive
+  ghost layer and gilded challenge creeps through a gold layer. The gallery does
+  not set the crowd (`setCreepCrowd`) and clones models as before;
+  `world.setCrowd(false)` does the same in game for debugging.
+- `creep-overlays.js`: health and shield bars and blob shadows for all creeps as a
+  few instanced meshes, rebuilt from the synced creeps every frame.
+- `tower-batcher.js`: `models.js` merges each tower's static meshes per material
+  (`mergeStatic`, cached per tower kind) and the batcher moves those into one
+  shared `BatchedMesh` per material, so all daises and static tower bodies cost a
+  handful of draw calls. Animated parts stay ordinary meshes in the tower group.
 - `environment.js`: registry of map themes (`MAPS`, `DEFAULT_MAP`). Builds the
   chosen map plus the shared placement grid, disposes it on a switch, animates it
   each frame, and exposes the active map's `terrainHeight` for effects.
@@ -152,4 +171,8 @@ the player's "Interface size" setting.
 
 - `tools/balance.js`: headless bot that plays the simulation and prints the wave
   it reached. Configure with environment variables (see `AGENTS.md`).
+- `tools/perf-bench.mjs` (`npm run bench`): drives local Google Chrome over the
+  DevTools protocol against the dev server, fills the field with towers and a
+  crowd, and prints per-frame simulation, render and HUD time, draw calls and
+  triangles per quality preset.
 - `tools/import-youtd2.mjs`: regenerates `src/data/youtd/generated.js`.

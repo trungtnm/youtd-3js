@@ -597,7 +597,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .hall-head span, .hall-tiles span { font-size: calc(var(--s) * 10.5px); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
 .hall-head label, .hall-crest { display: flex; flex-direction: column; justify-content: center; gap: calc(var(--s) * 4px); font-size: calc(var(--s) * 11px); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
 .hall-crest { flex-direction: row; align-items: center; margin-bottom: calc(var(--s) * 6px); }
-#hall-body select { font: inherit; text-transform: none; letter-spacing: 0; font-size: calc(var(--s) * 13px); color: var(--text); background: #1d1710; border: 1px solid var(--iron); border-radius: calc(var(--s) * 3px); padding: calc(var(--s) * 4px) calc(var(--s) * 6px); }
+#hall-body select, .modal-box select { font: inherit; text-transform: none; letter-spacing: 0; font-size: calc(var(--s) * 13px); color: var(--text); background: #1d1710; border: 1px solid var(--iron); border-radius: calc(var(--s) * 3px); padding: calc(var(--s) * 4px) calc(var(--s) * 6px); }
 .hall-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--s) * 8px); }
 .hall-toggles { display: flex; gap: calc(var(--s) * 4px); margin-bottom: calc(var(--s) * 6px); }
 .hall-toggle { background: rgba(0, 0, 0, 0.3); border: 0; padding: calc(var(--s) * 4px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 3px); color: var(--muted); font-size: calc(var(--s) * 12px); }

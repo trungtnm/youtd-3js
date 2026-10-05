@@ -20,6 +20,7 @@ npm install
 npm run dev            # Vite dev server on port 5317 (add -- --host 0.0.0.0 for LAN/Tailscale)
 npm run build          # production build into dist/; must pass before finishing
 npm run balance        # headless balance bot (see below)
+npm run bench          # render benchmark in headless Chrome; needs npm run dev running
 npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party/youtd2
 GAME_ICONS_DIR=/path/to/game-icons npm run import:icons  # copy curated icons, regenerate docs/icon-credits.md
 npm run import:models  # download/compress curated tower and creep models, regenerate docs/model-credits.md
@@ -84,7 +85,9 @@ results vary by ±15 waves.
    affected difficulties; compare against the table in `docs/game-design.md`.
 3. For UI or rendering changes, check the game in a browser at 1920x1080 and
    2560x1440 (start a run, build towers, start a wave). `window.__youtd` exposes
-   `game`, `world` and `hud` for scripted checks.
+   `game`, `world` and `hud` for scripted checks. For changes that can affect
+   frame cost, compare `npm run bench` (draw calls, render ms) before and after;
+   the timings are noisy, so judge draw calls first and run it more than once.
 4. Update `docs/` when rules, data pipeline, balance targets or architecture
    change, and update the port status table in `docs/youtd-port.md` when porting
    scripts.

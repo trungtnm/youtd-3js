@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --port 5318 --strictPort",
     "balance": "node tools/balance.js",
+    "bench": "node tools/perf-bench.mjs",
     "import:youtd": "node tools/import-youtd2.mjs",
     "import:icons": "node tools/import-icons.mjs",
     "import:models": "node tools/import-models.mjs"
