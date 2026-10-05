@@ -640,7 +640,7 @@ export class HUD {
           <div class="sel-actions">
             ${next ? `<button class="btn ${upErr ? '' : 'gold'}" id="btn-upgrade" ${upErr ? 'disabled' : ''} data-tt="tower:${next.id}">Upgrade [U] · ${fmt(next.cost)} ◉${next.tomeCost ? ` ${next.tomeCost} 📘` : ''}</button>` : ''}
             ${t.level < TOWER_MAX_LEVEL ? `<button class="btn" id="btn-train" ${g.gold < g.trainCost(t) ? 'disabled' : ''} data-tip="Spend gold to train this tower: +${Math.round(ECON.trainXpPct * 100)}% of a level's experience. The cost rises with level. [T]">Train · ${fmt(g.trainCost(t))}</button>` : ''}
-            ${t.level < TOWER_MAX_LEVEL ? `<button class="btn" id="btn-train-max" ${g.gold < g.trainCost(t) ? 'disabled' : ''} data-tip="Train repeatedly with the gold you have, up to level ${TOWER_MAX_LEVEL}. [Shift+T]">Buy Max</button>` : ''}
+            ${t.level < TOWER_MAX_LEVEL ? `<button class="btn" id="btn-train-max" ${g.gold < g.trainCost(t) ? 'disabled' : ''} data-tip="Train repeatedly with the gold you have, up to level ${TOWER_MAX_LEVEL}. [Shift+T]">Train Max</button>` : ''}
             <button class="btn danger" id="btn-sell" data-tip="Sell for ${Math.floor(t.invested * ECON.sellRefund)} gold. Items return to your stash. [X]">Sell · ${fmt(Math.floor(t.invested * ECON.sellRefund))}</button>
           </div>
         </div>

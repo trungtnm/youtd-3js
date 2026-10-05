@@ -516,7 +516,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .buffs span { font-size: calc(var(--s) * 10px); padding: 1px calc(var(--s) * 6px); border-radius: calc(var(--s) * 2px); background: rgba(90, 255, 140, 0.12); color: #a8ffc0; border: 1px solid rgba(90,255,140,0.3); }
 
 /* ---------------------------------------------------------------- perks */
-.perk-offer { margin-top: calc(var(--s) * 8px); padding: calc(var(--s) * 8px); border-radius: calc(var(--s) * 3px); border: 1px solid var(--iron); box-shadow: inset 0 0 0 1px rgba(242, 199, 102, 0.6); background: linear-gradient(180deg, rgba(255, 200, 90, 0.14), rgba(0,0,0,0.25)); animation: glowpulse 1.6s infinite; }
+.perk-offer { margin-top: calc(var(--s) * 8px); padding: calc(var(--s) * 8px); border-radius: calc(var(--s) * 3px); border: 1px solid var(--iron); box-shadow: inset 0 0 0 1px rgba(242, 199, 102, 0.6); background: linear-gradient(180deg, rgba(255, 200, 90, 0.14), rgba(0,0,0,0.25)); position: relative; }
+/* The glow fades on its own layer: animating box-shadow directly repainted the whole console every frame. */
+.perk-offer::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 calc(var(--s) * 28px) rgba(255, 200, 90, 0.85); opacity: 0; pointer-events: none; will-change: opacity; animation: glowfade 1.6s infinite; }
+@keyframes glowfade { 50% { opacity: 1; } }
 .po-title { font-family: var(--serif); font-weight: 700; color: var(--gold); font-size: calc(var(--s) * 13px); margin-bottom: calc(var(--s) * 6px); text-shadow: 0 1px 0 #000; }
 .po-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--s) * 6px); }
 .perk { text-align: left; padding: calc(var(--s) * 7px) calc(var(--s) * 8px); border-radius: calc(var(--s) * 3px); border: 1px solid var(--iron); background: var(--plaque); box-shadow: var(--plaque-rim); display: grid; grid-template-columns: calc(var(--s) * 22px) 1fr; gap: 0 calc(var(--s) * 6px); align-items: center; }
