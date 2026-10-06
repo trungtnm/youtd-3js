@@ -44,6 +44,20 @@ export class HUD {
 
   _bindStatic() {
     $('#btn-next').addEventListener('click', () => { this.audio.click(); this.game?.callNextWave(); });
+    // End run needs a second click within a few seconds, so it is never pressed by accident.
+    $('#btn-finish').addEventListener('click', () => {
+      const b = $('#btn-finish');
+      if (!b.classList.contains('armed')) {
+        b.classList.add('armed'); b.textContent = 'Confirm end?';
+        clearTimeout(this.finishTimer);
+        this.finishTimer = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'End run'; }, 3000);
+        return;
+      }
+      clearTimeout(this.finishTimer);
+      b.classList.remove('armed'); b.textContent = 'End run';
+      this.audio.click();
+      this.game?.finishRun();
+    });
     $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.setAutoWave(!this.game.autoWave); });
     // Auto transmute: the button opens a menu of rarities to combine automatically.
     $('#btn-autotx').addEventListener('click', (e) => { e.stopPropagation(); this.audio.click(); $('#autotx-menu').classList.toggle('hidden'); });
@@ -200,6 +214,12 @@ export class HUD {
 
   // ---------------------------------------------------------------- messages
 
+  // Shows or hides the tower build panel on the right, freeing the view of the map.
+  toggleTowerPanel() {
+    const hidden = $('#right').classList.toggle('hidden');
+    if (hidden) { $('#tooltip').classList.add('hidden'); this.toast('Tower panel hidden. Press B to show it.'); }
+  }
+
   toast(text, kind = '') {
     const box = $('#toasts');
     while (box.children.length > 4) box.firstChild.remove();
@@ -245,6 +265,7 @@ export class HUD {
     const waiting = g.phase === 'running' && g.level < g.finalWave && (g.autoWave || g.activeWaves.length === 0);
     $('#r-timer').style.width = waiting ? `${Math.max(0, Math.min(1, 1 - g.nextWaveTimer / gap)) * 100}%` : '0%';
     $('#btn-next').disabled = g.level >= g.finalWave || g.isOver();
+    $('#btn-finish').classList.toggle('hidden', g.isOver() || !g.secured());
     if (g.phase === 'prep') $('#btn-next').classList.add('pulse');
 
     if (this.tick > 0.2) {

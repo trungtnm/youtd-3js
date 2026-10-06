@@ -84,6 +84,9 @@ export const LENGTHS = {
   endless:   { id: 'endless',   name: 'Endless',   waves: Infinity, desc: 'Until the portal falls' },
 };
 
+// Clearing this many waves in Endless counts as a victory, like finishing a Full run.
+export const ENDLESS_GOAL = LENGTHS.full.waves;
+
 export const MODES = {
   build:  { id: 'build',  name: 'Build',  desc: 'Build any tower your element research has unlocked.' },
   random: { id: 'random', name: 'Random', desc: 'Each wave grants random towers to your stash. Upgrades stay free to pick.' },

@@ -52,9 +52,10 @@ To open the game from another device on your network, run
 | Mouse wheel | Zoom toward the cursor |
 | Space | Call the next wave |
 | Auto (top bar) | Toggle auto waves. Off by default: the next wave waits until the field is clear |
-| Auto (Items panel) | Toggle auto transmute: spare items combine in threes as they arrive |
+| Auto (Items panel) | Choose which rarities auto transmute combines in threes as they arrive |
 | 1 / 2 / 3 | Game speed |
 | P | Pause |
+| B | Show or hide the tower panel |
 | U | Upgrade the selected tower |
 | T | Train the selected tower |
 | F / G | Cast the selected tower's first / second ability |

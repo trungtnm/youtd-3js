@@ -150,6 +150,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 #r-timer { height: 100%; width: 0; background: linear-gradient(180deg, #ffe9a0, #f2a83a 60%, #b0651a); }
 #btn-next { padding: calc(var(--s) * 7px) calc(var(--s) * 18px); font-family: var(--serif); font-weight: 700; font-size: calc(var(--s) * 14px); }
 #btn-auto { padding: calc(var(--s) * 7px) calc(var(--s) * 10px); font-weight: 700; font-size: calc(var(--s) * 12px); color: #c8bba2; }
+#btn-finish { padding: calc(var(--s) * 7px) calc(var(--s) * 10px); font-weight: 700; font-size: calc(var(--s) * 12px); color: #ffe6a0; white-space: nowrap; }
+#btn-finish.armed { background: linear-gradient(180deg, #ffd2bf, #e07a4a 40%, #8a3a1c); color: #2a1006; }
 #btn-auto.on, #btn-autotx.on { background: linear-gradient(180deg, #fff0bf, #f0c768 35%, #b07a24); color: #2a1806; }
 #btn-autotx { position: relative; white-space: nowrap; }
 #btn-autotx .atx-dots { position: absolute; left: 50%; bottom: calc(var(--s) * 1.5px); transform: translateX(-50%); display: flex; gap: calc(var(--s) * 2px); }

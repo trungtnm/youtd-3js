@@ -50,7 +50,10 @@ export class EndScreen {
     const lost = sum.outcome !== 'won';
     box.querySelector('.end').classList.toggle('lost', lost);
     $('#end-title').textContent = sum.outcome === 'won' ? 'Victory' : sum.outcome === 'abandoned' ? 'Run Abandoned' : 'The Portal Has Fallen';
-    $('#end-sub').textContent = sum.outcome === 'won' ? `You held the line through all ${sum.level} waves.`
+    const pastGoal = sum.cfg.length === 'endless' || sum.continued;
+    $('#end-sub').textContent = sum.outcome === 'won' && sum.endedByPlayer ? `You ended the run as a victory after clearing ${sum.wavesCleared} waves.`
+      : sum.outcome === 'won' && pastGoal ? `You cleared ${sum.wavesCleared} waves before the portal fell. The run counts as a victory.`
+      : sum.outcome === 'won' ? `You held the line through all ${sum.level} waves.`
       : sum.continued ? `You won, then held out until wave ${sum.level}.`
       : sum.outcome === 'abandoned' ? `You left the field after clearing ${sum.wavesCleared} waves.`
       : `Your defense broke on wave ${sum.level}.`;

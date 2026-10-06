@@ -2,7 +2,7 @@
 // its events; nothing here touches the DOM or three.js.
 
 import {
-  ELEMENT_IDS, RARITIES, DAMAGE_MATRIX, SIZES, DIFFICULTIES, LENGTHS, ECON, MODIFIERS,
+  ELEMENT_IDS, RARITIES, DAMAGE_MATRIX, SIZES, DIFFICULTIES, LENGTHS, ECON, MODIFIERS, ENDLESS_GOAL,
   TOWER_MAX_LEVEL, xpForLevel, ARMOR_REDUCTION,
 } from '../data/constants.js';
 import { TOWERS, FAMILIES, TOWER_LIST, nextTier, REVEAL_FAMILIES } from '../data/towers.js';
@@ -112,6 +112,14 @@ export class Game extends Emitter {
   }
 
   isOver() { return this.phase === 'won' || this.phase === 'lost' || this.phase === 'abandoned'; }
+
+  // A run is secured once its win condition is met: an Endless run that cleared
+  // ENDLESS_GOAL waves, or a Trial or Full run continued after victory. From then on
+  // the run can only end as a victory, either when the portal falls or by finishRun().
+  secured() {
+    const continued = this.finalWave === Infinity && this.cfg.length !== 'endless';
+    return continued || (this.cfg.length === 'endless' && this.stats.wavesCleared >= ENDLESS_GOAL);
+  }
 
   buildCheck(towerId, c, r) {
     const def = TOWERS[towerId];
@@ -716,6 +724,11 @@ export class Game extends Emitter {
     const st = this.stats;
     st.clearedLevels.add(lvl);
     while (st.clearedLevels.has(st.wavesCleared + 1)) st.clearedLevels.delete(++st.wavesCleared);
+    if (this.cfg.length === 'endless' && st.wavesCleared >= ENDLESS_GOAL && this.livesAtVictory === undefined) {
+      // Integrity at the milestone stands in for integrity at victory.
+      this.livesAtVictory = this.lives;
+      this.emit('notice', { text: `Wave ${ENDLESS_GOAL} cleared: this run now counts as a victory. Keep going, or press End run to bank your score.`, kind: 'gold' });
+    }
     const income = Math.round((20 + lvl * 3) * this.diff.gold * (1 + this.incomeRate));
     const interest = this.mods.has('frugal') ? 0 : Math.min(ECON.interestCap * (1 + lvl / 40), Math.floor(this.gold * (ECON.interestRate + this.bonusInterest)));
     this.addGold(income + interest);
@@ -902,6 +915,8 @@ export class Game extends Emitter {
     this.emit('creepLeaked', c);
     if (this.lives <= 0 && !this.isOver()) {
       this.lives = 0;
+      // A secured run that falls still ends as a victory.
+      if (this.secured()) { this.phase = 'won'; this.emit('victory', this.summary()); return; }
       this.phase = 'lost';
       this.emit('defeat', this.summary());
     }
@@ -1535,6 +1550,15 @@ export class Game extends Emitter {
     this.stats.goldEarned += n;
   }
 
+  // Ends a secured run as a victory at the player's request.
+  finishRun() {
+    if ((this.phase !== 'prep' && this.phase !== 'running') || !this.secured()) return false;
+    this.phase = 'won';
+    this.endedByPlayer = true;
+    this.emit('victory', this.summary());
+    return true;
+  }
+
   // Ends the run at the player's request; only a run still in progress can be abandoned.
   abandon() {
     if (this.phase !== 'prep' && this.phase !== 'running') return false;
@@ -1570,7 +1594,7 @@ export class Game extends Emitter {
       towers: this.towers.size, time: this.time, cfg: this.cfg,
       outcome, continued: this.finalWave === Infinity && this.cfg.length !== 'endless',
       wavesCleared: st.wavesCleared, lives: Math.max(0, this.lives), maxLives: this.maxLives,
-      livesAtVictory: this.livesAtVictory ?? null,
+      livesAtVictory: this.livesAtVictory ?? null, endedByPlayer: !!this.endedByPlayer,
       towerLedger, mvp: towerLedger[0]?.uid ?? null,
       damageByElement, damageByAttack, damageOther: Math.max(0, st.damage - attributed),
       leaksBySize: count(portalLeaks, 'size'), leaksByRace: count(portalLeaks, 'race'),

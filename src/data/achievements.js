@@ -9,13 +9,14 @@
 // `sum` is Game.summary(). "Clear wave N" always reads wavesCleared (waves
 // cleared in order), never level (waves called).
 
-import { TOWER_MAX_LEVEL, LENGTHS } from './constants.js';
+import { TOWER_MAX_LEVEL, LENGTHS, ENDLESS_GOAL } from './constants.js';
 
 const mods = (s) => s.cfg.modifiers || [];
 const has = (s, id) => mods(s).includes(id);
-// A run is won once every wave of its length was cleared; a run continued after
-// victory stays won even if it later fell. Endless runs cannot be won.
-const won = (s) => (s.outcome === 'won' || s.continued) && s.wavesCleared >= LENGTHS[s.cfg.length].waves;
+// A run is won once every wave of its length was cleared (ENDLESS_GOAL for Endless);
+// a run continued after victory stays won even if it later fell.
+const winWaves = (s) => (s.cfg.length === 'endless' ? ENDLESS_GOAL : LENGTHS[s.cfg.length].waves);
+const won = (s) => (s.outcome === 'won' || s.continued) && s.wavesCleared >= winWaves(s);
 // Portal integrity at the moment of victory (later losses in a continued run do not count).
 const victoryIntegrity = (s) => (s.livesAtVictory ?? s.lives) / s.maxLives;
 const share = (part, s) => (s.damage > 0 ? part / s.damage : 0);

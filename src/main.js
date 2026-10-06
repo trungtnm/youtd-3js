@@ -242,6 +242,7 @@ $('#btn-resume').addEventListener('click', () => openSettings(false));
 // Abandoning ends a run in progress; one that never started a wave just returns to the menu.
 $('#btn-quit').addEventListener('click', () => {
   openSettings(false);
+  if (game?.finishRun()) return; // a secured run ends as a victory instead of being abandoned
   if (!game || game.level < 1 || !game.abandon()) { showMenu(); return; }
   endRun();
 });
@@ -314,6 +315,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'p') hud.setSpeed(hud.speed === 0 ? 1 : 0);
   else if (k === '1' || k === '2' || k === '3') hud.setSpeed(Number(k));
   else if (k === 'u') hud.upgradeSelected();
+  else if (k === 'b') hud.toggleTowerPanel();
   else if (k === 't') hud.trainSelected(e.shiftKey);
   else if (k === 'f') hud.castSelected(0);
   else if (k === 'g') hud.castSelected(1);

@@ -96,9 +96,11 @@ Achievements unlock titles (shown on the menu and end screen), the challenge
 modifiers above, and crests that float over towers at level 30.
 
 - "Clear wave N" counts waves cleared in order, not waves called early.
-- A win needs every wave of the run's length cleared; endless runs cannot be
-  won. A run continued after victory stays won, and integrity goals read the
-  portal at the moment of victory.
+- A win needs every wave of the run's length cleared. An Endless run wins once
+  it clears wave 120 (`ENDLESS_GOAL`): from then on the portal falling ends it as
+  a victory, and End run (top bar, or Abandon run in Settings) banks it early. A
+  run continued after victory works the same way. Integrity goals read the portal
+  at the moment of victory, or at wave 120 for Endless.
 - Abandoned runs count toward history and totals but earn achievements only
   from 10 cleared waves on. Closed tabs are not recorded.
 
