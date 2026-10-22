@@ -108,6 +108,8 @@ export const ECON = {
   itemSlotEvery: 10,        // every tower starts with 1 item slot, +1 every N waves, up to 6
   trainBase: 40,            // gold cost of a training session, scales with level
   trainXpPct: 0.35,         // fraction of the current level's requirement granted per session
+  spellLevelScale: 0.5,     // share of the attack level curve that flat spell damage follows
+  trainUnlock: 2 / 3,       // training opens at this fraction of the run's waves (wave 80 of 120)
   tomesPerWave: 5,
   researchBase: 5,          // research cost = base + current level
   maxElementLevel: 15,

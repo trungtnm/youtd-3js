@@ -5,8 +5,9 @@ import * as THREE from 'three';
 import { mat, glow } from '../models.js';
 import {
   fbm, HALF_X, HALF_Z, distToRoute as routeDist, outside, instanced, buildPathRibbon, buildAirLane, riftMaterial,
-  GROUND_ROUTE, BLOCKED_TILES, SPAWN, PORTAL, tileToWorld,
+  GROUND_ROUTE, BLOCKED_TILES, SPAWN, PORTAL, PORTAL_DIR, NEXUS, tileToWorld,
 } from './shared.js';
+import { MAP_CORNERS } from '../../sim/map-layout.js';
 
 const SUN_DIR = new THREE.Vector3(45, 55, 28).normalize();
 const FOG_COLOR = 0x2a2440, FOG_DENSITY = 0.0065;
@@ -169,7 +170,7 @@ function buildDecor(rand) {
 
   // Glowing crystal clusters on blocked tiles
   const crystals = [];
-  for (const key of ['0,0', '29,15', '29,0', '0,15']) {
+  for (const key of MAP_CORNERS) {
     const [c, r] = key.split(',').map(Number);
     const p = tileToWorld(c, r);
     for (let k = 0; k < 4; k++) {
@@ -291,7 +292,7 @@ function buildNexus() {
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.0, 40, 16, 1, true), pillarMat);
   beam.position.y = 22;
   g.add(beam);
-  g.position.set(PORTAL.x + 1.5, 0, PORTAL.z);
+  g.position.set(NEXUS.x, 0, NEXUS.z);
   g.userData = { crystal, crystalMat, ring1, ring2, beam, pillarMat, crystalY: 3.6 };
   return g;
 }

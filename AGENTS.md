@@ -20,6 +20,7 @@ npm install
 npm run dev            # Vite dev server on port 5317 (add -- --host 0.0.0.0 for LAN/Tailscale)
 npm run build          # production build into dist/; must pass before finishing
 npm run balance        # headless balance bot (see below)
+node tools/carry-bench.js  # rank every tower as a single carry vs boss/mass/air (WAVE, LVL, ONLY, TOP)
 npm run bench          # render benchmark in headless Chrome; needs npm run dev running
 npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party/youtd2
 GAME_ICONS_DIR=/path/to/game-icons npm run import:icons  # copy curated icons, regenerate docs/icon-credits.md

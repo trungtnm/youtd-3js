@@ -8,7 +8,7 @@ import { mat, glow } from '../models.js';
 import { ELEMENTS, ELEMENT_IDS } from '../../data/constants.js';
 import {
   fbm, HALF_X, HALF_Z, distToRoute, outside, onEntryRoad, clearOfRoad as clearOf, nearTileCentre, mk, instanced,
-  buildPathRibbon, buildAirLane, riftMaterial, GROUND_ROUTE, BLOCKED_TILES, SPAWN, PORTAL, tileToWorld,
+  buildPathRibbon, buildAirLane, riftMaterial, GROUND_ROUTE, BLOCKED_TILES, SPAWN, PORTAL, PORTAL_DIR, NEXUS, tileToWorld,
 } from './shared.js';
 
 const ROAD_HALF = 1.25;
@@ -1023,7 +1023,7 @@ function buildNexus() {
   const light = new THREE.PointLight(0xa050ff, 10, 14, 1.5);
   light.position.y = 4;
   g.add(light);
-  g.position.set(PORTAL.x + 1.5, 0, PORTAL.z);
+  g.position.set(NEXUS.x, 0, NEXUS.z);
   g.userData = { crystal, crystalMat, ring1, ring2, beam, pillarMat, crystalY: 3.9 };
   return g;
 }

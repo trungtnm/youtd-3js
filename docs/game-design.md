@@ -39,11 +39,20 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   after it, so about 13,800 experience reaches the cap. Damage multiplier is
   `0.35 + 0.13 * level`, plus `0.05` per level above 20 (35% at level 0, 100%
   at 5, about 295% at 20, about 475% at 30). Attack speed rises 2% per level.
+  Flat spell and ability damage (the original YouTD numbers) follows half of
+  that curve (`ECON.spellLevelScale`): 68% at level 0, 100% at 5, about 288% at
+  30, on top of each spell's own per-level growth.
+- **Crits**: an attack crits with the tower's crit chance for its crit damage.
+  Multicrit rolls again after each crit, up to the multicrit count, and every
+  crit adds the crit bonus once: 3 crits at x2.5 deal `1 + 3 * 1.5` = x5.5.
+  Spells roll spell crit once.
   YouTD per-level stat bonuses also apply. With `CAP=10` the bot's top tower
   reaches 30 around wave 60-80 when the run lasts that long.
 - **Train**: spend gold for 35% of the current level's experience. Cost grows
-  with level and 2% per session already spent on that tower. This is the main
-  gold sink once the core towers are built. **Train Max** (Shift+T) repeats
+  with level and 2% per session already spent on that tower. Training unlocks
+  two thirds into the run (`ECON.trainUnlock`): wave 80 of a Full or Endless
+  run, wave 54 of a Trial. Before that, towers level only from combat. It is
+  the main gold sink of the late game. **Train Max** (Shift+T) repeats
   Train until gold runs out or the tower reaches level 30.
 - **Perks**: every 5 levels the tower offers three perks and keeps one
   (`src/data/tower-perks.js`), six in all. Strong perks unlock at levels 20,
@@ -54,7 +63,7 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
   one every 10 waves (6 at wave 50). There is no limit on unique items per tower.
   Oils are consumed into a tower permanently. Three items of one rarity can be
   transmuted into a random item of the next rarity.
-- Auto transmute (Items panel menu, off by default, remembered in settings): the
+- Auto transmute (Items panel menu, off at the start of every run): the
   player picks which of common, uncommon and rare to combine. Whenever an item
   reaches the stash, spare equipment of those rarities is combined in threes, cheapest first, and the results can cascade. This
   covers every source: creep drops, item and tower skills, Pocket Emporium
@@ -67,6 +76,13 @@ towers. There is no tower limit, but untrained and unequipped towers are weak.
 
 - Sizes: mass, normal (with champions), air, boss. Every 8th wave is a challenge
   wave that cannot damage the portal.
+- Leaking: the last 2 tiles before the crystal (`LEAK_ZONE`) count as the portal.
+  A creep that enters them damages the portal at once and leaves the simulation:
+  towers cannot hit it there, and it drops nothing and grants no experience. The
+  view then shows it attacking the crystal briefly before a beam from the crystal
+  destroys it: melee models walk up and strike, ranged ones (`CREEP_ATTACK_STYLE`
+  in `src/data/model-map.js`) fire from the edge of the zone, gun-wielding soldiers
+  with fast tracers and casters with glowing orbs. The leak point is 103 tiles along the ground path.
 - Races: undead, brute, humanoid, arcane, feral. Armor: hide, chain, plate,
   spirit, divine, bare (see the damage matrix in `constants.js`).
 - Specials such as swift, armored, regenerating, shielded, warded, splitter,
@@ -127,3 +143,9 @@ The bot builds first tiers and upgrades, ignores armor matchups and never casts
 manually, so human players should reach further. Many ports are still
 approximations; rerun the bot after engine primitives replace them. The health curve lives in
 `baseHp()` in `src/sim/waves.js`.
+
+Carries are compared with `node tools/carry-bench.js` (wave 90, medium, carry
+level 25). Top-5 average health multiple held, spell carries vs attack carries:
+boss 3.2 vs 2.2, mass 68 vs 4.9, air 21 vs 2.1. Bosses are the target for
+parity; area spells are expected to lead on mass and air. It (y216) is an outlier
+on mass because Corruption Field pushes creeps back on every attack.

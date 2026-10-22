@@ -11,7 +11,7 @@ import { ITEMS, ITEMS_BY_RARITY } from '../data/items.js';
 import { generateWave, SPECIALS } from './waves.js';
 import { PERKS, PERK_LEVELS, perkFits } from '../data/tower-perks.js';
 import { SPOILS, SPOIL_IDS } from '../data/boss-spoils.js';
-import { GROUND_ROUTE, AIR_ROUTE, sampleRoute, tileToWorld, isBuildable } from './map-layout.js';
+import { GROUND_ROUTE, AIR_ROUTE, sampleRoute, tileToWorld, isBuildable, LEAK_ZONE } from './map-layout.js';
 import { mulberry32, Emitter } from './rng.js';
 import { initAbilities, tickTower, castActive, castItemActive, itemAutoOn, runProcs, buffMods, tickCreepDebuffs } from './abilities.js';
 import { runItemHook } from './abilities.js';
@@ -91,6 +91,8 @@ export class Game extends Emitter {
       wavesCleared: 0, clearedLevels: new Set(), leakLog: [], bossKills: 0,
       goldSpent: { build: 0, upgrade: 0, train: 0 }, tomesSpent: { research: 0, towers: 0, reroll: 0 },
       earlyCalls: 0, transmutes: 0, peakUniquesCarried: 0, soldTowers: [],
+      // Creeps seen, killed and escaped per size, armor and race, for the scoreboard.
+      groups: { size: {}, armor: {}, race: {} },
     };
 
     for (let i = 1; i <= 6; i++) this.upcoming.push(generateWave(i, difficulty, this.rng));
@@ -162,7 +164,7 @@ export class Game extends Emitter {
       uid: UID++, def, c, r, x: p.x, z: p.z,
       level: 0, xp: 0, kills: 0, damageDealt: 0, invested: def.totalCost,
       items: new Array(def.slots).fill(null), oil: {}, killStacks: 0, perks: [], perkOffer: null, trained: 0,
-      timer: 0.2, abilityTimers: {}, beam: null, priority: 'first', stats: null, aim: 0, dmgSplit: {},
+      timer: 0.2, abilityTimers: {}, beam: null, priority: 'first', stats: null, aim: 0, dmgSplit: {}, dmgBySize: {},
     };
     initAbilities(tower);
     this.towers.set(tower.uid, tower);
@@ -625,11 +627,14 @@ export class Game extends Emitter {
     const crit = ab('crit');
     const multi = ab('multishot');
     const lvl = t.level;
+    // Experience is the main source of power: level 0 deals 35%, level 5 100%,
+    // level 20 ~295%, level 30 ~475%. Levels past 20 add a little extra so the
+    // push to the cap pays off. Items and buffs multiply on top. Flat spell and
+    // ability damage scales by the same factor (see applyEffect).
+    const levelMult = 0.35 + 0.13 * lvl + 0.05 * Math.max(0, lvl - 20);
     const s = {
-      // Experience is the main source of power: level 0 deals 35%, level 5 100%,
-      // level 20 ~295%, level 30 ~475%. Levels past 20 add a little extra so the
-      // push to the cap pays off. Items and buffs multiply on top.
-      damageMult: (0.35 + 0.13 * lvl + 0.05 * Math.max(0, lvl - 20)) * (1 + (m.damage || 0) + t.killStacks),
+      levelMult,
+      damageMult: levelMult * (1 + (m.damage || 0) + t.killStacks),
       attackSpeed: 1 + (m.attackSpeed || 0) + lvl * 0.02,
       range: t.def.range + (m.range || 0),
       crit: (crit ? crit.chance : 0) + (m.crit || 0) + lvl * 0.004,
@@ -660,7 +665,10 @@ export class Game extends Emitter {
     if (t.maxMana) s.maxMana = (t.maxMana + s.manaFlat) * (1 + s.manaPct);
     s.dmgMin = t.def.damage[0] * s.damageMult + s.flatDamage;
     s.dmgMax = t.def.damage[1] * s.damageMult + s.flatDamage;
-    s.dps = ((s.dmgMin + s.dmgMax) / 2) * (1 + s.crit * (s.critMult - 1)) * s.targets / s.cd;
+    // Expected crits per attack with multicrit: p + p^2 + ... + p^multicrit.
+    const p = Math.min(1, Math.max(0, s.crit));
+    const crits = p >= 1 ? s.multicrit : (p * (1 - p ** s.multicrit)) / (1 - p);
+    s.dps = ((s.dmgMin + s.dmgMax) / 2) * (1 + crits * (s.critMult - 1)) * s.targets / s.cd;
     t.stats = s;
   }
 
@@ -678,6 +686,7 @@ export class Game extends Emitter {
       this.ensureRevealerInDraft();
     }
     this.emit('waveStart', def);
+    if (this.level === this.trainUnlockWave()) this.emit('notice', { text: 'Tower training is unlocked: spend spare gold on Train to level your towers.', kind: 'gold' });
     if (def.level % ECON.itemSlotEvery === 0 && def.level / ECON.itemSlotEvery < 6) {
       this.emit('notice', { text: `Every tower gained an item slot (${this.itemSlots()}/6)`, kind: 'gold' });
       this.emit('stash');
@@ -761,6 +770,7 @@ export class Game extends Emitter {
     if (has('warded')) c.mana = c.maxMana = CREEP_MANA[sizeId] || 0;
     sampleRoute(route, 0, c);
     wave.alive++;
+    this.tally(c, 'seen');
     this.creeps.push(c);
     this.emit('creepSpawned', c);
     if (sizeId === 'boss' || sizeId === 'challenge') this.emit('bossSpawned', c);
@@ -875,7 +885,7 @@ export class Game extends Emitter {
           this.emit('blink', { creep: c, from });
         }
       }
-      if (c.dist >= c.route.length) { this.leak(c); continue; }
+      if (c.dist >= c.route.length - LEAK_ZONE) { this.leak(c); continue; }
       sampleRoute(c.route, c.dist, c);
     }
   }
@@ -898,11 +908,22 @@ export class Game extends Emitter {
     return false;
   }
 
+  // Counts a creep event in the per-size, per-armor and per-race tallies.
+  tally(c, key, n = 1) {
+    const g = this.stats.groups;
+    for (const [kind, id] of [['size', c.size], ['armor', c.armorType], ['race', c.race]]) {
+      const row = g[kind][id] ||= { seen: 0, killed: 0, escaped: 0, lives: 0 };
+      row[key] += n;
+    }
+  }
+
   leak(c) {
     c.alive = false;
     c.wave.alive--;
     const size = SIZES[c.size];
     this.stats.leaks++;
+    this.tally(c, 'escaped');
+    if (size.leak > 0) this.tally(c, 'lives', size.leak);
     this.stats.leakLog.push({ wave: c.level, size: c.size, race: c.race, lives: size.leak });
     if (size.leak > 0) {
       this.lives -= size.leak;
@@ -1106,13 +1127,12 @@ export class Game extends Emitter {
     if (c.specials.includes('evasive') && this.rng() < 0.2) { this.emit('miss', c); return; }
     const miss = t.def.abilities.find((a) => a.type === 'miss');
     if (miss && this.rng() < Math.max(0, miss.base + miss.perLevel * t.level)) { this.emit('miss', c); return; }
-    let dmg = base;
-    let crit = false;
-    for (let i = 0; i < s.multicrit; i++) {
-      if (this.rng() >= s.crit) break;
-      dmg *= i === 0 ? s.critMult : 1 + (s.critMult - 1) * 0.5;
-      crit = true;
-    }
+    // Multicrit rolls again after each crit; every crit adds the crit bonus once, so
+    // damage grows linearly with the number of crits instead of multiplying.
+    let crits = 0;
+    while (crits < s.multicrit && this.rng() < s.crit) crits++;
+    const crit = crits > 0;
+    let dmg = crit ? base * (1 + crits * (s.critMult - 1)) : base;
     // 'damage' procs may change the hit before it lands; a share moved to spell damage
     // lands right after the attack part.
     let spellPart = 0;
@@ -1303,6 +1323,8 @@ export class Game extends Emitter {
       t.damageDealt += dmg;
       const key = opts.spell ? 'spell' : (t.stats?.attackType || t.def.attack);
       t.dmgSplit[key] = (t.dmgSplit[key] || 0) + dmg;
+      const bySize = (t.dmgBySize ||= {});
+      bySize[c.size] = (bySize[c.size] || 0) + dmg;
       c.damageBy.set(t, (c.damageBy.get(t) || 0) + dmg);
       if (c.mark?.xpChance && c.mark.left !== 0 && this.rng() < c.mark.xpChance) {
         c.mark.left = (c.mark.left ?? 10) - 1;
@@ -1321,6 +1343,7 @@ export class Game extends Emitter {
     const size = SIZES[c.size];
     const has = (s) => c.specials.includes(s);
     this.stats.kills++;
+    this.tally(c, 'killed');
 
     // Gold
     let bounty = (3 + c.level * 0.6) * size.bounty * this.diff.gold;
@@ -1420,10 +1443,19 @@ export class Game extends Emitter {
     return true;
   }
 
+  // Training opens late in the run (wave 80 of 120, wave 54 of 80; Endless counts as 120).
+  trainUnlockWave() {
+    const waves = this.cfg.length === 'endless' ? ENDLESS_GOAL : LENGTHS[this.cfg.length].waves;
+    return Math.ceil(waves * ECON.trainUnlock);
+  }
+
+  trainLocked() { return this.level < this.trainUnlockWave(); }
+
   trainCost(t) { return Math.round(ECON.trainBase * (1 + t.level * 0.5) * (1 + t.trained * 0.02)); }
 
   // Spend gold to grant experience: the gold sink once the tower limit is full.
   train(t) {
+    if (this.trainLocked()) { this.emit('error', `Training unlocks at wave ${this.trainUnlockWave()}`); return false; }
     if (t.level >= TOWER_MAX_LEVEL) { this.emit('error', 'Tower is at max level'); return false; }
     const cost = this.trainCost(t);
     if (this.gold < cost) { this.emit('error', 'Not enough gold'); return false; }
@@ -1438,6 +1470,7 @@ export class Game extends Emitter {
   // Trains repeatedly while gold lasts, up to max level. Returns the levels gained.
   trainMax(t) {
     const start = t.level;
+    if (this.trainLocked()) { this.emit('error', `Training unlocks at wave ${this.trainUnlockWave()}`); return 0; }
     if (t.level >= TOWER_MAX_LEVEL) { this.emit('error', 'Tower is at max level'); return 0; }
     if (this.gold < this.trainCost(t)) { this.emit('error', 'Not enough gold'); return 0; }
     while (t.level < TOWER_MAX_LEVEL && this.gold >= this.trainCost(t)) this.train(t);

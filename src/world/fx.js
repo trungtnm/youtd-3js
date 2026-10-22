@@ -359,6 +359,22 @@ export class FX {
     this.temp.push({ obj, t: 0, life, update });
   }
 
+  // A glowing shot with a trail; onHit runs when it lands. arc lifts it mid-flight
+  // (0 flies straight, like a bullet).
+  bolt(from, to, color, size = 0.22, travel = 0.35, onHit = null, arc = 0.8) {
+    const m = new THREE.Mesh(sphereGeo, glow(color, 3));
+    m.scale.setScalar(size);
+    const c = new THREE.Color(color);
+    this._temp(m, travel, (k) => {
+      m.position.set(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k + Math.sin(k * Math.PI) * arc, from.z + (to.z - from.z) * k);
+      this.add.emit(this.time, m.position.x, m.position.y, m.position.z, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, c, 0.25, size * 1.3, 0);
+    });
+    this.after(travel, () => {
+      this.burst(to.x, to.y, to.z, color, 10, 3.5, 0.4, size * 1.4, 5);
+      onHit?.();
+    });
+  }
+
   ring(x, z, radius, color, life = 0.5, y = 0.15, width = 1) {
     const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     m.position.set(x, y, z);

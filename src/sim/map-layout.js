@@ -1,8 +1,8 @@
 // Grid and path layout shared by the simulation and the 3D world.
 
 export const TILE = 2;
-export const COLS = 30;
-export const ROWS = 16;
+export const COLS = 28;
+export const ROWS = 20;
 export const MAP_W = COLS * TILE;
 export const MAP_D = ROWS * TILE;
 
@@ -10,13 +10,13 @@ export const MAP_D = ROWS * TILE;
 export const tileToWorld = (c, r) => ({ x: (c - COLS / 2 + 0.5) * TILE, z: (r - ROWS / 2 + 0.5) * TILE });
 export const worldToTile = (x, z) => ({ c: Math.floor(x / TILE + COLS / 2), r: Math.floor(z / TILE + ROWS / 2) });
 
-// Ground route: a compact three-lane serpentine. Corners are in tile coordinates.
+// Ground route: a four-lane serpentine with three U-turns. Corners are in tile coordinates.
 const GROUND_CORNERS = [
-  [-2, 2], [26, 2], [26, 7], [3, 7], [3, 12], [27, 12],
+  [-2, 2], [24, 2], [24, 7], [3, 7], [3, 12], [24, 12], [24, 17], [2, 17],
 ];
 // Air route: flyers cut diagonally across the lanes.
 const AIR_CORNERS = [
-  [-2, 2], [25, 4.5], [4, 9.5], [27, 12],
+  [-2, 2], [23, 4.5], [4, 9.5], [23, 14.5], [2, 17],
 ];
 
 function buildRoute(corners) {
@@ -66,12 +66,21 @@ for (let i = 0; i < GROUND_CORNERS.length - 1; i++) {
 }
 
 // Decorative rocky tiles at the map corners.
+const LC = COLS - 1, LR = ROWS - 1;
+export const MAP_CORNERS = ['0,0', `${LC},${LR}`, `${LC},0`, `0,${LR}`];
 export const BLOCKED_TILES = new Set([
-  '0,0', '1,0', '0,1', '29,15', '28,15', '29,14', '29,0', '28,0', '0,15', '1,15', '0,14',
+  '0,0', '1,0', '0,1', `${LC},${LR}`, `${LC - 1},${LR}`, `${LC},${LR - 1}`, `${LC},0`, `${LC - 1},0`, `0,${LR}`, `1,${LR}`, `0,${LR - 1}`,
 ]);
 
 export const isBuildable = (c, r) =>
   c >= 0 && r >= 0 && c < COLS && r < ROWS && !PATH_TILES.has(`${c},${r}`) && !BLOCKED_TILES.has(`${c},${r}`);
 
 export const SPAWN = tileToWorld(-2, 2);
-export const PORTAL = tileToWorld(27, 12);
+export const PORTAL = tileToWorld(...GROUND_CORNERS.at(-1));
+// Direction of travel on the last stretch, and the crystal just past the path's end.
+const lastSeg = GROUND_ROUTE.segs.at(-1);
+export const PORTAL_DIR = { x: lastSeg.dx, z: lastSeg.dz };
+export const NEXUS = { x: PORTAL.x + PORTAL_DIR.x * 1.5, z: PORTAL.z + PORTAL_DIR.z * 1.5 };
+// The last stretch before the crystal: a creep that enters it has leaked. Towers no
+// longer reach it there; the view plays its attack on the crystal and its end.
+export const LEAK_ZONE = 2 * TILE;

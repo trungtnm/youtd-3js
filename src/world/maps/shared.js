@@ -15,7 +15,7 @@
 //   update(env, T)        per-frame animation of the map's own objects
 
 import * as THREE from 'three';
-import { TILE, COLS, ROWS, GROUND_ROUTE, AIR_ROUTE, PATH_TILES, BLOCKED_TILES, SPAWN, PORTAL, tileToWorld } from '../../sim/map-layout.js';
+import { TILE, COLS, ROWS, GROUND_ROUTE, AIR_ROUTE, PATH_TILES, BLOCKED_TILES, SPAWN, PORTAL, PORTAL_DIR, NEXUS, tileToWorld } from '../../sim/map-layout.js';
 
 // ------------------------------------------------------------------ noise
 export function hash(x, z) {
@@ -206,4 +206,4 @@ export function riftMaterial(color, highlight = 0xffffff) {
   });
 }
 
-export { SPAWN, PORTAL, GROUND_ROUTE, AIR_ROUTE, PATH_TILES, BLOCKED_TILES, TILE, COLS, ROWS, tileToWorld };
+export { SPAWN, PORTAL, PORTAL_DIR, NEXUS, GROUND_ROUTE, AIR_ROUTE, PATH_TILES, BLOCKED_TILES, TILE, COLS, ROWS, tileToWorld };

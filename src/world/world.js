@@ -11,10 +11,18 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { buildEnvironment, disposeEnvironment, updateEnvironment, MAPS, DEFAULT_MAP } from './environment.js';
-import { buildTowerModel, buildCrest, buildCreepModel, preloadCreepModels, RACE_COLORS } from './models.js';
+import { buildTowerModel, buildCrest, buildCreepModel, preloadCreepModels, creepAttackStyle, RACE_COLORS } from './models.js';
 import { FX } from './fx.js';
 import { TOWER_MAX_LEVEL, ELEMENTS, RARITIES } from '../data/constants.js';
-import { worldToTile, tileToWorld, isBuildable, PORTAL, MAP_W, MAP_D } from '../sim/map-layout.js';
+import { worldToTile, tileToWorld, isBuildable, sampleRoute, NEXUS, MAP_W, MAP_D } from '../sim/map-layout.js';
+
+// Leaked creeps attacking the crystal: seconds per strike, strikes before the crystal
+// fires, and how many may be on show at once (extras vanish as before).
+const RAID_STRIKE = 0.45;
+// Seconds per shot: casters fire more slowly than melee creeps strike, guns faster.
+const RAID_SHOT = { magic: 0.6, gun: 0.3 };
+const RAID_STRIKES = { normal: 3, big: 5 };
+const MAX_RAIDERS = 40;
 import { mulberry32 } from '../sim/rng.js';
 import { CreepOverlays } from './creep-overlays.js';
 import { CreepCrowd } from './creep-crowd.js';
@@ -102,7 +110,7 @@ export class World {
     const sc = sun.shadow.camera;
     // Tight frustum around the compact playfield keeps 1024px shadows crisp.
     // The low sun stretches the field in light space, so the frustum is taller than the map.
-    sc.left = -40; sc.right = 40; sc.top = 34; sc.bottom = -34; sc.near = 10; sc.far = 190;
+    sc.left = -(MAP_W / 2 + 10); sc.right = MAP_W / 2 + 10; sc.top = MAP_D / 2 + 18; sc.bottom = -(MAP_D / 2 + 18); sc.near = 10; sc.far = 190;
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.04;
     scene.add(sun);
@@ -153,6 +161,7 @@ export class World {
     this.creepViews = new Map();
     preloadCreepModels();
     this.dying = [];
+    this.raiders = [];
     // Hit flash: creep meshes swap to this shared material for a few frames.
     this.flashMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.5, 1.4) });
     // Curated creep models are drawn as instanced crowds (see creep-crowd.js).
@@ -164,7 +173,9 @@ export class World {
     this.streak = { tier: -1, last: -10 };
 
     // Camera rig
-    this.cam = { x: 0, z: 2, yaw: 0, dist: 74, tx: 0, tz: 2, tyaw: 0, tdist: 74, menu: true };
+    // Camera distances were tuned for a 60x32 map; larger maps pull back to match.
+    this.viewScale = Math.max(MAP_W / 60, MAP_D / 32);
+    this.cam = { x: 0, z: 2, yaw: 0, dist: 74 * this.viewScale, tx: 0, tz: 2, tyaw: 0, tdist: 74 * this.viewScale, menu: true };
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, inside: false, ndc: new THREE.Vector2() };
     this.raycaster = new THREE.Raycaster();
@@ -232,7 +243,7 @@ export class World {
       // Trackpads send many small deltas, mouse wheels a few large ones; normalise both.
       const delta = Math.max(-1, Math.min(1, e.deltaY / 120));
       const before = this.cam.tdist;
-      this.cam.tdist = Math.max(20, Math.min(80, before * Math.exp(delta * 0.14)));
+      this.cam.tdist = Math.max(20, Math.min(80 * this.viewScale, before * Math.exp(delta * 0.14)));
       // Zoom toward the point under the cursor.
       const g = this.pickGround();
       if (g) {
@@ -322,7 +333,7 @@ export class World {
     c.vx ??= 0; c.vz ??= 0; c.vyaw ??= 0;
     if (c.menu) {
       c.tyaw += dt * 0.05;
-      c.tdist = 64;
+      c.tdist = 64 * this.viewScale;
     } else {
       const k = this.keys;
       // Panning is mouse-only: edge scrolling here, drag-pan in the pointer handlers.
@@ -475,14 +486,20 @@ export class World {
     });
     game.on('creepLeaked', (c) => {
       const v = this.creepViews.get(c.uid);
-      if (v) { this.scene.remove(v.group); this.creepViews.delete(c.uid); }
-      if (c.size !== 'challenge' && c.size !== 'challengeMass') {
+      const portal = c.size !== 'challenge' && c.size !== 'challengeMass';
+      if (v) {
+        this.creepViews.delete(c.uid);
+        // Creeps that hurt the portal play out their attack on the crystal (see _syncRaiders).
+        if (portal && this.raiders.length < MAX_RAIDERS) this._addRaider(v, c);
+        else this.scene.remove(v.group);
+      }
+      if (portal) {
         this.grade.uniforms.uFlash.value = 1;
         fx.shake = Math.max(fx.shake, 0.35);
         this.nexusHit = 1;
         audio?.leak();
       }
-      fx.burst(PORTAL.x + 1.5, 3.6, PORTAL.z, 0xff3a3a, 30, 6, 0.8, 0.35, 4);
+      fx.burst(NEXUS.x, 3.6, NEXUS.z, 0xff3a3a, 30, 6, 0.8, 0.35, 4);
     });
     game.on('towerBuilt', (t) => { this._addTower(t, true); fx.buildDust(t.x, t.z, ELEMENTS[t.def.element].color); audio?.build(); });
     game.on('towerUpgraded', (t) => {
@@ -860,18 +877,8 @@ export class World {
       const moving = c.stun <= 0;
       const slow = Math.max(c.slow, c.auraSlow);
       v.phase += dt * (moving ? 9 * (1 - slow * 0.8) : 0);
-      const A = v.anim;
       const animDt = moving ? dt * (1 - slow * 0.8) : 0;
-      A.mixer?.update(animDt);
-      const sw = Math.sin(v.phase);
-      A.legs.forEach((l, i) => { l.rotation.x = (i % 2 ? sw : -sw) * 0.6 * (A.legs.length > 2 && i >= 2 ? -1 : 1); });
-      A.arms.forEach((a, i) => { a.rotation.x = (i % 2 ? -sw : sw) * 0.5; });
-      for (const s of A.spin) s.obj.rotation[s.axis || 'y'] += s.speed * dt;
-      for (const o of A.orbit) { const a = T * o.speed + o.phase; o.obj.position.set(Math.cos(a) * o.r, o.y, Math.sin(a) * o.r); }
-      if (A.flap) { const a = Math.sin(T * 10 + c.uid) * 0.6; A.flap.l.rotation.z = a; A.flap.r.rotation.z = -a; }
-      if (A.body) A.body.position.y = (A.bodyY ?? 2.6) + Math.sin(T * 3 + c.uid) * 0.15;
-      v.inner.position.y = A.float ? 0.2 + Math.sin(T * 2 + c.uid) * 0.15 : Math.abs(Math.sin(v.phase)) * 0.06;
-      if (A.crowd) this._putCrowd(v, animDt);
+      this._poseCreep(v, dt, animDt, T, c.uid);
       // Health bar and blob shadow (unseen creeps show neither)
       if (!v.unseen) {
         const gp = v.group.position;
@@ -884,6 +891,7 @@ export class World {
       if (c.curse > 0 && Math.random() < dt * 5) this.fx.burst(c.x, 1.6, c.z, 0xc04dff, 1, 0.8, 0.6, 0.18, -1);
       if (c.stun > 0 && Math.random() < dt * 10) this.fx.burst(c.x, (c.air ? 3.2 : 2.0), c.z, 0xfff6a0, 1, 1.5, 0.3, 0.12, 0);
     }
+    this._syncRaiders(dt, T);
     this.overlays.end();
     // Remove stale creep views (e.g. creeps cleared without events)
     if (this.creepViews.size > g.creeps.length) {
@@ -911,6 +919,120 @@ export class World {
 
     this.crowd.end();
     this.fx.syncProjectiles(g.projectiles);
+  }
+
+  _addRaider(v, c) {
+    const big = c.size === 'boss' || c.size === 'champion';
+    const style = creepAttackStyle(c);
+    const bolt = style === 'melee' ? null : style.bolt;
+    const shot = style === 'melee' ? null : style.shot;
+    // Melee creeps walk up to the crystal (bigger ones stop further out so they do not
+    // clip into it); ranged ones fire from where they entered the leak zone.
+    const stop = bolt != null ? c.dist : Math.max(c.dist, c.route.length - (c.air ? 1.6 : 1.7) - (1 - v.weight) * 1.2);
+    const every = bolt != null ? RAID_SHOT[shot] || RAID_SHOT.magic : RAID_STRIKE;
+    const pos = { x: c.x, z: c.z };
+    const d = Math.hypot(NEXUS.x - c.x, NEXUS.z - c.z) || 1;
+    this.raiders.push({ v, c, big, dist: c.dist, stop, pos, dir: { x: (NEXUS.x - c.x) / d, z: (NEXUS.z - c.z) / d },
+      t: 0, strikes: 0, state: 'walk', bolt, shot, every, attackFor: every * (big ? RAID_STRIKES.big : RAID_STRIKES.normal) });
+  }
+
+  // Leaked creeps walk the leak zone, strike the crystal a few times, then the crystal's
+  // beam ends them. Pure spectacle: the simulation already counted the leak and removed
+  // the creep, so nothing here can be targeted, drop loot or grant experience.
+  _syncRaiders(dt, T) {
+    if (!this.raiders.length) return;
+    const fx = this.fx;
+    const crystalY = this.env?.nexus?.userData.crystalY ?? 3.6;
+    for (const r of this.raiders) {
+      const { v, c } = r;
+      r.t += dt;
+      v.flash -= dt;
+      this._look(v);
+      if (r.state === 'walk') {
+        r.dist = Math.min(r.stop, r.dist + c.speed * dt);
+        sampleRoute(c.route, r.dist, r.pos);
+        v.group.position.set(r.pos.x, 0, r.pos.z);
+        v.phase += dt * 9;
+        this._poseCreep(v, dt, dt, T, c.uid);
+        if (r.dist >= r.stop) {
+          r.state = 'attack'; r.t = 0;
+          const d = Math.hypot(NEXUS.x - r.pos.x, NEXUS.z - r.pos.z) || 1;
+          r.dir = { x: (NEXUS.x - r.pos.x) / d, z: (NEXUS.z - r.pos.z) / d };
+        }
+      } else if (r.state === 'attack') {
+        // Turn to the crystal and lunge at it once per strike.
+        const yaw = Math.atan2(r.dir.x, r.dir.z);
+        let dy = yaw - v.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        v.yaw += dy * Math.min(1, dt * 10);
+        v.inner.rotation.y = v.yaw;
+        const k = (r.t % r.every) / r.every;
+        const hitY = c.air ? 2.6 : 1.2;
+        const strike = Math.floor(r.t / r.every + 0.5);
+        if (r.bolt == null) {
+          // Melee: lunge at the crystal; the blow lands at the peak of the lunge.
+          const lunge = Math.sin(k * Math.PI) ** 2 * (r.big ? 0.9 : 0.55);
+          v.group.position.set(r.pos.x + r.dir.x * lunge, 0, r.pos.z + r.dir.z * lunge);
+          v.inner.rotation.x = lunge * 0.4;
+          v.phase += dt * 14;
+          this._poseCreep(v, dt, dt * 1.6, T, c.uid);
+          if (strike > r.strikes) {
+            r.strikes = strike;
+            const sx = NEXUS.x - r.dir.x * 0.9, sz = NEXUS.z - r.dir.z * 0.9;
+            fx.hitSpark(sx, hitY, sz, 0xff6a4a, r.big ? 1 : 0.6);
+            this.nexusHit = Math.max(this.nexusHit || 0, r.big ? 0.6 : 0.35);
+          }
+        } else {
+          // Ranged: rear back, then snap forward and fire; the crystal flares when it lands.
+          const wind = k < 0.5 ? k / 0.5 : Math.max(0, 1 - (k - 0.5) / 0.15);
+          const recoil = -wind * (r.big ? 0.45 : 0.3);
+          v.group.position.set(r.pos.x + r.dir.x * recoil, 0, r.pos.z + r.dir.z * recoil);
+          v.inner.rotation.x = -wind * 0.3;
+          v.phase += dt * 4;
+          this._poseCreep(v, dt, dt * 0.6, T, c.uid);
+          if (strike > r.strikes) {
+            r.strikes = strike;
+            const gp = v.group.position;
+            const from = { x: gp.x + r.dir.x * 0.6, y: c.air ? 2.6 : 1.1 + (1 - v.weight) * 1.2, z: gp.z + r.dir.z * 0.6 };
+            const to = { x: NEXUS.x - r.dir.x * 0.6, y: hitY + 0.6, z: NEXUS.z - r.dir.z * 0.6 };
+            const big = r.big;
+            const onHit = () => { this.nexusHit = Math.max(this.nexusHit || 0, big ? 0.6 : 0.35); };
+            if (r.shot === 'gun') {
+              // Muzzle flash, then a small tracer flying straight and fast.
+              fx.burst(from.x, from.y, from.z, 0xfff0b0, 5, 2.5, 0.12, 0.14, 0);
+              fx.bolt(from, to, r.bolt, 0.09, 0.12, onHit, 0);
+            } else fx.bolt(from, to, r.bolt, big ? 0.34 : 0.22, 0.3, onHit);
+          }
+        }
+        if (r.t >= r.attackFor) {
+          // The crystal answers with a beam and the creep is destroyed.
+          r.state = 'done';
+          const gp = v.group.position, h = c.air ? 2.6 : 0.8 + (1 - v.weight) * 1.2;
+          fx.beam({ x: NEXUS.x, y: crystalY, z: NEXUS.z }, { x: gp.x, y: h, z: gp.z }, 0x9fe8ff, r.big ? 3 : 2);
+          fx.lightning([{ x: NEXUS.x, y: crystalY, z: NEXUS.z }, { x: gp.x, y: h, z: gp.z }], 0x9fe8ff, r.big ? 0.12 : 0.08);
+          fx.death({ x: gp.x, z: gp.z, size: c.size, air: c.air }, RACE_COLORS[c.race]);
+          this.nexusHit = Math.max(this.nexusHit || 0, 0.8);
+          v.inner.rotation.x = 0;
+          v.flash = 0.09;
+          this.dying.push({ v, t: 0, rate: r.big ? 0.6 : 1 });
+        }
+      }
+    }
+    this.raiders = this.raiders.filter((r) => r.state !== 'done');
+  }
+
+  // Walk cycle, rig motion and crowd instance for one creep view; phase advances separately.
+  _poseCreep(v, dt, animDt, T, uid) {
+    const A = v.anim;
+    A.mixer?.update(animDt);
+    const sw = Math.sin(v.phase);
+    A.legs.forEach((l, i) => { l.rotation.x = (i % 2 ? sw : -sw) * 0.6 * (A.legs.length > 2 && i >= 2 ? -1 : 1); });
+    A.arms.forEach((a, i) => { a.rotation.x = (i % 2 ? -sw : sw) * 0.5; });
+    for (const s of A.spin) s.obj.rotation[s.axis || 'y'] += s.speed * dt;
+    for (const o of A.orbit) { const a = T * o.speed + o.phase; o.obj.position.set(Math.cos(a) * o.r, o.y, Math.sin(a) * o.r); }
+    if (A.flap) { const a = Math.sin(T * 10 + uid) * 0.6; A.flap.l.rotation.z = a; A.flap.r.rotation.z = -a; }
+    if (A.body) A.body.position.y = (A.bodyY ?? 2.6) + Math.sin(T * 3 + uid) * 0.15;
+    v.inner.position.y = A.float ? 0.2 + Math.sin(T * 2 + uid) * 0.15 : Math.abs(Math.sin(v.phase)) * 0.06;
+    if (A.crowd) this._putCrowd(v, animDt);
   }
 
   // Project a world position to screen pixels (used by the HUD for anchored popups).

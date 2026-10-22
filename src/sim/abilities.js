@@ -281,7 +281,9 @@ export function applyEffect(game, t, e, target, ctx = {}) {
   }
   const lvlScale = 1 + (e.perLevel || 0) * t.level;
   // Original YouTD spells deal flat damage that grows per level; others scale off attack damage.
-  let base = e.flat != null ? e.flat + (e.flatPerLevel || 0) * t.level : avgDamage(t) * (e.mult || 0) * lvlScale;
+  // Flat damage also follows part of the tower's level curve (ECON.spellLevelScale), so
+  // spell carries keep pace with attack carries as they level.
+  let base = e.flat != null ? (e.flat + (e.flatPerLevel || 0) * t.level) * (1 + ECON.spellLevelScale * ((t.stats?.levelMult ?? 1) - 1)) : avgDamage(t) * (e.mult || 0) * lvlScale;
   if (e.manaMult) base += (t.mana || 0) * e.manaMult;
   if (e.fromLinked) {
     // Releases a share of the spell damage the linked ally dealt (needs linkAfter seconds of link).

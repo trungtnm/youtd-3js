@@ -11,7 +11,7 @@ code is plain JavaScript ES modules with no framework.
 | Simulation | `src/sim/` | Headless game state and rules. No DOM, no three.js. Runs in Node for the balance bot |
 | World | `src/world/` | three.js scene, camera, post-processing, procedural models, effects |
 | Meta | `src/meta/` | Player profile in `localStorage` and achievement bookkeeping. Pure functions plus thin storage wrappers |
-| UI | `src/ui/` | DOM HUD (`hud.js`), end-of-run summary (`end-screen.js`), Hall of Records (`hall.js`), shared helpers (`util.js`) |
+| UI | `src/ui/` | DOM HUD (`hud.js`), end-of-run summary (`end-screen.js`), in-run scoreboard on Tab (`scoreboard.js`, reads `stats.groups` and per-tower `dmgBySize`), Hall of Records (`hall.js`), shared helpers (`util.js`) |
 | Audio | `src/audio/audio.js` | Synthesized sound effects and the licensed music playlist |
 | Entry | `src/main.js` | Menu, settings, input routing, fixed-step game loop |
 
@@ -29,7 +29,7 @@ directly except through `Game` methods (`build`, `upgrade`, `equip`, `castActive
   debuffs, and one effect executor (`applyEffect`) used by towers and items alike.
 - `waves.js`: wave generation (size, race, armor, champions, specials) and the
   creep health curve.
-- `map-layout.js`: grid (30x16 tiles of 2 world units), ground and air routes,
+- `map-layout.js`: grid (28x20 tiles of 2 world units; the ground path is a four-lane serpentine with three U-turns; creeps leak 103 tiles in, at the start of `LEAK_ZONE`), the crystal position (`NEXUS`),, ground and air routes,
   buildable tiles. Shared by the simulation and the world.
 - `rng.js`: seeded PRNG and the event emitter.
 
@@ -171,6 +171,11 @@ the player's "Interface size" setting.
 
 - `tools/balance.js`: headless bot that plays the simulation and prints the wave
   it reached. Configure with environment variables (see `AGENTS.md`).
+- `tools/carry-bench.js`: ranks every top-tier tower as a single carry with a
+  fixed support setup (4 control towers, a buff aura, oils, perks) against a
+  boss, a mass wave and an air wave. The score is the largest creep health
+  multiple the setup kills without a leak. Use it to compare spell and attack
+  carries; the balance bot never trains and rarely builds a real carry.
 - `tools/perf-bench.mjs` (`npm run bench`): drives local Google Chrome over the
   DevTools protocol against the dev server, fills the field with towers and a
   crowd, and prints per-frame simulation, render and HUD time, draw calls and

@@ -83,7 +83,7 @@ function act() {
       // Keep enough gold for the next tier upgrade that research already allows.
       const reserve = Math.min(...[...g.towers.values()].map((t) => nextTier(t.def.id)).filter((n) => n && g.towerUnlocked(n)).map((n) => n.cost), Infinity);
       const next = ranked.find((t) => g.gold - g.trainCost(t) > (Number.isFinite(reserve) ? reserve : 0));
-      if (!next || ups.length) break;
+      if (!next || ups.length || g.trainLocked()) break;
       g.train(next);
       continue;
     }

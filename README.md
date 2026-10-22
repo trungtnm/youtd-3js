@@ -56,6 +56,7 @@ To open the game from another device on your network, run
 | 1 / 2 / 3 | Game speed |
 | P | Pause |
 | B | Show or hide the tower panel |
+| Tab | Scoreboard: tower damage and the creep types that get through |
 | U | Upgrade the selected tower |
 | T | Train the selected tower |
 | F / G | Cast the selected tower's first / second ability |

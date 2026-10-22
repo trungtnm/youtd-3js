@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { mat, glow } from '../models.js';
 import {
   fbm, HALF_X, HALF_Z, distToRoute, outside, onEntryRoad, clearOfRoad as clearOf, nearTileCentre, mk, instanced,
-  buildPathRibbon, buildAirLane, riftMaterial, GROUND_ROUTE, BLOCKED_TILES, SPAWN, PORTAL, tileToWorld,
+  buildPathRibbon, buildAirLane, riftMaterial, GROUND_ROUTE, BLOCKED_TILES, SPAWN, PORTAL, PORTAL_DIR, NEXUS, tileToWorld,
 } from './shared.js';
 
 const WALL = 1.4;          // the perimeter wall stands this far outside the play rectangle
@@ -498,7 +498,7 @@ function buildBraziers(group) {
       break;
     }
   }
-  spots.push([SPAWN.x + 6, SPAWN.z - 2.6], [SPAWN.x + 6, SPAWN.z + 2.6], [PORTAL.x - 2, PORTAL.z - 3.2], [PORTAL.x - 2, PORTAL.z + 3.2]);
+  spots.push([SPAWN.x + 6, SPAWN.z - 2.6], [SPAWN.x + 6, SPAWN.z + 2.6], [PORTAL.x - PORTAL_DIR.x * 2 - PORTAL_DIR.z * 3.2, PORTAL.z - PORTAL_DIR.z * 2 + PORTAL_DIR.x * 3.2], [PORTAL.x - PORTAL_DIR.x * 2 + PORTAL_DIR.z * 3.2, PORTAL.z - PORTAL_DIR.z * 2 - PORTAL_DIR.x * 3.2]);
   const flames = [];
   const stand = mat(0x2e2c30, { metal: 0.5, rough: 0.55 });
   const bowl = mat(0x4a4448, { metal: 0.55, rough: 0.5 });
@@ -673,7 +673,7 @@ function buildNexus() {
   const light = new THREE.PointLight(0x7ac8ff, 10, 14, 1.5);
   light.position.y = 4;
   g.add(light);
-  g.position.set(PORTAL.x + 1.5, 0, PORTAL.z);
+  g.position.set(NEXUS.x, 0, NEXUS.z);
   g.userData = { crystal, crystalMat, ring1, ring2, beam, pillarMat, crystalY: 3.9 };
   return g;
 }

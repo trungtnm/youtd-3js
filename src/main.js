@@ -21,7 +21,7 @@ const SETTINGS_KEY = 'youtd-reforged-settings';
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
-const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, quality: 'high', difficulty: 'medium', mode: 'build', length: 'full', map: DEFAULT_MAP, autoWave: false, autoTransmute: [], god: 'off' });
+const settings = load(SETTINGS_KEY, { uiScale: 1, sfx: 0.6, music: 0.45, dmg: true, edge: true, bloom: true, shadows: true, quality: 'high', difficulty: 'medium', mode: 'build', length: 'full', map: DEFAULT_MAP, autoWave: false, god: 'off' });
 
 const world = new World($('#app'), $('#overlay'));
 world.setMap(settings.map);
@@ -168,6 +168,8 @@ function clearWorld() {
   world.creepViews.clear();
   for (const d of world.dying) world.scene.remove(d.v.group);
   world.dying = [];
+  for (const r of world.raiders) world.scene.remove(r.v.group);
+  world.raiders = [];
   world.fx.syncProjectiles([]);
   world.setGhost(null);
 }
@@ -176,11 +178,10 @@ function startGame() {
   audio.init();
   audio.click();
   if (game) clearWorld();
-  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, autoWave: settings.autoWave, autoTransmute: settings.autoTransmute, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on', modifiers: activeModifiers() });
+  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, autoWave: settings.autoWave, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on', modifiers: activeModifiers() });
   world.bind(game, audio);
   hud.setGame(game);
   hud.onAutoWave = (on) => { settings.autoWave = on; save(SETTINGS_KEY, settings); };
-  hud.onAutoTransmute = (rarities) => { settings.autoTransmute = rarities; save(SETTINGS_KEY, settings); };
   hud.setSpeed(1);
   paused = false;
   runState = newRunState();
@@ -191,7 +192,7 @@ function startGame() {
   $('#hud').classList.remove('hidden');
   world.cam.menu = false;
   world.cam.tyaw = 0;
-  world.cam.tdist = 66;
+  world.cam.tdist = 66 * world.viewScale;
   world.focus(0, 0);
   hud.banner('Prepare', game.cfg.god ? 'God mode: everything unlocked, nothing is recorded'
     : settings.mode === 'random' ? 'Your first towers have been drafted' : 'Research an element and build your first towers');
@@ -305,13 +306,15 @@ window.addEventListener('keydown', (e) => {
   if (!$('#endscreen').classList.contains('hidden')) return; // the run is over; keys stay inert behind its summary
   const k = e.key.toLowerCase();
   if (k === 'escape') {
-    if (hud.placing) hud.stopPlacing();
+    if (hud.scoreboard.open) hud.toggleScoreboard();
+    else if (hud.placing) hud.stopPlacing();
     else if (hud.selection || hud.selectedItem) { hud.selectedItem = null; hud.hint(''); hud.select(null); }
     else openSettings($('#settings').classList.contains('hidden'));
     return;
   }
   if (!$('#settings').classList.contains('hidden')) return;
-  if (k === ' ') { e.preventDefault(); game.callNextWave(); }
+  if (k === 'tab') { e.preventDefault(); hud.toggleScoreboard(); }
+  else if (k === ' ') { e.preventDefault(); game.callNextWave(); }
   else if (k === 'p') hud.setSpeed(hud.speed === 0 ? 1 : 0);
   else if (k === '1' || k === '2' || k === '3') hud.setSpeed(Number(k));
   else if (k === 'u') hud.upgradeSelected();

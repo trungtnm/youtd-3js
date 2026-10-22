@@ -161,3 +161,15 @@ export const CREEP_MODEL_MAP = {
   arcane: { ground: 'kttbFvCl2C', air: 'TX8r9WBXpe', boss: 'S7jYW6Amye' },     // wizard, ghost skull, blue demon
   feral: { ground: 'P1gU3Qkr9r', air: 'hNO9XvjlKa', boss: 'UYtneO5FpF' },      // wolf, bat, t-rex
 };
+
+// How each creep model attacks the crystal after leaking (view only, same keys as
+// CREEP_MODEL_MAP), picked from what the model holds: 'melee' walks up and strikes;
+// { bolt, shot } stands back and fires. shot 'gun' is a fast straight tracer, 'magic'
+// a glowing orb on an arc.
+export const CREEP_ATTACK_STYLE = {
+  undead: { ground: 'melee', air: { bolt: 0x9fffd0, shot: 'magic' }, boss: 'melee' },   // ghost: soul bolt
+  brute: { ground: 'melee', air: { bolt: 0xff7a2a, shot: 'magic' }, boss: 'melee' },    // dragon: fireball
+  humanoid: { ground: { bolt: 0xffd36a, shot: 'gun' }, air: 'melee', boss: 'melee' },   // soldier: rifle; bee stings
+  arcane: { ground: { bolt: 0x8fb8ff, shot: 'magic' }, air: { bolt: 0xc07aff, shot: 'magic' }, boss: 'melee' }, // wizard: staff; demon: club
+  feral: { ground: 'melee', air: 'melee', boss: 'melee' },
+};

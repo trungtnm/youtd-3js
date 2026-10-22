@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ELEMENTS, RARITIES, RACES } from '../data/constants.js';
 import { attachTowerGlb, attachCreepGlb, prepareCreepGlb } from './glb-models.js';
-import { CREEP_MODEL_MAP } from '../data/model-map.js';
+import { CREEP_MODEL_MAP, CREEP_ATTACK_STYLE } from '../data/model-map.js';
 
 const matCache = new Map();
 export function mat(color, { rough = 0.7, metal = 0.05, emissive = 0, ei = 0, flat = false, transparent = false, opacity = 1 } = {}) {
@@ -675,10 +675,16 @@ function wings(g, col, armorCol, A) {
 
 // Ground creeps use the race's ground model, flyers its air model, and bosses
 // (including challenge bosses) its boss model.
+const creepKind = (creep) => (creep.air ? 'air' : creep.size === 'boss' || creep.size === 'challenge' ? 'boss' : 'ground');
+
 function creepModelSpec(creep) {
-  const kinds = CREEP_MODEL_MAP[creep.race];
-  const v = kinds && (creep.air ? kinds.air : creep.size === 'boss' || creep.size === 'challenge' ? kinds.boss : kinds.ground);
+  const v = CREEP_MODEL_MAP[creep.race]?.[creepKind(creep)];
   return v ? (typeof v === 'string' ? { id: v } : v) : null;
+}
+
+// 'melee' or { bolt: color } for the creep's model (see CREEP_ATTACK_STYLE).
+export function creepAttackStyle(creep) {
+  return CREEP_ATTACK_STYLE[creep.race]?.[creepKind(creep)] || 'melee';
 }
 
 // Creep models are few and needed from the first wave, so fetch them up front.
