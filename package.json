@@ -11,7 +11,8 @@
     "bench": "node tools/perf-bench.mjs",
     "import:youtd": "node tools/import-youtd2.mjs",
     "import:icons": "node tools/import-icons.mjs",
-    "import:models": "node tools/import-models.mjs"
+    "import:models": "node tools/import-models.mjs",
+    "deploy": "vite build && wrangler deploy"
   },
   "dependencies": {
     "three": "^0.186.1"
