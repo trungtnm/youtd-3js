@@ -148,6 +148,15 @@ export function castActive(game, t, idx, manual) {
 
 // ------------------------------------------------------------------ passive procs
 
+// A proc's chance per roll before trigger-chance bonuses. Attack and hit procs are
+// attack-speed adjusted: slow hitters proc more per attack, fast ones less, so the
+// procs-per-second budget stays tied to the tower, not its speed.
+export function procBaseChance(t, p) {
+  let chance = (p.chance ?? 1) + (p.chancePerLevel || 0) * t.level;
+  if ((p.on === 'attack' || p.on === 'hit') && !p.noAsAdjust) chance *= Math.max(0.3, Math.min(2.2, t.def.cd));
+  return chance;
+}
+
 // Called by the simulation at trigger points. `on` is 'attack' | 'hit' | 'kill' | 'periodic'
 // | 'enter' (creep enters range) | 'crit' | 'cast' (after an autocast) | 'death' (any creep dies in range).
 const CONDITIONS = {
@@ -222,11 +231,7 @@ export function runProcs(game, t, on, ctx) {
         if (t.counters[key] < every) continue;
         t.counters[key] = 0;
       } else {
-        let chance = (p.chance ?? 1) + (p.chancePerLevel || 0) * t.level;
-        // Attack-speed adjusted: slow hitters proc more per attack, fast ones less,
-        // so the procs-per-second budget stays tied to the tower, not its speed.
-        if ((on === 'attack' || on === 'hit') && !p.noAsAdjust) chance *= Math.max(0.3, Math.min(2.2, t.def.cd));
-        chance *= 1 + (t.stats.trigger || 0);
+        const chance = procBaseChance(t, p) * (1 + (t.stats.trigger || 0));
         if (game.rng() >= chance) {
           // A failed periodic roll still waits out its window, so "30% every 7s" means one roll per 7s.
           if (on === 'periodic' && p.icd) t.procCd[key] = p.icd;

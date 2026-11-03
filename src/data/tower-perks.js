@@ -1,6 +1,8 @@
 // Level-milestone perks. At each milestone a tower offers three perks and the
 // player keeps one, so two towers of the same type can grow in different directions.
 
+import { procBaseChance } from '../sim/abilities.js';
+
 // A perk every 5 levels up to the level cap of 30.
 export const PERK_LEVELS = [5, 10, 15, 20, 25, 30];
 
@@ -30,12 +32,16 @@ export const PERKS = {
   patience:   { name: 'Patience',        icon: '⏳', mods: { buffDur: 0.4, cdr: 0.15 }, desc: 'Buffs last 40% longer, abilities recharge 15% faster.', needs: 'actives', minLevel: 10 },
 };
 
+// A proc that already fires on every roll gains nothing from a higher chance;
+// counter procs (`every`) and item actives do not roll at all.
+const rollsBelowCertain = (tower, a) => a.type === 'proc' && !a.every && !a.active && procBaseChance(tower, a) < 1;
+
 export function perkFits(tower, id) {
   const p = PERKS[id];
   if (tower.perks.includes(id) && !p.repeatable) return false;
   if (p.minLevel && tower.level < p.minLevel) return false;
   if (p.maxLevel && tower.level > p.maxLevel) return false;
   if (p.needs === 'actives' && !tower.def.actives.length) return false;
-  if (p.needs === 'procs' && !tower.def.abilities.some((a) => a.type === 'proc')) return false;
+  if (p.needs === 'procs' && !tower.def.abilities.some((a) => rollsBelowCertain(tower, a))) return false;
   return true;
 }
