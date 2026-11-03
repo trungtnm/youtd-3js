@@ -1,6 +1,6 @@
 # Self-host the online server on the VPS with Docker
 
-Status: in progress
+Status: done (2026-11-03): live at https://youtd.0xtrungtran.com from ctb-1; Cloudflare Worker, D1, R2 and Queue deleted
 
 ## Outcome
 
