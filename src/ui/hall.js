@@ -1,5 +1,7 @@
 // Hall of Records: the player's title, records, lifetime totals, run history,
 // achievement gallery and unlocks, plus profile export, import and reset.
+// With an online account it shows the account's profile (built by the server
+// from verified runs) and keeps this browser's own profile on a second tab.
 // Profile data is rendered only through catalog lookups and esc.
 
 import { DIFFICULTIES, MODES, LENGTHS, MODIFIERS } from '../data/constants.js';
@@ -17,8 +19,10 @@ const hours = (sec) => (sec >= 3600 ? `${(sec / 3600).toFixed(1)}h` : `${Math.fl
 
 export class Hall {
   // onChange runs after the profile changes here (title, crest, import, reset).
-  constructor(onChange) {
+  constructor(onChange, online = null) {
     this.onChange = onChange;
+    this.online = online;
+    this.tab = 'account'; // account | device
     this.mode = 'build';
     this.pending = null; // { kind: 'import' | 'reset', profile? } awaiting confirmation
     this.message = '';
@@ -30,14 +34,23 @@ export class Hall {
 
   open() {
     this.pending = null; this.message = '';
+    this.tab = 'account';
     $('#hall').classList.remove('hidden');
     this.render();
   }
 
   close() { $('#hall').classList.add('hidden'); }
 
+  showsAccount() { return this.tab === 'account' && !!this.online?.profile; }
+
   // Always re-read storage so runs finished in another tab show up.
   load() {
+    if (this.showsAccount()) {
+      this.profile = this.online.profile;
+      this.loadError = false;
+      this.storageOk = true;
+      return;
+    }
     const state = loadProfile();
     this.profile = state.profile;
     this.loadError = state.loadError;
@@ -58,7 +71,9 @@ export class Hall {
       !this.storageOk ? 'Browser storage is unavailable, so progress will not be saved in this session.' : '',
       this.loadError ? 'Your saved profile could not be read, so a fresh one is in use. Import a backup or reset to start over.' : '',
     ].filter(Boolean).map((t) => `<div class="hall-banner">${esc(t)}</div>`).join('');
-    $('#hall-body').innerHTML = `${banners}
+    const tabs = this.online?.profile ? `<div class="end-tabs-row">${[['account', `Account · ${esc(this.online.user?.name || '')}`], ['device', 'This browser']]
+      .map(([id, label]) => `<button class="end-tab ${this.tab === id ? 'on' : ''}" data-hall-tab="${id}">${label}</button>`).join('')}</div>` : '';
+    $('#hall-body').innerHTML = `${tabs}${banners}
       ${this.header(p, earned)}
       <section><h3>Records</h3>${this.records(p)}</section>
       <section><h3>Lifetime</h3>${this.lifetime(p)}</section>
@@ -108,7 +123,8 @@ export class Hall {
         const mods = c.modifiers.filter((m) => MODIFIERS[m]).map((m) => MODIFIERS[m].name).join(', ');
         const mvp = h.mvp && TOWERS[h.mvp.id] ? `${esc(TOWERS[h.mvp.id].name)} <small>lv ${h.mvp.level}</small>` : '—';
         return `<tr><td>${date(h.at)}</td><td>${DIFFICULTIES[c.difficulty].name} · ${MODES[c.mode].name} · ${LENGTHS[c.length].name}${mods ? `<small class="hall-mods">${esc(mods)}</small>` : ''}</td>
-          <td class="out-${h.outcome}">${OUTCOME[h.outcome]}</td><td>${h.wavesCleared}</td><td>${fmt(h.score)}</td><td>${mvp}</td></tr>`;
+          <td class="out-${h.outcome}">${OUTCOME[h.outcome]}${h.unverified ? '<small class="hall-unverified" data-tip="The server did not verify this run, so it does not count toward records, totals or achievements.">unverified</small>' : ''}</td>
+          <td>${h.wavesCleared}</td><td>${fmt(h.score)}</td><td>${mvp}</td></tr>`;
       }).join('')}</tbody></table></div>`;
   }
 
@@ -140,6 +156,10 @@ export class Hall {
   }
 
   data() {
+    if (this.showsAccount()) {
+      return `<p class="hall-note">This profile belongs to your account and is built by the server from runs it has verified, so it follows you to any device.
+        Download or delete it from the account panel.</p>${this.message ? `<p class="hall-msg">${esc(this.message)}</p>` : ''}`;
+    }
     if (this.pending) {
       const text = this.pending.kind === 'import'
         ? 'Replace your current profile with the imported one? Your current records, history and achievements will be lost unless you export them first.'
@@ -158,6 +178,8 @@ export class Hall {
 
   click(e) {
     if (e.target.closest('#hall-close')) { this.close(); return; }
+    const tab = e.target.closest('[data-hall-tab]');
+    if (tab) { this.tab = tab.dataset.hallTab; this.pending = null; this.message = ''; this.render(); return; }
     const m = e.target.closest('[data-mode]');
     if (m) { this.mode = m.dataset.mode; this.render(); return; }
     const act = e.target.closest('[data-act]')?.dataset.act;
@@ -183,6 +205,12 @@ export class Hall {
     if (e.target.id === 'hall-title' || e.target.id === 'hall-crest') {
       this.load();
       const v = e.target.value || null;
+      if (this.showsAccount()) {
+        this.online.updateProfile(e.target.id === 'hall-title' ? { title: v } : { crest: v })
+          .then((p) => { this.message = ''; this.onChange?.(p); }, (err) => { this.message = err.message; })
+          .finally(() => this.render());
+        return;
+      }
       if (e.target.id === 'hall-title') this.profile.title = v; else this.profile.crest = v;
       this.save();
       this.render();

@@ -4,20 +4,30 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node tools/sim-build.mjs",
     "dev": "vite --port 5317 --strictPort",
+    "prebuild": "node tools/sim-build.mjs",
     "build": "vite build",
     "preview": "vite preview --port 5318 --strictPort",
     "balance": "node tools/balance.js",
     "bench": "node tools/perf-bench.mjs",
+    "check:sim": "node tools/check-sim.mjs",
+    "test:replay": "node tools/test-replay.mjs",
+    "replay": "node tools/replay.js",
     "import:youtd": "node tools/import-youtd2.mjs",
     "import:icons": "node tools/import-icons.mjs",
     "import:models": "node tools/import-models.mjs",
-    "deploy": "vite build && wrangler deploy"
+    "api:dev": "wrangler dev --port 8787",
+    "api:migrate": "wrangler d1 migrations apply DB --local",
+    "test:api": "node tools/test-api.mjs",
+    "db:backup": "mkdir -p backups && wrangler d1 export DB --local --output backups/youtd-local.sql",
+    "deploy": "npm run build && npm run check:sim && wrangler deploy"
   },
   "dependencies": {
     "three": "^0.186.1"
   },
   "devDependencies": {
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "wrangler": "^4.156.2"
   }
 }

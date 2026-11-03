@@ -1,4 +1,5 @@
 // Core game definitions: elements, rarities, damage matrix, creep taxonomy, difficulty.
+import { dpow } from '../sim/dmath.js';
 
 export const ELEMENTS = {
   nature:   { id: 'nature',   name: 'Nature',   color: 0x6fdc4a, css: '#6fdc4a', glyph: '❦' },
@@ -130,4 +131,4 @@ export const xpForLevel = (lvl) => Math.round(12 + lvl * 9 + lvl * Math.min(lvl,
 
 export const ARMOR_REDUCTION = (armor) => armor >= 0
   ? (0.05 * armor) / (1 + 0.05 * armor)
-  : -(1 - Math.pow(0.94, -armor));
+  : -(1 - dpow(0.94, -armor));

@@ -4,7 +4,7 @@ import { World } from './world/world.js';
 import { MAPS, DEFAULT_MAP } from './world/environment.js';
 import { HUD } from './ui/hud.js';
 import { Audio } from './audio/audio.js';
-import { Game } from './sim/game.js';
+import { Game, TICK } from './sim/game.js';
 import { DIFFICULTIES, MODES, LENGTHS, MODIFIERS } from './data/constants.js';
 import { ICON_CREDITS } from './data/icon-map.js';
 import { MODEL_LIBRARY, MESHY_TOWER_MODELS } from './data/model-library.js';
@@ -13,7 +13,11 @@ import { unlockedSet } from './meta/achievements.js';
 import { esc } from './ui/util.js';
 import { Hall } from './ui/hall.js';
 import { MUSIC_TRACKS } from './data/music-tracks.js';
-import { loadProfile, recordRun, recordKey, newRunState } from './meta/profile.js';
+import { loadProfile, recordRun, recordKey, newRunState, applyRun } from './meta/profile.js';
+import { SIM_BUILD } from './sim/sim-build.js';
+import { Online } from './online/online.js';
+import { AccountPanel } from './ui/account.js';
+import { Boards } from './ui/boards.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -29,7 +33,14 @@ const audio = new Audio();
 const hud = new HUD(world, audio);
 let game = null;
 let runState = null; // what this game already wrote to the profile
+let runTicket = null; // { runId, ticket } when the server issued this run's seed
 let paused = false;
+
+// The account (guest or signed in) when the game server is reachable. Its profile,
+// built by the server from verified runs, decides unlocks; without one the profile
+// stored in this browser does.
+const online = new Online();
+const activeProfile = () => online.profile || loadProfile().profile;
 
 // Interface scale follows the window (1600x900 is the design size), times the player's preference.
 function applyUiScale() {
@@ -66,12 +77,12 @@ function renderChoices(id, defs, key, onChange) {
   }));
 }
 // The modifiers that will actually apply: known ids the profile has unlocked (God mode ignores locks).
-function activeModifiers(unlocked = unlockedSet(loadProfile().profile).modifiers) {
+function activeModifiers(unlocked = unlockedSet(activeProfile()).modifiers) {
   const picked = Array.isArray(settings.modifiers) ? settings.modifiers : [];
   return picked.filter((m) => MODIFIERS[m] && (settings.god === 'on' || unlocked.has(m)));
 }
 function renderMods() {
-  const unlocked = unlockedSet(loadProfile().profile).modifiers;
+  const unlocked = unlockedSet(activeProfile()).modifiers;
   const active = activeModifiers(unlocked);
   const box = $('#opt-mods');
   box.innerHTML = Object.values(MODIFIERS).map((m) => {
@@ -92,7 +103,7 @@ function renderMods() {
   }));
 }
 function renderBest() {
-  const best = loadProfile().profile.records[recordKey({ ...settings, modifiers: activeModifiers() })];
+  const best = activeProfile().records[recordKey({ ...settings, modifiers: activeModifiers() })];
   $('#best-score').textContent = best ? `Best on this setup: wave ${best.level} · score ${best.score.toLocaleString()}` : '';
 }
 // The menu backdrop switches to the chosen map at once.
@@ -111,19 +122,52 @@ renderBest();
 
 // The chosen title shows under the logo.
 function renderMenuTitle() {
-  const t = loadProfile().profile.title;
+  const t = activeProfile().title;
   $('#menu-title').textContent = t ? UNLOCKS.titles[t].name : '';
   $('#menu-title').classList.toggle('hidden', !t);
 }
 renderMenuTitle();
 // Crest worn by level-cap towers: the chosen one if unlocked, else Gilded once earned.
-function applyCrest(profile = loadProfile().profile) {
+function applyCrest(profile = activeProfile()) {
   const crests = unlockedSet(profile).crests;
   world.crest = crests.has(profile.crest) ? profile.crest : crests.has('gilded') ? 'gilded' : null;
 }
 applyCrest();
-const hall = new Hall((profile) => { renderMenuTitle(); renderMods(); renderBest(); applyCrest(profile); });
+const refreshMenu = () => { renderMenuTitle(); renderMods(); renderBest(); applyCrest(); renderAccountChip(); };
+const hall = new Hall(refreshMenu, online);
 document.querySelectorAll('.open-hall').forEach((b) => b.addEventListener('click', () => { audio.click(); hall.open(); }));
+const account = new AccountPanel(online, refreshMenu);
+const boards = new Boards(online, () => { showMenuStep(true); startGame(true); });
+document.querySelectorAll('.open-boards').forEach((b) => b.addEventListener('click', () => {
+  audio.click();
+  boards.open({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, modifiers: activeModifiers() });
+}));
+$('#account-chip').addEventListener('click', () => { audio.click(); account.open(); });
+
+function renderAccountChip() {
+  const chip = $('#account-chip');
+  const u = online.user;
+  chip.classList.toggle('offline', !online.canStartRuns);
+  chip.innerHTML = online.status === 'checking' ? '<span>Connecting…</span>'
+    : !online.ready ? '<span>Offline</span><small>Progress stays in this browser</small>'
+    : online.outdated ? '<span>New version available</span><small>Reload the page to play online</small>'
+    : `<span>${esc(u.name)}</span><small>${u.guest ? 'Guest · Sign in to keep progress' : 'Signed in'}</small>`;
+}
+online.on('change', refreshMenu);
+online.on('profile', refreshMenu);
+// The end screen follows the upload and verification of the run it shows.
+online.on('runStatus', (r) => { if (runTicket && r.runId === runTicket.runId) hud.setRunVerify(r.status); });
+{
+  // Coming back from Google sign-in or an emailed link.
+  const params = new URLSearchParams(window.location.search);
+  const signin = params.get('signin');
+  if (signin) {
+    history.replaceState(null, '', window.location.pathname);
+    if (signin === 'error') setTimeout(() => { account.open(); account.msg = 'Sign-in did not complete. Please try again.'; account.render(); }, 0);
+  }
+}
+renderAccountChip();
+online.init();
 
 // Tower and item icons are CC BY 3.0 and must be credited where players can see it.
 // With hundreds of icons, credit each author with a count; docs/icon-credits.md lists every icon.
@@ -175,17 +219,37 @@ function clearWorld() {
   world.setGhost(null);
 }
 
-function startGame() {
+// Online runs get their seed and settings from the server, which later replays the
+// run to verify it. Without a connection the run is kept in this browser.
+let starting = false;
+async function startGame(weekly = false) {
+  if (starting) return;
   audio.init();
   audio.click();
+  const god = settings.god === 'on';
+  let cfg = { difficulty: settings.difficulty, mode: settings.mode, length: settings.length, modifiers: activeModifiers() };
+  let seed = (Math.random() * 1e9) | 0;
+  runTicket = null;
+  if (online.canStartRuns && !god) {
+    starting = true;
+    $('#btn-start').disabled = true;
+    const t = await online.startRun(cfg, weekly);
+    $('#btn-start').disabled = false;
+    starting = false;
+    if (!t.error) { runTicket = { runId: t.runId, ticket: t.ticket }; seed = t.seed; cfg = { ...cfg, ...t.cfg }; }
+    else if (t.error === 'outdated') { showMenuStep(true); $('#best-score').textContent = 'A new version of the game is out. Reload the page to play online; this run would stay in this browser.'; renderAccountChip(); return; }
+    else if (t.error !== 'offline' && t.error !== 'network') { showMenuStep(true); $('#best-score').textContent = t.message || 'The server refused to start this run.'; return; }
+  }
+  if (weekly && !runTicket) { $('#best-score').textContent = 'The weekly challenge needs a connection to the game server.'; return; }
   if (game) clearWorld();
-  game = new Game({ difficulty: settings.difficulty, mode: settings.mode, length: settings.length, autoWave: settings.autoWave, seed: (Math.random() * 1e9) | 0, god: settings.god === 'on', modifiers: activeModifiers() });
+  game = new Game({ ...cfg, autoWave: settings.autoWave, seed, god });
   world.bind(game, audio);
   hud.setGame(game);
   hud.onAutoWave = (on) => { settings.autoWave = on; save(SETTINGS_KEY, settings); };
   hud.setSpeed(1);
   paused = false;
   runState = newRunState();
+  tickBudget = 0;
   game.on('victory', () => { audio.victory(); endRun(); });
   game.on('defeat', () => { audio.defeat(); endRun(); });
   $('#menu').classList.add('hidden');
@@ -201,7 +265,7 @@ function startGame() {
   setTimeout(() => { if (game && game.phase === 'prep') hud.hint(''); }, 9000);
 }
 
-$('#btn-start').addEventListener('click', startGame);
+$('#btn-start').addEventListener('click', () => startGame(false));
 // The welcome screen opens on the controls; Start Game moves on to run setup.
 function showMenuStep(setup) {
   $('#menu-intro').classList.toggle('hidden', setup);
@@ -212,16 +276,25 @@ $('#btn-setup').addEventListener('click', () => showMenuStep(true));
 $('#btn-back').addEventListener('click', () => showMenuStep(false));
 $('#btn-again').addEventListener('click', () => { $('#endscreen').classList.add('hidden'); showMenu(); });
 // Records the finished run (once per game; God mode is skipped) and shows the summary.
+// An online run is uploaded for the server to verify; the end screen previews its
+// result on a copy of the account profile with the same rules the server applies.
 function endRun() {
   const sum = game.summary();
+  if (runTicket) {
+    const profile = structuredClone(activeProfile());
+    const result = { ...applyRun(profile, sum, runState), saved: true };
+    hud.showEnd(sum, result, profile, 'uploading');
+    const claim = { outcome: sum.outcome, level: sum.level, wavesCleared: sum.wavesCleared, score: sum.score, kills: sum.kills, time: sum.time };
+    online.submitRun({ ...runTicket, log: game.exportLog(SIM_BUILD), claim }).catch(() => hud.setRunVerify('waiting'));
+    return;
+  }
   const result = recordRun(sum, runState);
   if (result) applyCrest(result.profile);
-  hud.showEnd(sum, result, result?.profile || loadProfile().profile);
+  hud.showEnd(sum, result, result?.profile || loadProfile().profile, online.user && !sum.cfg.god ? 'local' : null);
 }
 
 $('#btn-endless').addEventListener('click', () => {
-  game.finalWave = Infinity;
-  game.phase = 'running';
+  if (!game.command('continue')) return;
   $('#r-wavemax').textContent = '';
   $('#endscreen').classList.add('hidden');
 });
@@ -244,8 +317,8 @@ $('#btn-resume').addEventListener('click', () => openSettings(false));
 // Abandoning ends a run in progress; one that never started a wave just returns to the menu.
 $('#btn-quit').addEventListener('click', () => {
   openSettings(false);
-  if (game?.finishRun()) return; // a secured run ends as a victory instead of being abandoned
-  if (!game || game.level < 1 || !game.abandon()) { showMenu(); return; }
+  if (game?.command('finish')) return; // a secured run ends as a victory instead of being abandoned
+  if (!game || game.level < 1 || !game.command('abandon')) { showMenu(); return; }
   endRun();
 });
 for (const [id, key, num] of [['#set-ui', 'uiScale', true], ['#set-sfx', 'sfx', true], ['#set-music', 'music', true], ['#set-dmg', 'dmg'], ['#set-edge', 'edge'], ['#set-bloom', 'bloom'], ['#set-shadows', 'shadows']]) {
@@ -274,7 +347,7 @@ canvas.addEventListener('pointerup', (e) => {
   if (hud.placing) {
     const tile = world.pickGround();
     if (!tile) return;
-    const t = game.build(hud.placing, tile.c, tile.r);
+    const t = game.command('build', { id: hud.placing, c: tile.c, r: tile.r });
     if (t) {
       const keep = e.shiftKey && (game.cfg.mode !== 'random' || game.towerStash.includes(hud.placing));
       if (!keep) { hud.stopPlacing(); hud.select({ type: 'tower', uid: t.uid }); }
@@ -284,7 +357,7 @@ canvas.addEventListener('pointerup', (e) => {
   const hit = world.pickUnit();
   if (hit && hit.type === 'tower' && hud.selectedItem) {
     const t = game.towers.get(hit.uid);
-    if (game.equip(hud.selectedItem, t)) { audio.upgrade(); hud.selectedItem = null; hud.hint(''); }
+    if (t && game.command('equip', { item: hud.selectedItem, tower: t.uid })) { audio.upgrade(); hud.selectedItem = null; hud.hint(''); }
     hud.select(hit);
     return;
   }
@@ -298,11 +371,13 @@ canvas.addEventListener('drop', (e) => {
   const uid = Number(e.dataTransfer.getData('text/item'));
   world.mouse.ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
   const hit = world.pickUnit();
-  if (uid && hit?.type === 'tower' && game.equip(uid, game.towers.get(hit.uid))) { audio.upgrade(); hud.select(hit); }
+  if (uid && hit?.type === 'tower' && game.command('equip', { item: uid, tower: hit.uid })) { audio.upgrade(); hud.select(hit); }
 });
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$('#hall').classList.contains('hidden')) { hall.close(); return; }
+  if (e.key === 'Escape' && account.isOpen()) { account.close(); return; }
+  if (e.key === 'Escape' && !$('#boards').classList.contains('hidden')) { boards.close(); return; }
   if (!game || e.target.closest('input')) return;
   if (!$('#endscreen').classList.contains('hidden')) return; // the run is over; keys stay inert behind its summary
   const k = e.key.toLowerCase();
@@ -315,7 +390,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (!$('#settings').classList.contains('hidden')) return;
   if (k === 'tab') { e.preventDefault(); hud.toggleScoreboard(); }
-  else if (k === ' ') { e.preventDefault(); game.callNextWave(); }
+  else if (k === ' ') { e.preventDefault(); game.command('wave'); }
   else if (k === 'p') hud.setSpeed(hud.speed === 0 ? 1 : 0);
   else if (k === '1' || k === '2' || k === '3') hud.setSpeed(Number(k));
   else if (k === 'u') hud.upgradeSelected();
@@ -329,15 +404,18 @@ window.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------- loop
 
 let last = performance.now();
+let tickBudget = 0;
+const MAX_FRAME_TICKS = 12; // 3x speed at a 20 fps floor
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (game && !paused && hud.speed > 0 && $('#endscreen').classList.contains('hidden')) {
-    // Fixed sub-steps keep the simulation stable at high game speeds.
-    const total = dt * hud.speed;
-    const steps = Math.ceil(total / (1 / 60));
-    for (let i = 0; i < steps; i++) game.update(total / steps);
+    // The simulation runs in fixed ticks so the run replays exactly from its log;
+    // game speed changes how many ticks a frame runs, never the tick length.
+    tickBudget = Math.min(tickBudget + dt * hud.speed, MAX_FRAME_TICKS * TICK);
+    while (tickBudget >= TICK) { tickBudget -= TICK; game.step(); }
+    world.tickAlpha = tickBudget / TICK;
   }
   if (game && hud.placing) {
     const tile = world.pickGround();

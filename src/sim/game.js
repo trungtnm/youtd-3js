@@ -13,6 +13,7 @@ import { PERKS, PERK_LEVELS, perkFits } from '../data/tower-perks.js';
 import { SPOILS, SPOIL_IDS } from '../data/boss-spoils.js';
 import { GROUND_ROUTE, AIR_ROUTE, sampleRoute, tileToWorld, isBuildable, LEAK_ZONE } from './map-layout.js';
 import { mulberry32, Emitter } from './rng.js';
+import { sq, dist, dpow, datan2 } from './dmath.js';
 import { initAbilities, tickTower, castActive, castItemActive, itemAutoOn, runProcs, buffMods, tickCreepDebuffs } from './abilities.js';
 import { runItemHook } from './abilities.js';
 import { COLS, ROWS, worldToTile } from './map-layout.js';
@@ -31,7 +32,23 @@ const STASH_SIZE = ECON.stashSize;
 const CREEP_MANA = { mass: 100, normal: 200, air: 400, champion: 300, boss: 2000, challengeMass: 100, challenge: 3000 };
 const WARD_MANA = 10; // a ward holds while the creep has at least this much mana
 
-let UID = 1;
+// The simulation advances in fixed ticks so a run replays identically from its seed
+// and command log, whatever the frame rate or game speed it was played at.
+export const TICK = 1 / 60;
+// Ticks between state hashes in the run log (every 10 seconds of game time).
+export const HASH_EVERY = 600;
+
+// Per-player economy. Lives, waves and creeps are shared; every player owns their
+// towers, gold, tomes, research, item stash, random-mode draft and boss spoils.
+function newPlayer(slot, gold, tomes, research) {
+  return {
+    slot, gold, tomes, research, stash: [], towerStash: [], spoils: [],
+    incomeRate: 0, bonusInterest: 0, autoTransmute: [],
+  };
+}
+
+// Fields the HUD and tools read on the Game itself; they belong to the local player.
+const LOCAL_FIELDS = ['gold', 'tomes', 'research', 'stash', 'towerStash', 'spoils', 'incomeRate', 'bonusInterest', 'autoTransmute'];
 
 // Rarities auto transmute may combine (uniques have no higher rarity to become).
 export const AUTO_TRANSMUTE_RARITIES = ['common', 'uncommon', 'rare'];
@@ -39,23 +56,70 @@ export const AUTO_TRANSMUTE_RARITIES = ['common', 'uncommon', 'rare'];
 export const autoTransmuteRarities = (v) => (v === true ? [...AUTO_TRANSMUTE_RARITIES]
   : Array.isArray(v) ? AUTO_TRANSMUTE_RARITIES.filter((r) => v.includes(r)) : []);
 
+export const LOG_VERSION = 1;
+const PRIORITIES = ['first', 'last', 'strong', 'weak'];
+const MAX_COMMAND_LIST = 64;
+
+const isInt = (v) => Number.isInteger(v) && v >= 0 && v <= 0x7fffffff;
+const isId = (v) => typeof v === 'string' && v.length <= 64 && /^[\w-]+$/.test(v);
+// Argument shapes per command; a log entry that breaks them is not one a game client produced.
+const COMMAND_ARGS = {
+  build: { id: isId, c: isInt, r: isInt }, upgrade: { tower: isInt }, sell: { tower: isInt },
+  research: { el: isId }, reroll: {}, wave: {}, priority: { tower: isInt, prio: isId },
+  cast: { tower: isInt, idx: isInt }, autocast: { tower: isInt, idx: isInt },
+  castItem: { tower: isInt, idx: isInt }, itemAuto: { tower: isInt, idx: isInt },
+  equip: { item: isInt, tower: isInt, slot: (v) => v === undefined || v === -1 || isInt(v) },
+  unequip: { tower: isInt, slot: isInt }, use: { item: isInt },
+  transmute: { items: (v) => Array.isArray(v) && v.length === 3 && v.every(isInt) },
+  autoTransmute: { rarities: (v) => Array.isArray(v) && v.length <= 8 && v.every(isId) },
+  perk: { tower: isInt, perk: isId }, train: { tower: isInt }, trainMax: { tower: isInt },
+  spoil: { idx: isInt }, autoWave: { on: (v) => typeof v === 'boolean' },
+  finish: {}, abandon: {}, continue: {},
+};
+
+// Checks a log entry's shape: [tick, slot, op, args] with exactly the expected args.
+export function validCommand(entry, players = 1) {
+  if (!Array.isArray(entry) || entry.length !== 4) return false;
+  const [tick, slot, op, args] = entry;
+  if (!isInt(tick) || !isInt(slot) || slot >= players) return false;
+  const spec = Object.prototype.hasOwnProperty.call(COMMAND_ARGS, op) ? COMMAND_ARGS[op] : null;
+  if (!spec || args === null || typeof args !== 'object' || Array.isArray(args)) return false;
+  const keys = Object.keys(args);
+  if (keys.length > MAX_COMMAND_LIST || keys.some((k) => !Object.prototype.hasOwnProperty.call(spec, k))) return false;
+  return Object.entries(spec).every(([k, ok]) => ok(args[k]));
+}
+
+// FNV-1a over the bytes of every number and string, for state checkpoints.
+class Hasher {
+  constructor() { this.h = 0x811c9dc5; this.f = new Float64Array(1); this.u = new Uint32Array(this.f.buffer); }
+  word(w) { for (let i = 0; i < 4; i++) { this.h ^= (w >>> (i * 8)) & 0xff; this.h = Math.imul(this.h, 0x01000193); } }
+  num(n) { this.f[0] = n; this.word(this.u[0]); this.word(this.u[1]); }
+  str(s) { for (let i = 0; i < s.length; i++) this.word(s.charCodeAt(i)); this.word(0xffffffff); }
+  hex() { return (this.h >>> 0).toString(16).padStart(8, '0'); }
+}
+
 export class Game extends Emitter {
-  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = Date.now(), autoWave = false, autoTransmute = [], god = false, modifiers = [] } = {}) {
+  constructor({ difficulty = 'medium', mode = 'build', length = 'full', seed = 1, autoWave = false, autoTransmute = [], god = false, modifiers = [], players = 1 } = {}) {
     super();
     modifiers = [...new Set((Array.isArray(modifiers) ? modifiers : []).filter((m) => MODIFIERS[m]))].sort();
-    this.cfg = { difficulty, mode, length, seed, god, modifiers };
+    this.cfg = { difficulty, mode, length, seed, god, modifiers, players };
+    this.nextUid = 1;
+    this.tick = 0;
+    this.inputDelay = 0;  // ticks between issuing and applying a command (networked play)
+    this.pending = [];    // scheduled commands: [tick, slot, op, args]
+    this.log = [];        // every command issued, for replay
+    this.hashes = [];     // [tick, stateHash] checkpoints
     this.mods = new Set(modifiers);
     this.scoreMult = 1 + modifiers.reduce((s, m) => s + MODIFIERS[m].score, 0);
     // Off: the next wave waits until every active wave is killed or has leaked.
     // On: waves also arrive on the countdown while earlier waves are still alive.
     this.autoWave = autoWave;
-    this.autoTransmute = autoTransmuteRarities(autoTransmute);
+    this.startAutoWave = !!autoWave;
+    this.startAutoTransmute = autoTransmuteRarities(autoTransmute);
     this.rng = mulberry32(seed);
     this.diff = DIFFICULTIES[difficulty];
     this.finalWave = LENGTHS[length].waves;
 
-    this.gold = Math.round(ECON.startGold * this.diff.gold);
-    this.tomes = ECON.startTomes;
     this.maxLives = this.mods.has('glass') ? 30 : 100;
     this.lives = this.maxLives;
     this.foodCap = Infinity;          // no tower limit; untrained towers are weak instead
@@ -65,15 +129,15 @@ export class Game extends Emitter {
     this.phase = 'prep'; // prep | running | won | lost | abandoned
     this.level = 0;      // last started wave level
     this.nextWaveTimer = 0;
-    this.research = Object.fromEntries(ELEMENT_IDS.map((e) => [e, 0]));
     // God mode is for testing: every element mastered and effectively unlimited currency.
-    if (god) {
-      this.gold = 10_000_000;
-      this.tomes = 2000;
-      for (const e of ELEMENT_IDS) this.research[e] = ECON.maxElementLevel;
+    this.players = [];
+    for (let slot = 0; slot < players; slot++) {
+      const pl = newPlayer(slot, god ? 10_000_000 : Math.round(ECON.startGold * this.diff.gold), god ? 2000 : ECON.startTomes,
+        Object.fromEntries(ELEMENT_IDS.map((e) => [e, god ? ECON.maxElementLevel : 0])));
+      pl.autoTransmute = autoTransmuteRarities(autoTransmute);
+      this.players.push(pl);
     }
-    this.bonusInterest = 0;
-    this.incomeRate = 0;
+    this.local = this.players[0]; // the player this client shows and controls
 
     this.towers = new Map();      // uid -> tower
     this.towerGrid = new Map();   // "c,r" -> tower
@@ -81,10 +145,7 @@ export class Game extends Emitter {
     this.projectiles = [];
     this.delayed = [];
     this.activeWaves = [];
-    this.stash = [];              // items
-    this.towerStash = [];         // random mode: granted tower ids
     this.upcoming = [];
-    this.spoils = [];             // pending boss reward offers
     this.stats = {
       kills: 0, leaks: 0, damage: 0, goldEarned: 0, itemsFound: 0,
       // Run ledger for the end screen and achievements. Counting only; never touches the RNG.
@@ -96,21 +157,24 @@ export class Game extends Emitter {
     };
 
     for (let i = 1; i <= 6; i++) this.upcoming.push(generateWave(i, difficulty, this.rng));
-    if (mode === 'random') this.grantRandomTowers(5, true);
+    if (mode === 'random') for (const pl of this.players) this.grantRandomTowers(5, true, pl);
   }
+
+  newUid() { return this.nextUid++; }
+  playerOf(t) { return this.players[t?.owner ?? 0]; }
 
   // ------------------------------------------------------------------ queries
 
   wavePreview(n = 5) { return this.upcoming.slice(0, n); }
-  researchCost(el) { return ECON.researchBase + this.research[el]; }
+  researchCost(el, pl = this.local) { return ECON.researchBase + pl.research[el]; }
 
-  towerUnlocked(def) {
-    return this.research[def.element] >= def.reqLevel;
+  towerUnlocked(def, pl = this.local) {
+    return pl.research[def.element] >= def.reqLevel;
   }
 
-  canAfford(def, upgrade = false) {
+  canAfford(def, upgrade = false, pl = this.local) {
     const gold = upgrade ? def.cost : def.totalCost;
-    return this.gold >= gold && this.tomes >= def.tomeCost;
+    return pl.gold >= gold && pl.tomes >= def.tomeCost;
   }
 
   isOver() { return this.phase === 'won' || this.phase === 'lost' || this.phase === 'abandoned'; }
@@ -123,45 +187,46 @@ export class Game extends Emitter {
     return continued || (this.cfg.length === 'endless' && this.stats.wavesCleared >= ENDLESS_GOAL);
   }
 
-  buildCheck(towerId, c, r) {
-    const def = TOWERS[towerId];
+  buildCheck(towerId, c, r, pl = this.local) {
+    const def = Object.hasOwn(TOWERS, towerId) ? TOWERS[towerId] : null;
     if (!def) return 'Unknown tower';
     if (this.isOver()) return 'Game over';
     if (!isBuildable(c, r)) return 'Cannot build here';
     if (this.towerGrid.has(`${c},${r}`)) return 'Tile occupied';
-    if (this.cfg.mode === 'random' && !this.towerStash.includes(towerId)) return 'Not in your draft';
+    if (this.cfg.mode === 'random' && !pl.towerStash.includes(towerId)) return 'Not in your draft';
     // Like YouTD, only the first tier of a family is built; later tiers come from upgrades.
     if (this.cfg.mode === 'build' && def.tier > 0) return 'Build the first tier, then upgrade it';
-    if (this.cfg.mode === 'build' && !this.towerUnlocked(def)) return `Requires ${def.element} level ${def.reqLevel}`;
-    if (this.gold < def.totalCost) return 'Not enough gold';
-    if (this.tomes < def.tomeCost) return 'Not enough tomes';
+    if (this.cfg.mode === 'build' && !this.towerUnlocked(def, pl)) return `Requires ${def.element} level ${def.reqLevel}`;
+    if (pl.gold < def.totalCost) return 'Not enough gold';
+    if (pl.tomes < def.tomeCost) return 'Not enough tomes';
     return null;
   }
 
   upgradeCheck(tower) {
     const next = nextTier(tower.def.id);
     if (!next) return 'Max tier';
-    if (!this.towerUnlocked(next)) return `Requires ${next.element} level ${next.reqLevel}`;
-    if (this.gold < next.cost) return 'Not enough gold';
-    if (this.tomes < next.tomeCost) return 'Not enough tomes';
+    const pl = this.playerOf(tower);
+    if (!this.towerUnlocked(next, pl)) return `Requires ${next.element} level ${next.reqLevel}`;
+    if (pl.gold < next.cost) return 'Not enough gold';
+    if (pl.tomes < next.tomeCost) return 'Not enough tomes';
     return null;
   }
 
   // ------------------------------------------------------------------ player actions
 
-  build(towerId, c, r) {
-    const err = this.buildCheck(towerId, c, r);
+  build(towerId, c, r, pl = this.local) {
+    const err = this.buildCheck(towerId, c, r, pl);
     if (err) { this.emit('error', err); return null; }
     const def = TOWERS[towerId];
-    this.gold -= def.totalCost;
-    this.tomes -= def.tomeCost;
+    pl.gold -= def.totalCost;
+    pl.tomes -= def.tomeCost;
     this.stats.goldSpent.build += def.totalCost;
     this.stats.tomesSpent.towers += def.tomeCost;
     this.food += def.food;
-    if (this.cfg.mode === 'random') this.towerStash.splice(this.towerStash.indexOf(towerId), 1);
+    if (this.cfg.mode === 'random') pl.towerStash.splice(pl.towerStash.indexOf(towerId), 1);
     const p = tileToWorld(c, r);
     const tower = {
-      uid: UID++, def, c, r, x: p.x, z: p.z,
+      uid: this.newUid(), owner: pl.slot, def, c, r, x: p.x, z: p.z,
       level: 0, xp: 0, kills: 0, damageDealt: 0, invested: def.totalCost,
       items: new Array(def.slots).fill(null), oil: {}, killStacks: 0, perks: [], perkOffer: null, trained: 0,
       timer: 0.2, abilityTimers: {}, beam: null, priority: 'first', stats: null, aim: 0, dmgSplit: {}, dmgBySize: {},
@@ -178,8 +243,9 @@ export class Game extends Emitter {
     const err = this.upgradeCheck(tower);
     if (err) { this.emit('error', err); return false; }
     const next = nextTier(tower.def.id);
-    this.gold -= next.cost;
-    this.tomes -= next.tomeCost;
+    const pl = this.playerOf(tower);
+    pl.gold -= next.cost;
+    pl.tomes -= next.tomeCost;
     this.stats.goldSpent.upgrade += next.cost;
     this.stats.tomesSpent.towers += next.tomeCost;
     this.food += next.food - tower.def.food;
@@ -203,7 +269,7 @@ export class Game extends Emitter {
     tower.soldItems = tower.items.filter(Boolean).map((it) => it.id);
     this.stats.soldTowers.push(tower);
     const refund = Math.floor(tower.invested * ECON.sellRefund);
-    this.gold += refund;
+    this.playerOf(tower).gold += refund;
     this.food -= tower.def.food;
     for (const it of tower.items) if (it) { this.itemHook(tower, it, 'unequip'); this.addItem(it); }
     this.towers.delete(tower.uid);
@@ -212,29 +278,30 @@ export class Game extends Emitter {
     this.emit('towerSold', { tower, refund });
   }
 
-  doResearch(el) {
-    const cost = this.researchCost(el);
-    if (this.research[el] >= ECON.maxElementLevel) { this.emit('error', 'Element mastered'); return false; }
-    if (this.tomes < cost) { this.emit('error', 'Not enough tomes'); return false; }
-    this.tomes -= cost;
+  doResearch(el, pl = this.local) {
+    if (!ELEMENT_IDS.includes(el)) return false;
+    const cost = this.researchCost(el, pl);
+    if (pl.research[el] >= ECON.maxElementLevel) { this.emit('error', 'Element mastered'); return false; }
+    if (pl.tomes < cost) { this.emit('error', 'Not enough tomes'); return false; }
+    pl.tomes -= cost;
     this.stats.tomesSpent.research += cost;
-    this.research[el]++;
-    this.emit('research', { element: el, level: this.research[el] });
+    pl.research[el]++;
+    this.emit('research', { element: el, level: pl.research[el], slot: pl.slot });
     return true;
   }
 
-  rerollDraft() {
+  rerollDraft(pl = this.local) {
     if (this.cfg.mode !== 'random') return false;
-    if (this.tomes < ECON.rerollCost) { this.emit('error', 'Not enough tomes'); return false; }
-    this.tomes -= ECON.rerollCost;
+    if (pl.tomes < ECON.rerollCost) { this.emit('error', 'Not enough tomes'); return false; }
+    pl.tomes -= ECON.rerollCost;
     this.stats.tomesSpent.reroll += ECON.rerollCost;
-    const n = Math.max(3, this.towerStash.length);
-    this.towerStash = [];
-    this.grantRandomTowers(n, false);
+    const n = Math.max(3, pl.towerStash.length);
+    pl.towerStash = [];
+    this.grantRandomTowers(n, false, pl);
     return true;
   }
 
-  callNextWave() {
+  callNextWave(pl = this.local) {
     if (this.isOver()) return;
     if (this.level >= this.finalWave) return;
     if (this.phase === 'prep') { this.phase = 'running'; this.startWave(); return; }
@@ -245,7 +312,7 @@ export class Game extends Emitter {
     const skipped = !this.autoWave && this.activeWaves.length ? ECON.waveGap : this.nextWaveTimer;
     const bonus = Math.floor(Math.max(0, skipped) * ECON.earlyCallBonus * (1 + this.level * 0.05));
     this.stats.earlyCalls++;
-    if (bonus > 0) { this.addGold(bonus); this.emit('notice', { text: `Early call bonus +${bonus} gold`, kind: 'gold' }); }
+    if (bonus > 0) { this.addGold(bonus, pl); this.emit('notice', { text: `Early call bonus +${bonus} gold`, kind: 'gold' }); }
     this.startWave();
   }
 
@@ -291,35 +358,37 @@ export class Game extends Emitter {
       return;
     }
     const p = {
-      uid: UID++, tower: t, target, kind, base,
+      uid: this.newUid(), tower: t, target, kind, base,
       x: t.x, y: 2.4 + t.def.tier * 0.4, z: t.z, sx: t.x, sz: t.z,
       tx: target.x, tz: target.z, speed: PROJECTILE_SPEED[kind] || 26, arc: t.def.arc, t: 0,
     };
-    p.total = Math.hypot(p.tx - p.x, p.tz - p.z);
+    p.total = dist(p.tx - p.x, p.tz - p.z);
     this.projectiles.push(p);
     this.emit('attack', { tower: t, target, kind, projectile: p });
   }
 
   // ------------------------------------------------------------------ items
 
-  addItem(item) {
-    if (this.stash.length >= STASH_SIZE) { this.emit('notice', { text: 'Item stash full', kind: 'warn' }); return false; }
+  addItem(item, pl) {
+    if (pl.stash.length >= STASH_SIZE) { this.emit('notice', { text: 'Item stash full', kind: 'warn' }); return false; }
     if (ITEMS[item.id].state) this.itemState(item); // stateful items start counting when they arrive
-    this.stash.push(item);
+    pl.stash.push(item);
     this.emit('stash');
-    this.autoTransmuteStash();
+    this.autoTransmuteStash(pl);
     return true;
   }
 
+  // Equips an item from the tower owner's stash.
   equip(itemUid, tower, slot = -1) {
-    const idx = this.stash.findIndex((i) => i.uid === itemUid);
+    const pl = this.playerOf(tower);
+    const idx = pl.stash.findIndex((i) => i.uid === itemUid);
     if (idx < 0) return false;
-    const item = this.stash[idx];
+    const item = pl.stash[idx];
     const def = ITEMS[item.id];
     if (def.kind === 'oil') {
       for (const [k, v] of Object.entries(def.mods)) tower.oil[k] = (tower.oil[k] || 0) + v;
       (tower.oilMods ||= []).push(...def.levelMods);
-      this.stash.splice(idx, 1);
+      pl.stash.splice(idx, 1);
       this.recalcAll();
       this.emit('oil', { tower, item });
       this.emit('stash');
@@ -338,9 +407,9 @@ export class Game extends Emitter {
     const blocked = this.itemEquipBlock(def, tower);
     if (blocked) { this.emit('error', blocked); return false; }
     const prev = tower.items[slot];
-    this.stash.splice(idx, 1);
+    pl.stash.splice(idx, 1);
     tower.items[slot] = item;
-    if (prev) { this.itemHook(tower, prev, 'unequip'); this.stash.push(prev); }
+    if (prev) { this.itemHook(tower, prev, 'unequip'); pl.stash.push(prev); }
     this.itemHook(tower, item, 'equip');
     if (def.rarity === 'unique') {
       let carried = 0;
@@ -350,7 +419,7 @@ export class Game extends Emitter {
     this.recalcAll();
     this.emit('stash');
     this.emit('equip', { tower, item });
-    this.autoTransmuteStash();
+    this.autoTransmuteStash(pl);
     return true;
   }
 
@@ -361,27 +430,28 @@ export class Game extends Emitter {
   unequip(tower, slot) {
     const item = tower.items[slot];
     if (!item) return false;
-    if (this.stash.length >= STASH_SIZE) { this.emit('error', 'Item stash full'); return false; }
+    const pl = this.playerOf(tower);
+    if (pl.stash.length >= STASH_SIZE) { this.emit('error', 'Item stash full'); return false; }
     tower.items[slot] = null;
     this.itemHook(tower, item, 'unequip');
-    this.stash.push(item);
+    pl.stash.push(item);
     this.recalcAll();
     this.emit('stash');
-    this.autoTransmuteStash(); // copies an item placed on the tower by itself are spare
+    this.autoTransmuteStash(pl); // copies an item placed on the tower by itself are spare
     return true;
   }
 
-  useItem(itemUid) {
-    const idx = this.stash.findIndex((i) => i.uid === itemUid);
+  useItem(itemUid, pl = this.local) {
+    const idx = pl.stash.findIndex((i) => i.uid === itemUid);
     if (idx < 0) return false;
-    const def = ITEMS[this.stash[idx].id];
+    const def = ITEMS[pl.stash[idx].id];
     if (def.kind !== 'consumable') return false;
     const e = def.effect;
-    if (e.tomes) this.tomes += e.tomes;
-    if (e.goldPerLevel) this.addGold(e.goldPerLevel * Math.max(1, this.level));
+    if (e.tomes) pl.tomes += e.tomes;
+    if (e.goldPerLevel) this.addGold(e.goldPerLevel * Math.max(1, this.level), pl);
     if (e.lives) this.lives = Math.min(this.maxLives, this.lives + e.lives * this.maxLives / 100);
-    if (e.income) this.incomeRate += e.income;
-    this.stash.splice(idx, 1);
+    if (e.income) pl.incomeRate += e.income;
+    pl.stash.splice(idx, 1);
     this.emit('stash');
     this.emit('notice', { text: `Used ${def.name}`, kind: 'item' });
     return true;
@@ -389,7 +459,7 @@ export class Game extends Emitter {
 
   // ------------------------------------------------------------------ item state and hooks
 
-  makeItem(id, extra = {}) { return { uid: UID++, id, ...extra }; }
+  makeItem(id, extra = {}) { return { uid: this.newUid(), id, ...extra }; }
 
   // Per-instance item state (stored experience, charges, copies). It lives on the item,
   // so it travels with it between towers and the stash.
@@ -446,18 +516,21 @@ export class Game extends Emitter {
     this.emit('stash');
   }
 
-  // Moves an equipped item to another tower, or to the stash when `to` is null.
+  // Moves an equipped item to another tower of the same owner, or to the owner's
+  // stash when `to` is null.
   transferItem(from, slot, to) {
     const item = from.items[slot];
     if (!item) return false;
+    const pl = this.playerOf(from);
+    if (to && to.owner !== from.owner) return false;
     const dest = to ? this.freeSlotFor(to, item) : -1;
-    if (to ? dest < 0 : this.stash.length >= STASH_SIZE) return false;
+    if (to ? dest < 0 : pl.stash.length >= STASH_SIZE) return false;
     from.items[slot] = null;
     this.itemHook(from, item, 'unequip');
-    if (to) { to.items[dest] = item; this.itemHook(to, item, 'equip'); } else this.stash.push(item);
+    if (to) { to.items[dest] = item; this.itemHook(to, item, 'equip'); } else pl.stash.push(item);
     this.recalcAll();
     this.emit('stash');
-    if (!to) this.autoTransmuteStash();
+    if (!to) this.autoTransmuteStash(pl);
     return true;
   }
 
@@ -492,15 +565,15 @@ export class Game extends Emitter {
   // Free buildable tile within `range` whose attack range covers the most visible
   // creeps, if it covers more than the tower's current spot.
   jumpSpot(t, range) {
-    const r2 = t.stats.range ** 2;
-    const count = (x, z) => this.creeps.reduce((n, c) => n + (c.alive && c.revealed && (c.x - x) ** 2 + (c.z - z) ** 2 <= r2 ? 1 : 0), 0);
+    const r2 = sq(t.stats.range);
+    const count = (x, z) => this.creeps.reduce((n, c) => n + (c.alive && c.revealed && sq(c.x - x) + sq(c.z - z) <= r2 ? 1 : 0), 0);
     const taken = [...this.towers.values()].map((o) => `${worldToTile(o.x, o.z).c},${worldToTile(o.x, o.z).r}`);
     let best = null, bestN = count(t.x, t.z);
     for (let c = 0; c < COLS; c++) {
       for (let r = 0; r < ROWS; r++) {
         if (!isBuildable(c, r) || this.towerGrid.has(`${c},${r}`) || taken.includes(`${c},${r}`)) continue;
         const p = tileToWorld(c, r);
-        if ((p.x - t.x) ** 2 + (p.z - t.z) ** 2 > range ** 2) continue;
+        if (sq(p.x - t.x) + sq(p.z - t.z) > sq(range)) continue;
         const n = count(p.x, p.z);
         if (n > bestN) { bestN = n; best = p; }
       }
@@ -517,17 +590,17 @@ export class Game extends Emitter {
   }
 
   // Combine three items of one rarity into a random item of the next rarity.
-  transmute(uids) {
-    const items = uids.map((u) => this.stash.find((i) => i.uid === u)).filter(Boolean);
+  transmute(uids, pl = this.local) {
+    const items = [...new Set(uids)].map((u) => pl.stash.find((i) => i.uid === u)).filter(Boolean);
     if (items.length !== 3) { this.emit('error', 'Select exactly 3 items'); return null; }
     const rarity = ITEMS[items[0].id].rarity;
     if (!items.every((i) => ITEMS[i.id].rarity === rarity)) { this.emit('error', 'Items must share a rarity'); return null; }
     const order = ['common', 'uncommon', 'rare', 'unique'];
     const nextR = order[Math.min(3, order.indexOf(rarity) + 1)];
-    this.stash = this.stash.filter((i) => !uids.includes(i.uid));
+    pl.stash = pl.stash.filter((i) => !uids.includes(i.uid));
     const pool = ITEMS_BY_RARITY[nextR];
-    const made = { uid: UID++, id: pool[Math.floor(this.rng() * pool.length)].id };
-    this.stash.push(made);
+    const made = { uid: this.newUid(), id: pool[Math.floor(this.rng() * pool.length)].id };
+    pl.stash.push(made);
     this.stats.transmutes++;
     this.emit('stash');
     this.emit('notice', { text: `Transmuted into ${ITEMS[made.id].name}`, kind: 'item', rarity: nextR });
@@ -535,12 +608,12 @@ export class Game extends Emitter {
   }
 
   // Sets which rarities auto transmute combines; an empty list turns it off.
-  setAutoTransmute(rarities) {
+  setAutoTransmute(rarities, pl = this.local) {
     const next = autoTransmuteRarities(rarities);
-    if (next.join() === this.autoTransmute.join()) return;
-    this.autoTransmute = next;
+    if (next.join() === pl.autoTransmute.join()) return;
+    pl.autoTransmute = next;
     this.emit('autoTransmute', next);
-    this.autoTransmuteStash();
+    this.autoTransmuteStash(pl);
   }
 
   // Auto transmute only eats spare items: stashed equipment below unique that has not
@@ -553,13 +626,13 @@ export class Game extends Emitter {
 
   // Combines spare items of the chosen rarities three at a time, cheapest first and
   // lowest rarity first, so a common triple can cascade into an uncommon one.
-  autoTransmuteStash() {
-    for (const rarity of this.autoTransmute) {
+  autoTransmuteStash(pl) {
+    for (const rarity of pl.autoTransmute) {
       for (;;) {
-        const spare = this.stash.filter((i) => ITEMS[i.id].rarity === rarity && this.spareForTransmute(i));
+        const spare = pl.stash.filter((i) => ITEMS[i.id].rarity === rarity && this.spareForTransmute(i));
         if (spare.length < 3) break;
         spare.sort((a, b) => ITEMS[a.id].cost - ITEMS[b.id].cost);
-        this.transmute(spare.slice(0, 3).map((i) => i.uid));
+        this.transmute(spare.slice(0, 3).map((i) => i.uid), pl);
       }
     }
   }
@@ -583,7 +656,7 @@ export class Game extends Emitter {
           if (a.self === false && t === src) continue;
           if (a.selfOnly && t !== src) continue;
           // YouTD measures aura range from the tower's edge, so add the tower footprint.
-          if (Math.hypot(t.x - src.x, t.z - src.z) > a.radius + TOWER_FOOTPRINT) continue;
+          if (dist(t.x - src.x, t.z - src.z) > a.radius + TOWER_FOOTPRINT) continue;
           const key = `${a.key || a.name || src.def.family}|${a.stat}`;
           const bucket = byKey.get(t);
           const cur = bucket[key];
@@ -594,18 +667,19 @@ export class Game extends Emitter {
     for (const t of towers) {
       for (const { stat, v } of Object.values(byKey.get(t))) t.auraMods[stat] = (t.auraMods[stat] || 0) + v;
     }
-    this.bonusInterest = 0;
+    for (const pl of this.players) pl.bonusInterest = 0;
     for (const t of towers) {
+      const pl = this.playerOf(t);
       const procs = t.def.abilities.concat(...this.carriedItems(t).filter(Boolean).map((it) => ITEMS[it.id].procs || []));
       t.hasEnterProcs = procs.some((p) => p.type === 'proc' && p.on === 'enter');
       t.hasDeathProcs = procs.some((p) => p.type === 'proc' && p.on === 'death');
       t.hasDamageProcs = procs.some((p) => p.type === 'proc' && p.on === 'damage');
       this.computeStats(t);
-      for (const a of t.def.abilities) if (a.type === 'interest') this.bonusInterest += a.pct;
+      for (const a of t.def.abilities) if (a.type === 'interest') pl.bonusInterest += a.pct;
       // Item interest: a flat rate plus a rate per gold of the carrier's cost.
       for (const it of t.items) {
         const r = it && ITEMS[it.id].interest;
-        if (r) this.bonusInterest += (r.pct || 0) + (r.perCost || 0) * t.def.totalCost;
+        if (r) pl.bonusInterest += (r.pct || 0) + (r.perCost || 0) * t.def.totalCost;
       }
     }
   }
@@ -667,7 +741,7 @@ export class Game extends Emitter {
     s.dmgMax = t.def.damage[1] * s.damageMult + s.flatDamage;
     // Expected crits per attack with multicrit: p + p^2 + ... + p^multicrit.
     const p = Math.min(1, Math.max(0, s.crit));
-    const crits = p >= 1 ? s.multicrit : (p * (1 - p ** s.multicrit)) / (1 - p);
+    const crits = p >= 1 ? s.multicrit : (p * (1 - dpow(p, s.multicrit))) / (1 - p);
     s.dps = ((s.dmgMin + s.dmgMax) / 2) * (1 + crits * (s.critMult - 1)) * s.targets / s.cd;
     t.stats = s;
   }
@@ -682,8 +756,10 @@ export class Game extends Emitter {
     this.activeWaves.push(wave);
     this.nextWaveTimer = this.autoWave ? ECON.waveGap + def.list.length * def.interval : ECON.clearGap;
     if (this.cfg.mode === 'random') {
-      this.grantRandomTowers(ECON.rollCount, false);
-      this.ensureRevealerInDraft();
+      for (const pl of this.players) {
+        this.grantRandomTowers(ECON.rollCount, false, pl);
+        this.ensureRevealerInDraft(pl);
+      }
     }
     this.emit('waveStart', def);
     if (this.level === this.trainUnlockWave()) this.emit('notice', { text: 'Tower training is unlocked: spend spare gold on Train to level your towers.', kind: 'gold' });
@@ -717,7 +793,7 @@ export class Game extends Emitter {
     if (this.phase === 'running' && this.level >= this.finalWave && this.activeWaves.length === 0 && this.creeps.length === 0) {
       this.phase = 'won';
       this.livesAtVictory = this.lives;
-      this.emit('victory', this.summary());
+      this.endEvent = 'victory';
     }
   }
 
@@ -738,13 +814,17 @@ export class Game extends Emitter {
       this.livesAtVictory = this.lives;
       this.emit('notice', { text: `Wave ${ENDLESS_GOAL} cleared: this run now counts as a victory. Keep going, or press End run to bank your score.`, kind: 'gold' });
     }
-    const income = Math.round((20 + lvl * 3) * this.diff.gold * (1 + this.incomeRate));
-    const interest = this.mods.has('frugal') ? 0 : Math.min(ECON.interestCap * (1 + lvl / 40), Math.floor(this.gold * (ECON.interestRate + this.bonusInterest)));
-    this.addGold(income + interest);
     const tomes = ECON.tomesPerWave + (lvl % 10 === 0 ? 2 : 0);
-    this.tomes += tomes;
+    let mine = null;
+    for (const pl of this.players) {
+      const income = Math.round((20 + lvl * 3) * this.diff.gold * (1 + pl.incomeRate));
+      const interest = this.mods.has('frugal') ? 0 : Math.min(ECON.interestCap * (1 + lvl / 40), Math.floor(pl.gold * (ECON.interestRate + pl.bonusInterest)));
+      this.addGold(income + interest, pl);
+      pl.tomes += tomes;
+      if (pl === this.local) mine = { income, interest };
+    }
 
-    this.emit('waveCleared', { level: lvl, income, interest, tomes, challenge: w.def.challenge });
+    this.emit('waveCleared', { level: lvl, income: mine.income, interest: mine.interest, tomes, challenge: w.def.challenge });
   }
 
   spawnCreep(wave, sizeId) {
@@ -758,7 +838,7 @@ export class Game extends Emitter {
     if (has('armored')) armor = armor * 1.5 + 3;
     if (sizeId === 'champion' || sizeId === 'boss' || sizeId === 'challenge') armor += 2;
     const c = {
-      uid: UID++, wave, level: def.level, size: sizeId, race: def.race, armorType: def.armor,
+      uid: this.newUid(), wave, level: def.level, size: sizeId, race: def.race, armorType: def.armor,
       armor, maxHp, hp: maxHp, air, route, dist: 0, x: 0, z: 0, dx: 1, dz: 0,
       speed: BASE_SPEED * size.speed * (has('swift') ? 1.35 : 1) * (this.mods.has('swarm') ? 1.15 : 1),
       specials: def.specials, shield: has('shielded') ? maxHp * 0.3 : 0, maxShield: has('shielded') ? maxHp * 0.3 : 0,
@@ -779,15 +859,15 @@ export class Game extends Emitter {
 
   // ------------------------------------------------------------------ random draft
 
-  grantRandomTowers(n, starter) {
+  grantRandomTowers(n, starter, pl) {
     const maxCost = starter ? 40 : 60 + this.level * 45;
     for (let i = 0; i < n; i++) {
       // Element weight grows with research; unresearched elements still appear sometimes.
-      const ew = ELEMENT_IDS.map((e) => [e, 0.35 + this.research[e] * 1.2]);
+      const ew = ELEMENT_IDS.map((e) => [e, 0.35 + pl.research[e] * 1.2]);
       let total = ew.reduce((s, x) => s + x[1], 0);
       let r = this.rng() * total, el = ew[0][0];
       for (const [e, w] of ew) { if ((r -= w) <= 0) { el = e; break; } }
-      const lv = this.research[el];
+      const lv = pl.research[el];
       const rw = [['common', 70], ['uncommon', 18 + lv * 2], ['rare', lv >= 5 ? 5 + lv : 0], ['unique', lv >= 10 ? lv - 8 : 0]];
       total = rw.reduce((s, x) => s + x[1], 0);
       r = this.rng() * total;
@@ -799,28 +879,154 @@ export class Game extends Emitter {
       const fams = [...new Set(pool.map((t) => t.family))];
       const famId = fams[Math.floor(this.rng() * fams.length)];
       const best = pool.filter((t) => t.family === famId).sort((a, b) => b.tier - a.tier)[0];
-      if (this.towerStash.length < 12) this.towerStash.push(best.id);
+      if (pl.towerStash.length < 12) pl.towerStash.push(best.id);
     }
-    this.emit('draft', this.towerStash);
+    this.emit('draft', pl.towerStash);
   }
 
   // Random mode: if invisible creeps are coming and the player has no way to see
   // them, slip a revealing tower into the draft.
-  ensureRevealerInDraft() {
+  ensureRevealerInDraft(pl) {
     const soon = this.upcoming.slice(0, 2).some((w) => w.specials.includes('invisible'));
     if (!soon || this.hasRevealer()) return;
-    if (this.towerStash.some((id) => REVEAL_FAMILIES.includes(TOWERS[id].family))) return;
+    if (pl.towerStash.some((id) => REVEAL_FAMILIES.includes(TOWERS[id].family))) return;
     const pick = FAMILIES[REVEAL_FAMILIES[0]]?.tiers[0];
     if (!pick) return;
-    this.towerStash.push(pick);
-    this.emit('notice', { text: `Invisible creeps ahead: ${TOWERS[pick].name} added to your draft`, kind: 'warn' });
-    this.emit('draft', this.towerStash);
+    pl.towerStash.push(pick);
+    if (pl === this.local) this.emit('notice', { text: `Invisible creeps ahead: ${TOWERS[pick].name} added to your draft`, kind: 'warn' });
+    this.emit('draft', pl.towerStash);
+  }
+
+  // ------------------------------------------------------------------ ticks and commands
+
+  // Advances one fixed tick: due scheduled commands first, then the simulation.
+  // A finished run does not advance, so extra calls after the end change nothing.
+  step() {
+    while (this.pending.length && this.pending[0][0] <= this.tick) this.applyLogged(this.pending.shift());
+    if (this.isOver()) return false;
+    this.advance(TICK);
+    this.tick++;
+    if (this.tick % HASH_EVERY === 0) this.hashes.push([this.tick, this.stateHash()]);
+    this.flushEndEvent();
+    return true;
+  }
+
+  // A run that ends mid-tick still finishes that tick; listeners hear about it once
+  // the tick is complete, so a log exported from a victory or defeat handler ends on
+  // a whole tick that a replay reaches too.
+  flushEndEvent() {
+    const type = this.endEvent;
+    if (!type) return;
+    this.endEvent = null;
+    this.emit(type, this.summary());
+  }
+
+  // Issues a player command. Offline (no input delay) it applies at once and returns
+  // the action's result; networked play schedules it `inputDelay` ticks ahead.
+  command(op, args = {}, slot = this.local.slot) {
+    const entry = [this.tick + this.inputDelay, slot, op, args];
+    if (!validCommand(entry, this.players.length)) return false;
+    if (this.inputDelay > 0) { this.pending.push(entry); return null; }
+    return this.applyLogged(entry);
+  }
+
+  applyLogged(entry) {
+    this.log.push(entry);
+    return this.apply(entry[1], entry[2], entry[3]);
+  }
+
+  // Runs one command for a player. Ids that no longer exist (a tower sold a moment
+  // earlier) make the command a no-op on every machine, so replays stay in step.
+  apply(slot, op, a) {
+    const pl = this.players[slot];
+    const tower = a.tower != null ? this.towers.get(a.tower) : null;
+    if (a.tower != null && (!tower || tower.owner !== slot)) return false;
+    if (op === 'continue') return this.continueRun();
+    if (this.isOver()) return false;
+    switch (op) {
+      case 'build': return this.build(a.id, a.c, a.r, pl);
+      case 'upgrade': return this.upgrade(tower);
+      case 'sell': this.sell(tower); return true;
+      case 'research': return this.doResearch(a.el, pl);
+      case 'reroll': return this.rerollDraft(pl);
+      case 'wave': this.callNextWave(pl); return true;
+      case 'priority': if (!PRIORITIES.includes(a.prio)) return false; this.setPriority(tower, a.prio); return true;
+      case 'cast': return this.castActive(tower, a.idx);
+      case 'autocast': return this.toggleAutocast(tower, a.idx);
+      case 'castItem': return this.castItem(tower, a.idx);
+      case 'itemAuto': return this.toggleItemAuto(tower, a.idx);
+      case 'equip': return this.equip(a.item, tower, a.slot ?? -1);
+      case 'unequip': return this.unequip(tower, a.slot);
+      case 'use': return this.useItem(a.item, pl);
+      case 'transmute': return this.transmute(a.items, pl);
+      case 'autoTransmute': this.setAutoTransmute(a.rarities, pl); return true;
+      case 'perk': return this.choosePerk(tower, a.perk);
+      case 'train': return this.train(tower);
+      case 'trainMax': return this.trainMax(tower);
+      case 'spoil': return this.chooseSpoil(a.idx, pl);
+      case 'autoWave': this.setAutoWave(a.on); return true;
+      case 'finish': return this.finishRun();
+      case 'abandon': return this.abandon();
+      default: return false;
+    }
+  }
+
+  // Keeps playing after a victory in a Trial or Full run.
+  continueRun() {
+    if (this.phase !== 'won' || this.finalWave === Infinity || this.endedByPlayer) return false;
+    this.finalWave = Infinity;
+    this.phase = 'running';
+    this.emit('continued');
+    return true;
+  }
+
+  // Checksum of the state that decides the outcome. Two machines that replay the same
+  // log must agree on it at every checkpoint.
+  stateHash() {
+    const h = new Hasher();
+    h.num(this.tick); h.num(this.rng.state()); h.num(this.nextUid); h.num(this.lives); h.num(this.level);
+    h.num(this.score); h.str(this.phase); h.num(this.time); h.num(this.stats.kills); h.num(this.stats.damage);
+    for (const pl of this.players) {
+      h.num(pl.gold); h.num(pl.tomes); h.num(pl.incomeRate);
+      for (const e of ELEMENT_IDS) h.num(pl.research[e]);
+      for (const it of pl.stash) h.num(it.uid);
+      for (const id of pl.towerStash) h.str(id);
+      h.num(pl.spoils.length);
+    }
+    for (const t of this.towers.values()) {
+      h.num(t.uid); h.str(t.def.id); h.num(t.level); h.num(t.xp); h.num(t.kills); h.num(t.damageDealt);
+      h.num(t.mana || 0); h.num(t.x); h.num(t.z);
+      for (const it of t.items) h.num(it ? it.uid : 0);
+    }
+    for (const c of this.creeps) { h.num(c.uid); h.num(c.hp); h.num(c.dist); h.num(c.shield); }
+    h.num(this.projectiles.length);
+    return h.hex();
+  }
+
+  // The run log a server can replay: the start settings, every command and the checkpoints.
+  exportLog(build) {
+    const { difficulty, mode, length, seed, modifiers, players } = this.cfg;
+    return {
+      v: LOG_VERSION, build, seed,
+      cfg: { difficulty, mode, length, modifiers, players, autoWave: this.startAutoWave, autoTransmute: this.startAutoTransmute },
+      cmds: this.log, hashes: this.hashes,
+      end: { tick: this.tick, hash: this.stateHash(), phase: this.phase },
+    };
   }
 
   // ------------------------------------------------------------------ main update
 
+  // Advances by `dt` outside the tick count (tools and benches); step() is the game's clock.
   update(dt) {
+    this.advance(dt);
+    this.flushEndEvent();
+  }
+
+  advance(dt) {
     if (this.isOver()) return;
+    // Positions before this tick, for the renderer to interpolate between ticks.
+    for (const c of this.creeps) { c.px = c.x; c.pz = c.z; }
+    for (const p of this.projectiles) { p.px = p.x; p.pz = p.z; }
     this.time += dt;
     this.updateWaves(dt);
     this.updateCreeps(dt);
@@ -899,7 +1105,7 @@ export class Game extends Emitter {
     }
     for (const c of this.creeps) {
       if (!c.invisible) continue;
-      c.revealed = revealers.some((v) => (c.x - v.x) ** 2 + (c.z - v.z) ** 2 <= v.r2);
+      c.revealed = revealers.some((v) => sq(c.x - v.x) + sq(c.z - v.z) <= v.r2);
     }
   }
 
@@ -928,8 +1134,12 @@ export class Game extends Emitter {
     if (size.leak > 0) {
       this.lives -= size.leak;
       if (c.specials.includes('raider')) {
-        const stolen = Math.floor(this.gold * 0.06);
-        this.gold -= stolen;
+        let stolen = 0;
+        for (const pl of this.players) {
+          const take = Math.floor(pl.gold * 0.06);
+          pl.gold -= take;
+          if (pl === this.local) stolen = take;
+        }
         this.emit('notice', { text: `A Relic Raider stole ${stolen} gold!`, kind: 'warn' });
       }
     }
@@ -937,9 +1147,9 @@ export class Game extends Emitter {
     if (this.lives <= 0 && !this.isOver()) {
       this.lives = 0;
       // A secured run that falls still ends as a victory.
-      if (this.secured()) { this.phase = 'won'; this.emit('victory', this.summary()); return; }
+      if (this.secured()) { this.phase = 'won'; this.endEvent = 'victory'; return; }
       this.phase = 'lost';
-      this.emit('defeat', this.summary());
+      this.endEvent = 'defeat';
     }
   }
 
@@ -979,11 +1189,11 @@ export class Game extends Emitter {
       runProcs(this, t, 'periodic', {});
       if (t.hasEnterProcs) {
         // 'enter' procs fire once per creep when it first comes into range.
-        const r2 = t.stats.range ** 2;
+        const r2 = sq(t.stats.range);
         t.seen ||= new Set();
         for (const c of this.creeps) {
           if (!c.alive || t.seen.has(c.uid)) continue;
-          if ((c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= r2) { t.seen.add(c.uid); runProcs(this, t, 'enter', { creep: c }); }
+          if (sq(c.x - t.x) + sq(c.z - t.z) <= r2) { t.seen.add(c.uid); runProcs(this, t, 'enter', { creep: c }); }
         }
         if (t.seen.size > 400) t.seen = new Set([...t.seen].slice(-200));
       }
@@ -1029,7 +1239,7 @@ export class Game extends Emitter {
       t.timer += s.cd;
       if (t.timer < 0) t.timer = 0;
       const first = targets[0];
-      t.aim = Math.atan2(first.x - t.x, first.z - t.z);
+      t.aim = datan2(first.x - t.x, first.z - t.z);
       if (s.attackManaPct) {
         // Attacks that cost a share of max mana fizzle (cooldown spent, nothing fired)
         // without enough mana; towers without a mana pool never get to attack.
@@ -1061,7 +1271,7 @@ export class Game extends Emitter {
     for (const p of this.projectiles) {
       if (p.target.alive) { p.tx = p.target.x; p.tz = p.target.z; }
       const dx = p.tx - p.x, dz = p.tz - p.z;
-      const d = Math.hypot(dx, dz);
+      const d = dist(dx, dz);
       const step = p.speed * dt;
       if (d <= step + 0.3) {
         p.x = p.tx; p.z = p.tz;
@@ -1190,7 +1400,7 @@ export class Game extends Emitter {
       let best = null, bd = a.range * a.range;
       for (const o of this.creeps) {
         if (!o.alive || !o.revealed || hit.has(o.uid)) continue;
-        const d = (o.x - cur.x) ** 2 + (o.z - cur.z) ** 2;
+        const d = sq(o.x - cur.x) + sq(o.z - cur.z);
         if (d < bd) { bd = d; best = o; }
       }
       if (!best) break;
@@ -1251,7 +1461,7 @@ export class Game extends Emitter {
 
   castNova(t, a) {
     const r2 = a.radius * a.radius;
-    const hits = this.creeps.filter((c) => c.alive && (c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= r2);
+    const hits = this.creeps.filter((c) => c.alive && sq(c.x - t.x) + sq(c.z - t.z) <= r2);
     if (!hits.length) return false;
     const s = t.stats;
     const base = ((t.def.damage[0] + t.def.damage[1]) / 2) * s.damageMult * a.mult;
@@ -1268,12 +1478,12 @@ export class Game extends Emitter {
 
   castMeteor(t, a) {
     const r2 = t.stats.range * t.stats.range;
-    const cands = this.creeps.filter((c) => c.alive && c.revealed && (c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= r2);
+    const cands = this.creeps.filter((c) => c.alive && c.revealed && sq(c.x - t.x) + sq(c.z - t.z) <= r2);
     if (!cands.length) return false;
     let best = cands[0], bestN = -1;
     for (const c of cands) {
       let n = 0;
-      for (const o of cands) if ((o.x - c.x) ** 2 + (o.z - c.z) ** 2 < a.radius * a.radius) n++;
+      for (const o of cands) if (sq(o.x - c.x) + sq(o.z - c.z) < a.radius * a.radius) n++;
       if (n > bestN) { bestN = n; best = c; }
     }
     // Lead the target slightly so the meteor lands where it will be.
@@ -1285,7 +1495,7 @@ export class Game extends Emitter {
       if (!this.towers.has(t.uid)) return;
       this.emit('meteorImpact', { x: pos.x, z: pos.z, radius: a.radius });
       for (const c of this.creeps) {
-        if (!c.alive || (c.x - pos.x) ** 2 + (c.z - pos.z) ** 2 > a.radius * a.radius) continue;
+        if (!c.alive || sq(c.x - pos.x) + sq(c.z - pos.z) > a.radius * a.radius) continue;
         this.damage(t, c, base, { spell: true, big: true });
         this.addDot(t, c, base * 0.08, 3);
       }
@@ -1355,7 +1565,8 @@ export class Game extends Emitter {
       for (const a of killer.def.abilities) if (a.type === 'goldOnKill') bounty += a.amount;
     }
     bounty = Math.max(1, Math.round(bounty));
-    this.addGold(bounty);
+    const owner = this.playerOf(killer);
+    this.addGold(bounty, owner);
     this.score += Math.round(size.score * c.level * (this.diff.hp) * this.scoreMult);
 
     // Experience: half to the killer, the rest shared by damage contribution.
@@ -1375,17 +1586,17 @@ export class Game extends Emitter {
       runProcs(this, killer, 'kill', { creep: c, overkill });
       for (const a of killer.def.abilities) {
         if (a.type === 'killStack') { killer.killStacks = Math.min(a.max, killer.killStacks + a.pct); this.computeStats(killer); }
-        if (a.type === 'tomeOnKill' && this.rng() < a.chance) { this.tomes++; this.emit('tomeDrop', { x: c.x, z: c.z }); }
+        if (a.type === 'tomeOnKill' && this.rng() < a.chance) { owner.tomes++; this.emit('tomeDrop', { x: c.x, z: c.z }); }
       }
     }
-    if (has('wise') && this.rng() < 0.04) { this.tomes++; this.emit('tomeDrop', { x: c.x, z: c.z }); }
+    if (has('wise') && this.rng() < 0.04) { owner.tomes++; this.emit('tomeDrop', { x: c.x, z: c.z }); }
 
     this.rollDrops(c, killer);
     this.emit('creepDied', { creep: c, bounty, killer });
     // 'death' procs fire for any creep dying within the tower's range, whoever killed it.
     for (const t of this.towers.values()) {
       if (!t.hasDeathProcs) continue;
-      if ((c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= (t.deathRange || t.stats.range) ** 2) runProcs(this, t, 'death', { creep: c, overkill, killer });
+      if (sq(c.x - t.x) + sq(c.z - t.z) <= sq(t.deathRange || t.stats.range)) runProcs(this, t, 'death', { creep: c, overkill, killer });
     }
     if (c.size === 'boss' || c.size === 'challenge') { this.stats.bossKills++; this.offerSpoils(c); }
 
@@ -1458,8 +1669,9 @@ export class Game extends Emitter {
     if (this.trainLocked()) { this.emit('error', `Training unlocks at wave ${this.trainUnlockWave()}`); return false; }
     if (t.level >= TOWER_MAX_LEVEL) { this.emit('error', 'Tower is at max level'); return false; }
     const cost = this.trainCost(t);
-    if (this.gold < cost) { this.emit('error', 'Not enough gold'); return false; }
-    this.gold -= cost;
+    const pl = this.playerOf(t);
+    if (pl.gold < cost) { this.emit('error', 'Not enough gold'); return false; }
+    pl.gold -= cost;
     this.stats.goldSpent.train += cost;
     t.trained++;
     this.giveXp(t, xpForLevel(t.level) * ECON.trainXpPct / (1 + t.stats.xp));
@@ -1472,8 +1684,9 @@ export class Game extends Emitter {
     const start = t.level;
     if (this.trainLocked()) { this.emit('error', `Training unlocks at wave ${this.trainUnlockWave()}`); return 0; }
     if (t.level >= TOWER_MAX_LEVEL) { this.emit('error', 'Tower is at max level'); return 0; }
-    if (this.gold < this.trainCost(t)) { this.emit('error', 'Not enough gold'); return 0; }
-    while (t.level < TOWER_MAX_LEVEL && this.gold >= this.trainCost(t)) this.train(t);
+    const pl = this.playerOf(t);
+    if (pl.gold < this.trainCost(t)) { this.emit('error', 'Not enough gold'); return 0; }
+    while (t.level < TOWER_MAX_LEVEL && pl.gold >= this.trainCost(t)) this.train(t);
     return t.level - start;
   }
 
@@ -1489,11 +1702,15 @@ export class Game extends Emitter {
   rollItemAt(minRarity, uniqueChance, kind = 'equip') {
     const rarity = this.rng() < uniqueChance ? 'unique' : minRarity;
     const list = this.itemPool(rarity, this.level + 5, kind);
-    return { uid: UID++, id: list[Math.floor(this.rng() * list.length)].id };
+    return { uid: this.newUid(), id: list[Math.floor(this.rng() * list.length)].id };
   }
 
-  // A fallen boss offers three rewards: always one rolled item, plus two from the pool.
+  // A fallen boss offers every player three rewards: always one rolled item, plus two from the pool.
   offerSpoils(c) {
+    for (const pl of this.players) this.offerSpoilsTo(c, pl);
+  }
+
+  offerSpoilsTo(c, pl) {
     const challenge = c.size === 'challenge';
     const uniqueChance = Math.min(0.6, (challenge ? 0.3 : 0.12) + c.level * 0.004);
     const naked = this.mods.has('naked');
@@ -1509,32 +1726,35 @@ export class Game extends Emitter {
       if (pick === 'oil') opt.item = this.rollItemAt(this.rng() < 0.35 ? 'unique' : 'rare', 0, 'oil');
       options.push(opt);
     }
-    this.spoils.push({ level: c.level, challenge, options });
-    this.emit('spoilsReady', this.spoils[0]);
+    pl.spoils.push({ level: c.level, challenge, options });
+    if (pl === this.local) this.emit('spoilsReady', pl.spoils[0]);
   }
 
-  chooseSpoil(index) {
-    const offer = this.spoils[0];
+  chooseSpoil(index, pl = this.local) {
+    const offer = pl.spoils[0];
     const o = offer?.options[index];
     if (!o) return false;
-    if ((o.type === 'item' || o.type === 'oil') && this.stash.length >= STASH_SIZE) { this.emit('error', 'Item stash full'); return false; }
+    if ((o.type === 'item' || o.type === 'oil') && pl.stash.length >= STASH_SIZE) { this.emit('error', 'Item stash full'); return false; }
+    const own = [...this.towers.values()].filter((t) => t.owner === pl.slot);
     switch (o.type) {
-      case 'item': case 'oil': this.addItem(o.item); break;
-      case 'gold': this.addGold(o.value); break;
-      case 'tomes': this.tomes += o.value; break;
-      case 'wisdom': for (const t of this.towers.values()) this.giveXp(t, xpForLevel(t.level) * o.value / (1 + t.stats.xp)); break;
+      case 'item': case 'oil': this.addItem(o.item, pl); break;
+      case 'gold': this.addGold(o.value, pl); break;
+      case 'tomes': pl.tomes += o.value; break;
+      case 'wisdom': for (const t of own) this.giveXp(t, xpForLevel(t.level) * o.value / (1 + t.stats.xp)); break;
       case 'mend': this.lives = Math.min(this.maxLives, this.lives + o.value * this.maxLives / 100); break;
       case 'hero': {
         // Your highest-level tower below the cap gains whole levels.
-        const best = [...this.towers.values()].filter((t) => t.level < TOWER_MAX_LEVEL).sort((a, b) => b.level - a.level || b.stats.dps - a.stats.dps)[0];
+        const best = own.filter((t) => t.level < TOWER_MAX_LEVEL).sort((a, b) => b.level - a.level || b.stats.dps - a.stats.dps)[0];
         if (best) for (let i = 0; i < o.value; i++) this.giveXp(best, (xpForLevel(best.level) - best.xp) / (1 + best.stats.xp) + 0.01);
         break;
       }
       default: break;
     }
-    this.spoils.shift();
-    this.emit('spoilChosen', o);
-    if (this.spoils.length) this.emit('spoilsReady', this.spoils[0]);
+    pl.spoils.shift();
+    if (pl === this.local) {
+      this.emit('spoilChosen', o);
+      if (pl.spoils.length) this.emit('spoilsReady', pl.spoils[0]);
+    }
     return true;
   }
 
@@ -1552,9 +1772,9 @@ export class Game extends Emitter {
       const rarity = this.dropRarity(lv, 1 + (killer ? killer.stats.itemQuality : 0) + (c.mark?.itemQuality || 0));
       const pool = this.itemPool(rarity, lv);
       const def = pool[Math.floor(this.rng() * pool.length)];
-      const item = { uid: UID++, id: def.id };
+      const item = { uid: this.newUid(), id: def.id };
       this.stats.itemsFound++;
-      if (this.addItem(item)) this.emit('itemDrop', { item, x: c.x, z: c.z, rarity });
+      if (this.addItem(item, this.playerOf(killer))) this.emit('itemDrop', { item, x: c.x, z: c.z, rarity });
     }
   }
 
@@ -1573,13 +1793,13 @@ export class Game extends Emitter {
     if (this.mods.has('naked')) return;
     const rarity = this.dropRarity(lv, 1 + t.stats.itemQuality + bonus);
     const pool = this.itemPool(rarity, lv);
-    const item = { uid: UID++, id: pool[Math.floor(this.rng() * pool.length)].id };
+    const item = { uid: this.newUid(), id: pool[Math.floor(this.rng() * pool.length)].id };
     this.stats.itemsFound++;
-    if (this.addItem(item)) this.emit('itemDrop', { item, x, z, rarity });
+    if (this.addItem(item, this.playerOf(t))) this.emit('itemDrop', { item, x, z, rarity });
   }
 
-  addGold(n) {
-    this.gold += n;
+  addGold(n, pl) {
+    pl.gold += n;
     this.stats.goldEarned += n;
   }
 
@@ -1639,6 +1859,14 @@ export class Game extends Emitter {
       peakUniquesCarried: st.peakUniquesCarried,
     };
   }
+}
+
+// The HUD and tools read the local player's economy straight off the game.
+for (const k of LOCAL_FIELDS) {
+  Object.defineProperty(Game.prototype, k, {
+    get() { return this.local[k]; },
+    set(v) { this.local[k] = v; },
+  });
 }
 
 export { TOWERS, FAMILIES, SPECIALS };

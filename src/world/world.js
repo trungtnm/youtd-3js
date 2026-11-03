@@ -81,6 +81,7 @@ const easeOutBack = (k) => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow
 
 export class World {
   constructor(container, overlay) {
+    this.tickAlpha = 1; // share of the next simulation tick already elapsed (set by the main loop)
     this.container = container;
     this.overlay = overlay;
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -876,7 +877,11 @@ export class World {
       v.squash = Math.max(0, q - dt * 5);
       const dl = Math.hypot(c.dx, c.dz) || 1;
       const kb = q * q * 0.22;
-      v.group.position.x = c.x - (c.dx / dl) * kb; v.group.position.z = c.z - (c.dz / dl) * kb;
+      // The simulation ticks at 60 Hz; draw between the last two ticks so motion stays
+      // smooth at any refresh rate. A jump (blink) longer than a few units snaps.
+      const a = c.px === undefined || Math.abs(c.x - c.px) + Math.abs(c.z - c.pz) > 3 ? 1 : this.tickAlpha;
+      const cx = c.x + (a - 1) * (c.x - (c.px ?? c.x)), cz = c.z + (a - 1) * (c.z - (c.pz ?? c.z));
+      v.group.position.x = cx - (c.dx / dl) * kb; v.group.position.z = cz - (c.dz / dl) * kb;
       if (q > 0) {
         // Squash, then a little stretch as it recovers.
         const w = q * Math.cos((1 - q) * 4.5);
@@ -932,7 +937,7 @@ export class World {
     }
 
     this.crowd.end();
-    this.fx.syncProjectiles(g.projectiles, dt);
+    this.fx.syncProjectiles(g.projectiles, dt, this.tickAlpha);
   }
 
   _addRaider(v, c) {

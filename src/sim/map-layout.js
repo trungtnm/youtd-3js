@@ -1,5 +1,7 @@
 // Grid and path layout shared by the simulation and the 3D world.
 
+import { dist } from './dmath.js';
+
 export const TILE = 2;
 export const COLS = 28;
 export const ROWS = 20;
@@ -25,7 +27,7 @@ function buildRoute(corners) {
   let total = 0;
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i + 1];
-    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const len = dist(b.x - a.x, b.z - a.z);
     segs.push({ a, b, len, start: total, dx: (b.x - a.x) / len, dz: (b.z - a.z) / len });
     total += len;
   }

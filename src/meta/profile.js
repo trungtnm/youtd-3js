@@ -60,6 +60,7 @@ function sanitizeHistoryEntry(h) {
   return {
     at: num(h.at), cfg, outcome: h.outcome, wavesCleared: Math.floor(num(h.wavesCleared)), level: Math.floor(num(h.level)),
     score: Math.floor(num(h.score)), kills: Math.floor(num(h.kills)), time: num(h.time), mvp,
+    ...(h.unverified === true ? { unverified: true } : {}),
   };
 }
 
@@ -165,10 +166,18 @@ export function recordRun(sum, runState, storage = defaultStorage()) {
   // An unreadable stored profile (corrupted, or from a newer version) is kept as is:
   // writing a fresh one over it would erase the player's progress.
   if (loadError) return { profile, newRecord: false, prevRecord: null, earned: [], unlocks: [], saved: false };
+  const result = applyRun(profile, sum, runState);
+  return { ...result, saved: saveProfile(profile, storage) };
+}
+
+// Folds a finished run into a profile in place; no storage. The online server runs
+// the same fold over runs it has verified, so both profiles follow the same rules.
+// Returns { profile, newRecord, prevRecord, earned, unlocks }.
+export function applyRun(profile, sum, runState, now = Date.now()) {
   const totals = runTotals(sum);
   for (const k of TOTAL_KEYS) profile.totals[k] += Math.max(0, totals[k] - (runState.totals?.[k] || 0));
   const entry = sanitizeHistoryEntry({
-    at: runState.historyAt ?? Date.now(), cfg: sum.cfg, outcome: sum.continued ? 'won' : sum.outcome === 'running' ? 'abandoned' : sum.outcome,
+    at: runState.historyAt ?? now, cfg: sum.cfg, outcome: sum.continued ? 'won' : sum.outcome === 'running' ? 'abandoned' : sum.outcome,
     wavesCleared: sum.wavesCleared, level: sum.level, score: sum.score, kills: sum.kills, time: sum.time,
     mvp: (() => { const t = sum.towerLedger.find((x) => x.uid === sum.mvp); return t && { id: t.id, level: t.level }; })(),
   });
@@ -184,13 +193,13 @@ export function recordRun(sum, runState, storage = defaultStorage()) {
   const key = recordKey(sum.cfg);
   const prev = profile.records[key];
   const newRecord = !sum.continued && (!prev || sum.score > prev.score);
-  if (newRecord) profile.records[key] = { level: sum.level, score: sum.score, at: Date.now() };
+  if (newRecord) profile.records[key] = { level: sum.level, score: sum.score, at: now };
 
   let earned = [], unlocks = [];
   if (countsForAchievements(sum)) {
     const ev = evaluateRun(sum, profile, runState.progress);
     Object.assign(profile.progress, ev.progress);
-    for (const id of ev.earned) profile.achievements[id] = { at: Date.now() };
+    for (const id of ev.earned) profile.achievements[id] = { at: now };
     earned = ev.earned; unlocks = ev.unlocks;
     runState.progress = ev.counted;
   }
@@ -198,8 +207,7 @@ export function recordRun(sum, runState, storage = defaultStorage()) {
   runState.recorded = true;
   runState.historyAt = entry?.at ?? runState.historyAt;
   runState.totals = totals;
-  const saved = saveProfile(profile, storage);
-  return { profile, newRecord, prevRecord: prev || null, earned, unlocks, saved };
+  return { profile, newRecord, prevRecord: prev || null, earned, unlocks };
 }
 
 // ---------------------------------------------------------------- export / import

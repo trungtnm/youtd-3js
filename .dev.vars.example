@@ -1,0 +1,7 @@
+# Copy to .dev.vars (gitignored) for `wrangler dev`. Placeholder values only.
+TICKET_SECRET=change-me-to-a-long-random-string
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+BREVO_API_KEY=your-brevo-api-key
+# Return the magic link in the response instead of sending mail (dev only).
+DEV_MAIL_ECHO=1

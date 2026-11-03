@@ -3,6 +3,7 @@
 
 // eslint-disable-next-line no-unused-vars
 import { UNIT, at, proc, autocast } from './helpers.js';
+import { dpow } from '../../../sim/dmath.js';
 import { xpForLevel } from '../../constants.js';
 
 // Radius in world units, rounded so generated descriptions stay readable.
@@ -100,7 +101,7 @@ export const PORTS = {
     passives: (row) => {
       const [mass, lvl, lvlAdd] = at([[0.30, 50, 2], [0.33, 80, 3], [0.36, 130, 4], [0.39, 200, 6]], row);
       // Expected burst length: shots continue with chance p, up to 14.
-      const shots = (p) => (1 - p ** 14) / (1 - p);
+      const shots = (p) => (1 - dpow(p, 14)) / (1 - p);
       const mult = +shots(mass).toFixed(3);
       const perLevel = +((shots(mass + 0.15) / shots(mass) - 1) / 25).toFixed(4);
       const dur = 8 + 0.25 * lvl;

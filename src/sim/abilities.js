@@ -6,6 +6,7 @@ import { RARITIES } from '../data/constants.js';
 import { UNIT } from '../data/youtd/ports/helpers.js';
 import { ECON } from '../data/constants.js';
 import { sampleRoute } from './map-layout.js';
+import { sq, dpow } from './dmath.js';
 
 // ------------------------------------------------------------------ tower buffs
 
@@ -74,14 +75,14 @@ const avgDamage = (t) => ((t.def.damage[0] + t.def.damage[1]) / 2) * t.stats.dam
 
 function creepsNear(game, x, z, r, needSight = true) {
   const r2 = r * r;
-  return game.creeps.filter((c) => c.alive && (!needSight || c.revealed) && (c.x - x) ** 2 + (c.z - z) ** 2 <= r2);
+  return game.creeps.filter((c) => c.alive && (!needSight || c.revealed) && sq(c.x - x) + sq(c.z - z) <= r2);
 }
 
 function towersNear(game, x, z, r) {
   // Tower-to-tower ranges start at the tower's edge (see TOWER_FOOTPRINT in game.js).
   const rr = r > 0 ? r + 0.9 : r;
   const r2 = rr * rr;
-  return [...game.towers.values()].filter((o) => (o.x - x) ** 2 + (o.z - z) ** 2 <= r2);
+  return [...game.towers.values()].filter((o) => sq(o.x - x) + sq(o.z - z) <= r2);
 }
 
 // Point with the most creeps within `radius`, chosen among creeps in range.
@@ -89,7 +90,7 @@ function densest(cands, radius) {
   let best = null, bestN = -1;
   for (const c of cands) {
     let n = 0;
-    for (const o of cands) if ((o.x - c.x) ** 2 + (o.z - c.z) ** 2 <= radius * radius) n++;
+    for (const o of cands) if (sq(o.x - c.x) + sq(o.z - c.z) <= radius * radius) n++;
     if (n > bestN) { bestN = n; best = c; }
   }
   return best;
@@ -188,7 +189,7 @@ function procAllowed(game, t, p, ctx) {
   if (p.onCrit && !ctx.crit) return false;
   if (p.manaCost && (t.mana || 0) < p.manaCost) return false;
   if (p.manaAbove != null && (t.mana || 0) <= p.manaAbove) return false;
-  if (p.goldCost && game.gold < p.goldCost) return false;
+  if (p.goldCost && game.playerOf(t).gold < p.goldCost) return false;
   if (p.notOwnKill && ctx.killer === t) return false;
   if (p.attacks && !p.attacks.includes(t.stats.attackType || t.def.attack)) return false;
   if (p.elements && !p.elements.includes(t.def.element)) return false;
@@ -214,7 +215,7 @@ export function runProcs(game, t, on, ctx) {
         continue;
       }
       if (!procAllowed(game, t, p, ctx)) continue;
-      if (p.needCreeps && !game.creeps.some((c) => c.alive && c.revealed && (c.x - t.x) ** 2 + (c.z - t.z) ** 2 <= t.stats.range ** 2)) continue;
+      if (p.needCreeps && !game.creeps.some((c) => c.alive && c.revealed && sq(c.x - t.x) + sq(c.z - t.z) <= sq(t.stats.range))) continue;
       // everyWaves: fires on the first trigger, then again once the wave level has advanced
       // by N. The last firing wave lives on the item (or tower), so it travels with the item.
       const waveHolder = item || t;
@@ -336,7 +337,7 @@ export function applyEffect(game, t, e, target, ctx = {}) {
         if (cur.alive) debuffCreep(game, t, cur, e);
         dmg *= 1 - (e.falloff ?? 0.15);
         const next = creepsNear(game, cur.x, cur.z, e.jump || 6).filter((c) => !hit.has(c.uid));
-        cur = next.sort((p, q) => (p.x - cur.x) ** 2 + (p.z - cur.z) ** 2 - ((q.x - cur.x) ** 2 + (q.z - cur.z) ** 2))[0];
+        cur = next.sort((p, q) => sq(p.x - cur.x) + sq(p.z - cur.z) - (sq(q.x - cur.x) + sq(q.z - cur.z)))[0];
       }
       game.emit('spellChain', { tower: t, points: pts, fx });
       break;
@@ -399,9 +400,10 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       const amount = Math.round((e.amount || 0) + (e.perWave || 0) * game.level);
       if (amount < 0) {
         // Spending never takes the player below zero and is not counted as earnings.
-        game.gold = Math.max(0, game.gold + amount);
+        const pl = game.playerOf(t);
+        pl.gold = Math.max(0, pl.gold + amount);
       } else {
-        game.addGold(amount);
+        game.addGold(amount, game.playerOf(t));
         game.emit('goldFx', { x: target.x, z: target.z, amount });
       }
       break;
@@ -436,7 +438,7 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       // perLevelByCd: the per-level part grows with the tower's base attack cooldown.
       // rangeExp: long-range towers drain less, by (rangeRef / range)^... as in YouTD.
       let amount = e.amount + (e.amountPerLevel || 0) * t.level * (e.perLevelByCd ? t.def.cd : 1);
-      if (e.rangeExp) amount *= (e.rangeRef || 55) / Math.pow(Math.max(1, t.def.range * UNIT), e.rangeExp);
+      if (e.rangeExp) amount *= (e.rangeRef || 55) / dpow(Math.max(1, t.def.range * UNIT), e.rangeExp);
       c.mana = Math.max(0, c.mana - amount);
       game.emit('spellChain', { tower: t, points: [{ x: t.x, z: t.z, y: 3 }, { x: c.x, z: c.z }], fx });
       break;
@@ -539,7 +541,7 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       }
       // Creates an item in the stash, as if dropped by a creep.
       const item = game.rollItemAt(e.rarity || 'common', e.uniqueChance || 0, e.itemKind || 'equip');
-      if (game.addItem(item)) game.emit('itemDrop', { item, x: target.x, z: target.z, rarity: game.itemDef(item).rarity });
+      if (game.addItem(item, game.playerOf(t))) game.emit('itemDrop', { item, x: target.x, z: target.z, rarity: game.itemDef(item).rarity });
       break;
     }
     case 'resetGrow': {
@@ -591,7 +593,7 @@ export function applyEffect(game, t, e, target, ctx = {}) {
         const reward = e.window - (game.time - st.paceTime);
         if (reward > 0) {
           const gold = Math.round(reward);
-          if (gold > 0) { game.addGold(gold); game.emit('goldFx', { x: t.x, z: t.z, amount: gold }); }
+          if (gold > 0) { game.addGold(gold, game.playerOf(t)); game.emit('goldFx', { x: t.x, z: t.z, amount: gold }); }
           game.giveXp(t, reward * (e.xpRatio || 0));
           st.paceTotal = (st.paceTotal || 0) + gold;
         }
@@ -621,7 +623,7 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       const made = game.makeItem(it.id, { state: { charges: base, base } });
       const slot = ctx.hook ? -1 : game.freeSlotFor(t, made);
       if (slot >= 0) game.placeItem(t, slot, made);
-      else if (!game.addItem(made)) break; // stash full: keep the charge at zero and retry
+      else if (!game.addItem(made, game.playerOf(t))) break; // stash full: keep the charge at zero and retry
       st.charges += st.base;
       game.emit('itemDrop', { item: made, x: t.x, z: t.z, rarity: game.itemDef(made).rarity });
       break;
@@ -639,14 +641,15 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       }
       if (ctx.passive) break;
       if (st.charges <= 0) { ctx.fail = 'No purchase charge ready'; return false; }
-      if (game.gold < e.cost) { ctx.fail = `Need ${e.cost} gold`; return false; }
-      if (game.stash.length >= ECON.stashSize) { ctx.fail = 'Stash is full'; return false; }
+      const buyer = game.playerOf(t);
+      if (buyer.gold < e.cost) { ctx.fail = `Need ${e.cost} gold`; return false; }
+      if (buyer.stash.length >= ECON.stashSize) { ctx.fail = 'Stash is full'; return false; }
       const roll = game.rng();
       const rarity = roll < e.unique ? 'unique' : roll < e.unique + e.rare ? 'rare' : 'uncommon';
       const bought = game.randomItemBetween(rarity, e.minWave, e.maxWave);
-      if (!bought || !game.addItem(bought)) return false;
+      if (!bought || !game.addItem(bought, buyer)) return false;
       st.charges--;
-      game.gold -= e.cost;
+      buyer.gold -= e.cost;
       game.emit('notice', { text: `Bought ${game.itemDef(bought).name} for ${e.cost} gold`, kind: 'item', rarity });
       break;
     }
@@ -656,7 +659,7 @@ export function applyEffect(game, t, e, target, ctx = {}) {
       const it = ctx.item;
       const slot = t.items.indexOf(it);
       if (it.copyOf || slot < 0) break;
-      const dests = towersNear(game, t.x, t.z, e.radius).filter((o) => o !== t && game.freeSlotFor(o, it) >= 0);
+      const dests = towersNear(game, t.x, t.z, e.radius).filter((o) => o !== t && o.owner === t.owner && game.freeSlotFor(o, it) >= 0);
       const to = dests.length ? dests[Math.floor(game.rng() * dests.length)] : null;
       if (!game.transferItem(t, slot, to)) break;
       if (to) game.emit('spellChain', { tower: t, points: [{ x: t.x, z: t.z, y: 2.5 }, { x: to.x, z: to.z, y: 2.5 }], fx });
@@ -800,7 +803,7 @@ function hpPart(c, e) {
 function scaleValue(game, t, kind, target, opts = {}) {
   switch (kind) {
     case 'mana': return t.mana || 0;
-    case 'gold': return Math.sqrt(Math.max(0, game.gold));
+    case 'gold': return Math.sqrt(Math.max(0, game.playerOf(t).gold));
     case 'livesLost': return game.maxLives - game.lives;
     case 'towers': return game.towers.size;
     case 'towersInRange': return towersNear(game, t.x, t.z, opts.range ?? t.stats.range).length - 1;
@@ -809,7 +812,7 @@ function scaleValue(game, t, kind, target, opts = {}) {
     case 'creepsInRange': return creepsNear(game, t.x, t.z, t.stats.range).length;
     case 'targetMissingHp': return target.creep ? 1 - target.creep.hp / target.creep.maxHp : 0;
     case 'kills': return t.kills;
-    case 'goldLinear': return Math.max(0, game.gold);
+    case 'goldLinear': return Math.max(0, game.playerOf(t).gold);
     case 'towerCost': return t.invested || t.def.totalCost;
     case 'maxMana': return t.stats.maxMana ?? t.maxMana ?? 0;
     default: return 0;

@@ -85,6 +85,7 @@
   <div id="tooltip" class="hidden"></div>
 
   <div id="menu" class="screen">
+    <button id="account-chip" class="account-chip" data-tip="Your account: sign in, name, devices and data"></button>
     <div class="menu-inner">
       <div class="title">
         <div class="kicker">A tower defense in seven elements</div>
@@ -131,7 +132,7 @@
           </div>
         </div>
         <button id="btn-setup" class="btn gold big">Start Game</button>
-        <button class="btn open-hall hall-link">Hall of Records</button>
+        <div class="row center"><button class="btn open-hall">Hall of Records</button><button class="btn open-boards">Leaderboards</button></div>
       </div>
       <div id="menu-setup" class="hidden">
         <div class="opts panel">
@@ -158,7 +159,11 @@
           <summary>Credits</summary>
           <p id="credits-text"></p>
         </details>
-        <div class="row center"><button id="btn-back" class="btn">Back to controls</button><button class="btn open-hall">Hall of Records</button></div>
+        <details class="credits">
+          <summary>Contact</summary>
+          <p>Questions, bug reports or ideas for the game? Write to <a href="mailto:0xtrungtran@saigonmedik.com?subject=YouTD%20Reforged">0xtrungtran@saigonmedik.com</a>.</p>
+        </details>
+        <div class="row center"><button id="btn-back" class="btn">Back to controls</button><button class="btn open-hall">Hall of Records</button><button class="btn open-boards">Leaderboards</button></div>
       </div>
     </div>
   </div>
@@ -203,7 +208,24 @@
         <button id="btn-again" class="btn gold">Play again</button>
         <button id="btn-endless" class="btn hidden">Keep playing (endless)</button>
         <button class="btn open-hall">Hall of Records</button>
+        <button class="btn open-boards">Leaderboards</button>
       </div>
+    </div>
+  </div>
+
+  <div id="account" class="screen modal hidden">
+    <div class="modal-box panel hall-box acct-box">
+      <h2>Account</h2>
+      <button id="account-close" class="icon-btn hall-x" data-tip="Close [Esc]">✕</button>
+      <div id="account-body"></div>
+    </div>
+  </div>
+
+  <div id="boards" class="screen modal hidden">
+    <div class="modal-box panel hall-box">
+      <h2>Leaderboards</h2>
+      <button id="boards-close" class="icon-btn hall-x" data-tip="Close [Esc]">✕</button>
+      <div id="boards-body"></div>
     </div>
   </div>
 

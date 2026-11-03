@@ -10,6 +10,10 @@ items, not about covering the map with towers.
   Frozen Night, Dusk Battlefield and Twilight Isle.
 - Element research with knowledge tomes, tower training, perks every 5 levels,
   boss spoils, and challenge waves every 8th wave.
+- Online accounts (guest, Google or an emailed link), a profile kept on the
+  server, leaderboards of server-verified runs and a weekly challenge. Runs are
+  verified by replaying them on a deterministic simulation; see
+  [docs/online.md](docs/online.md). The game also plays offline.
 - Plain JavaScript ES modules built with Vite. No framework.
 
 ## Quick start
@@ -34,7 +38,15 @@ To open the game from another device on your network, run
 | `npm run dev` | Vite dev server on port 5317 |
 | `npm run build` | Production build into `dist/` |
 | `npm run preview` | Serve the production build on port 5318 |
-| `npm run balance` | Headless balance bot (see below) |
+| `npm run balance` | Headless balance bot (see below); `LOG=run.json` writes a replayable run log |
+| `npm run check:sim` | Fail on non-deterministic code in `src/sim/` and `src/data/` |
+| `npm run test:replay` | Replay, ownership and tampered-log checks |
+| `npm run replay -- run.json` | Replay one run log |
+| `npm run api:migrate` | Apply D1 migrations to the local database |
+| `npm run api:dev` | Local Worker (game and `/api`) on port 8787; run `npm run build` first |
+| `npm run test:api` | End-to-end API tests against local Worker instances |
+| `npm run db:backup` | Export the local D1 database to `backups/` |
+| `npm run deploy` | Build and deploy the Worker (see [docs/online.md](docs/online.md#deploying)) |
 | `npm run import:youtd` | Regenerate `src/data/youtd/generated.js` from `third_party/youtd2` |
 | `npm run import:models` | Download and compress the tower and creep models in `src/data/model-map.js`; with `MESHY_API_KEY`, generate missing tower models with Meshy |
 | `npm run import:icons` | Copy the icons chosen in `src/data/icon-map.js` from a game-icons clone (`GAME_ICONS_DIR`) |
@@ -122,3 +134,7 @@ are in [docs/game-design.md](docs/game-design.md#balance-targets).
   See [docs/music-credits.md](docs/music-credits.md).
 - YouTD is the original Warcraft III custom map. This project is a fan
   recreation and is not affiliated with Blizzard Entertainment.
+
+## Contact
+
+Questions, bug reports or feedback: [0xtrungtran@saigonmedik.com](mailto:0xtrungtran@saigonmedik.com).

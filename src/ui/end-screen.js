@@ -18,6 +18,19 @@ const COLUMNS = [
   ['items', 'Items'], ['perks', 'Perks'], ['invested', 'Gold'],
 ];
 
+// What the account server has done with an online run, shown under the title.
+const VERIFY = {
+  uploading: ['pending', 'Uploading to your account…'],
+  waiting: ['pending', 'Offline: the run uploads when you reconnect'],
+  queued: ['pending', 'Verifying on the server…'],
+  verified: ['ok', 'Verified by the server'],
+  unverified: ['warn', 'Saved to your history only: the server did not verify it'],
+  deferred: ['warn', 'The server is busy: verification will run later'],
+  rejected: ['bad', 'The server could not verify this run'],
+  refused: ['bad', 'The server refused this run'],
+  local: ['warn', 'Not connected: saved on this device only'],
+};
+
 const unlockName = (r) => {
   if (r.kind === 'titles') return `Title "${UNLOCKS.titles[r.id].name}"`;
   if (r.kind === 'modifiers') return `Modifier "${MODIFIERS[r.id].name}"`;
@@ -41,9 +54,10 @@ export class EndScreen {
     });
   }
 
-  // result is recordRun's return value, or null for God mode runs.
-  show(sum, result, profile) {
-    this.sum = sum; this.result = result; this.profile = profile;
+  // result is recordRun's return value, or null for God mode runs. `verify` is the
+  // online status of the run (a VERIFY key), or null for runs kept in this browser.
+  show(sum, result, profile, verify = null) {
+    this.sum = sum; this.result = result; this.profile = profile; this.verify = verify;
     this.tab = result?.earned.length ? 'achievements' : 'overview';
     const box = $('#endscreen');
     box.classList.remove('hidden');
@@ -70,7 +84,8 @@ export class EndScreen {
       ...cfg.modifiers.map((m) => `<span class="end-mod">${esc(MODIFIERS[m].name)}</span>`),
       cfg.god ? '<span class="end-god">God mode · not recorded</span>' : '',
       result?.newRecord ? '<span class="end-record">New record</span>' : '',
-      result && !result.saved ? '<span class="end-god">Progress could not be saved</span>' : '',
+      result && !result.saved && !this.verify ? '<span class="end-god">Progress could not be saved</span>' : '',
+      this.verify && VERIFY[this.verify] ? `<span class="end-verify ${VERIFY[this.verify][0]}">${esc(VERIFY[this.verify][1])}</span>` : '',
       title ? `<span class="end-title">${esc(title.name)}</span>` : '',
     ].filter(Boolean);
     $('#end-meta').innerHTML = tags.join('');

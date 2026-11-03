@@ -19,7 +19,10 @@ Read first:
 npm install
 npm run dev            # Vite dev server on port 5317 (add -- --host 0.0.0.0 for LAN/Tailscale)
 npm run build          # production build into dist/; must pass before finishing
-npm run balance        # headless balance bot (see below)
+npm run balance        # headless balance bot (see below); LOG=run.json writes a replayable log
+npm run check:sim      # fail on non-deterministic code in src/sim and src/data
+npm run test:replay    # replay, ownership and tampered-log checks
+npm run replay -- run.json  # replay one run log
 node tools/carry-bench.js  # rank every tower as a single carry vs boss/mass/air (WAVE, LVL, ONLY, TOP)
 npm run bench          # render benchmark in headless Chrome; needs npm run dev running
 npm run import:youtd   # regenerate src/data/youtd/generated.js from third_party/youtd2
@@ -46,7 +49,13 @@ results vary by ±15 waves.
 ## Layout rules
 
 - `src/sim/` is headless. Never import three.js or touch the DOM there; the
-  balance bot runs it in Node.
+  balance bot runs it in Node and the server replays it to verify runs.
+- The simulation must be deterministic across JavaScript engines: no
+  `Math.random` (use `game.rng`), no clocks, no `Math.pow`/`hypot`/`atan2`/`exp`/
+  `log`/trig or `**` in `src/sim/` or `src/data/` (use `src/sim/dmath.js`), and
+  ids from `game.newUid()`. `npm run check:sim` enforces this.
+- Player actions go through `game.command(op, args)` with ids, never by calling
+  `Game` methods from the UI or mutating state, so every run can be replayed.
 - `src/world/` and `src/ui/` read simulation state and listen to `Game` events.
   Change rules through `Game` methods, not by mutating state from the view.
 - New tower or item mechanics belong in the ability engine
@@ -84,6 +93,9 @@ results vary by ±15 waves.
 1. `npm run build` must pass.
 2. For simulation or balance changes, run the balance bot on 3+ seeds and on the
    affected difficulties; compare against the table in `docs/game-design.md`.
+   Run `npm run check:sim` and `npm run test:replay`. Any change to `src/sim/` or
+   `src/data/` changes the simulation build id, so runs in progress during a
+   deploy are kept but not verified.
 3. For UI or rendering changes, check the game in a browser at 1920x1080 and
    2560x1440 (start a run, build towers, start a wave). `window.__youtd` exposes
    `game`, `world` and `hud` for scripted checks. For changes that can affect

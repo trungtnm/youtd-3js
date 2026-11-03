@@ -4,6 +4,7 @@
 
 // eslint-disable-next-line no-unused-vars
 import { UNIT, at, proc, autocast } from './helpers.js';
+import { dpow } from '../../../sim/dmath.js';
 
 // Rundown sentry: damage gained per intruder, by creep size (bigger intruders count more).
 const AWARENESS_SIZE_MULT = { mass: 1, challengeMass: 2, normal: 3, air: 4, champion: 5, boss: 6, challenge: 8 };
@@ -176,7 +177,7 @@ export const PORTS = {
   valor: {
     passives: () => {
       const pulses = [0, 1, 2, 3, 4].map((i) => {
-        const f = 0.5 ** i;
+        const f = dpow(0.5, i);
         return { kind: 'spellDamage', flat: 2000 * f, flatPerLevel: 80 * f, slow: 0.3 * f, slowPerLevel: 0.012 * f, slowDur: 1, delay: i, quiet: i > 0, fx: 'holy' };
       });
       return [

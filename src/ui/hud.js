@@ -58,9 +58,9 @@ export class HUD {
       clearTimeout(this.finishTimer);
       b.classList.remove('armed'); b.textContent = 'End run';
       this.audio.click();
-      this.game?.finishRun();
+      this.game?.command('finish');
     });
-    $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.setAutoWave(!this.game.autoWave); });
+    $('#btn-auto').addEventListener('click', () => { this.audio.click(); this.game?.command('autoWave', { on: !this.game.autoWave }); });
     // Auto transmute: the button opens a menu of rarities to combine automatically.
     $('#btn-autotx').addEventListener('click', (e) => { e.stopPropagation(); this.audio.click(); $('#autotx-menu').classList.toggle('hidden'); });
     $('#autotx-menu').addEventListener('click', (e) => {
@@ -70,13 +70,13 @@ export class HUD {
       this.audio.click();
       const set = new Set(this.game.autoTransmute);
       if (set.has(b.dataset.r)) set.delete(b.dataset.r); else set.add(b.dataset.r);
-      this.game.setAutoTransmute([...set]);
+      this.game.command('autoTransmute', { rarities: [...set] });
     });
     document.addEventListener('click', () => $('#autotx-menu').classList.add('hidden'));
     document.querySelectorAll('.speed button').forEach((b) => b.addEventListener('click', () => this.setSpeed(Number(b.dataset.speed))));
     $('#btn-transmute').addEventListener('click', () => {
       if (!this.game) return;
-      if (this.game.transmute([...this.transmuteSel])) { this.transmuteSel.clear(); this.audio.item('rare'); } else this.audio.error();
+      if (this.game.command('transmute', { items: [...this.transmuteSel] })) { this.transmuteSel.clear(); this.audio.item('rare'); } else this.audio.error();
     });
     // Tooltips
     const tip = $('#tooltip');
@@ -317,7 +317,7 @@ export class HUD {
     if (this.element === 'draft') {
       head.innerHTML = `<div><div class="eh-name" style="color:var(--gold)">Draft</div><div class="eh-lvl">${ECON.rollCount} new towers arrive each wave</div></div>
         <button class="btn" id="btn-reroll" data-tip="Replace your draft with new random towers.">Reroll · ${ECON.rerollCost} 📘</button>`;
-      $('#btn-reroll').addEventListener('click', () => { if (g.rerollDraft()) this.audio.research(); });
+      $('#btn-reroll').addEventListener('click', () => { if (g.command('reroll')) this.audio.research(); });
     } else {
       const el = ELEMENTS[this.element];
       const lv = g.research[this.element];
@@ -328,7 +328,7 @@ export class HUD {
         <button class="btn ${!maxed && g.tomes >= cost ? 'gold' : ''}" id="btn-research" ${maxed || g.tomes < cost ? 'disabled' : ''}
           data-tip="Research ${el.name}: unlocks higher tiers and rarer ${el.name} towers${random ? ' and makes them appear more often in your draft' : ''}.">
           ${maxed ? 'Mastered' : `Research · ${cost} 📘`}</button>`;
-      $('#btn-research').addEventListener('click', () => g.doResearch(this.element));
+      $('#btn-research').addEventListener('click', () => g.command('research', { el: this.element }));
     }
 
     // Tower list
@@ -413,7 +413,7 @@ export class HUD {
         <span class="sp-sub">Wave ${offer.level} · choose one reward</span>
         ${g.spoils.length > 1 ? `<span class="sp-count">${g.spoils.length} waiting</span>` : ''}</div>
       <div class="sp-list">${offer.options.map(card).join('')}</div>`;
-    box.querySelectorAll('[data-spoil]').forEach((b) => b.addEventListener('click', () => g.chooseSpoil(Number(b.dataset.spoil))));
+    box.querySelectorAll('[data-spoil]').forEach((b) => b.addEventListener('click', () => g.command('spoil', { idx: Number(b.dataset.spoil) })));
   }
 
   // ---------------------------------------------------------------- invisible-enemy guide
@@ -569,10 +569,10 @@ export class HUD {
           return;
         }
         const d = ITEMS[g.stash.find((i) => i.uid === uid).id];
-        if (d.kind === 'consumable') { g.useItem(uid); return; }
+        if (d.kind === 'consumable') { g.command('use', { item: uid }); return; }
         if (this.selection?.type === 'tower') {
           const t = g.towers.get(this.selection.uid);
-          if (t && g.equip(uid, t)) { this.audio.upgrade(); this.selectedItem = null; return; }
+          if (t && g.command('equip', { item: uid, tower: t.uid })) { this.audio.upgrade(); this.selectedItem = null; return; }
         }
         this.selectedItem = this.selectedItem === uid ? null : uid;
         this.hint(this.selectedItem ? 'Click a tower to give it this item · <b>Right click</b> to cancel' : '');
@@ -674,33 +674,33 @@ export class HUD {
       </div>`;
     box.querySelectorAll('[data-act]').forEach((b) => {
       const i = Number(b.dataset.act);
-      b.addEventListener('click', () => { if (g.castActive(t, i)) this.sigs.sel = null; });
-      b.addEventListener('contextmenu', (e) => { e.preventDefault(); const on = g.toggleAutocast(t, i); this.toast(`Autocast ${on ? 'on' : 'off'}: ${t.actives[i].def.name}`); this.audio.click(); this.renderSelection(true); });
+      b.addEventListener('click', () => { if (g.command('cast', { tower: t.uid, idx: i })) this.sigs.sel = null; });
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); const on = g.command('autocast', { tower: t.uid, idx: i }); this.toast(`Autocast ${on ? 'on' : 'off'}: ${t.actives[i].def.name}`); this.audio.click(); this.renderSelection(true); });
     });
     box.querySelectorAll('[data-iact]').forEach((b) => {
       const i = Number(b.dataset.iact);
-      b.addEventListener('click', () => { if (g.castItem(t, i)) this.audio.click(); this.renderSelection(true); });
-      b.addEventListener('contextmenu', (e) => { e.preventDefault(); const on = g.toggleItemAuto(t, i); this.toast(`Autocast ${on ? 'on' : 'off'}: ${itemActs[i].proc.name}`); this.audio.click(); this.renderSelection(true); });
+      b.addEventListener('click', () => { if (g.command('castItem', { tower: t.uid, idx: i })) this.audio.click(); this.renderSelection(true); });
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); const on = g.command('itemAuto', { tower: t.uid, idx: i }); this.toast(`Autocast ${on ? 'on' : 'off'}: ${itemActs[i].proc.name}`); this.audio.click(); this.renderSelection(true); });
     });
-    box.querySelectorAll('[data-prio]').forEach((b) => b.addEventListener('click', () => { g.setPriority(t, b.dataset.prio); this.audio.click(); this.renderSelection(true); }));
+    box.querySelectorAll('[data-prio]').forEach((b) => b.addEventListener('click', () => { g.command('priority', { tower: t.uid, prio: b.dataset.prio }); this.audio.click(); this.renderSelection(true); }));
     box.querySelectorAll('.islots .slot').forEach((sl) => {
       const i = Number(sl.dataset.slot);
       sl.addEventListener('click', () => {
-        if (this.selectedItem) { if (g.equip(this.selectedItem, t, i)) { this.audio.upgrade(); this.selectedItem = null; this.hint(''); } }
-        else if (t.items[i]) { g.unequip(t, i); this.audio.click(); }
+        if (this.selectedItem) { if (g.command('equip', { item: this.selectedItem, tower: t.uid, slot: i })) { this.audio.upgrade(); this.selectedItem = null; this.hint(''); } }
+        else if (t.items[i]) { g.command('unequip', { tower: t.uid, slot: i }); this.audio.click(); }
       });
       sl.addEventListener('dragover', (e) => e.preventDefault());
       sl.addEventListener('drop', (e) => {
         e.preventDefault();
         const uid = Number(e.dataTransfer.getData('text/item'));
-        if (uid && g.equip(uid, t, i)) this.audio.upgrade();
+        if (uid && g.command('equip', { item: uid, tower: t.uid, slot: i })) this.audio.upgrade();
       });
     });
     $('#btn-upgrade')?.addEventListener('click', () => this.upgradeSelected());
     $('#btn-sell').addEventListener('click', () => this.sellSelected());
     $('#btn-train')?.addEventListener('click', () => this.trainSelected());
     $('#btn-train-max')?.addEventListener('click', () => this.trainSelected(true));
-    box.querySelectorAll('[data-perk]').forEach((b) => b.addEventListener('click', () => { g.choosePerk(t, b.dataset.perk); this.audio.upgrade(); }));
+    box.querySelectorAll('[data-perk]').forEach((b) => b.addEventListener('click', () => { g.command('perk', { tower: t.uid, perk: b.dataset.perk }); this.audio.upgrade(); }));
   }
 
   _renderCreep(box, c) {
@@ -725,7 +725,7 @@ export class HUD {
 
   castSelected(i) {
     const t = this.selection?.type === 'tower' && this.game.towers.get(this.selection.uid);
-    if (t && t.actives[i]) this.game.castActive(t, i);
+    if (t && t.actives[i]) this.game.command('cast', { tower: t.uid, idx: i });
   }
 
   trainSelected(max = false) {
@@ -733,20 +733,20 @@ export class HUD {
     if (!t) return;
     const before = t.level;
     const gold = this.game.gold;
-    if (!max) { if (this.game.train(t)) this.audio.levelUp(); return; }
-    if (!this.game.trainMax(t)) return;
+    if (!max) { if (this.game.command('train', { tower: t.uid })) this.audio.levelUp(); return; }
+    if (!this.game.command('trainMax', { tower: t.uid })) return;
     this.audio.levelUp();
     this.toast(`Trained to level ${t.level} (+${t.level - before}) · ${fmt(gold - this.game.gold)} gold`, 'gold');
   }
 
   upgradeSelected() {
     const t = this.selection?.type === 'tower' && this.game.towers.get(this.selection.uid);
-    if (t && this.game.upgrade(t)) this.sigs.sel = null;
+    if (t && this.game.command('upgrade', { tower: t.uid })) this.sigs.sel = null;
   }
 
   sellSelected() {
     const t = this.selection?.type === 'tower' && this.game.towers.get(this.selection.uid);
-    if (t) { this.game.sell(t); this.select(null); }
+    if (t) { this.game.command('sell', { tower: t.uid }); this.select(null); }
   }
 
   // ---------------------------------------------------------------- tooltips
@@ -814,7 +814,15 @@ export class HUD {
 
   // ---------------------------------------------------------------- end screen
 
-  showEnd(sum, result, profile) {
-    (this.endScreen ||= new EndScreen()).show(sum, result, profile);
+  showEnd(sum, result, profile, verify = null) {
+    (this.endScreen ||= new EndScreen()).show(sum, result, profile, verify);
+  }
+
+  // Updates the online verification line of the end screen, if it is open.
+  setRunVerify(status) {
+    const end = this.endScreen;
+    if (!end || $('#endscreen').classList.contains('hidden')) return;
+    end.verify = status;
+    end.render();
   }
 }

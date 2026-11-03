@@ -654,3 +654,37 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .hall-confirm { padding: calc(var(--s) * 10px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 4px); background: rgba(255, 90, 60, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 120, 90, 0.4); }
 .hall-confirm p { margin: 0 0 calc(var(--s) * 8px); }
 #hall-body .row { display: flex; gap: calc(var(--s) * 8px); justify-content: flex-start; }
+
+/* ---------------------------------------------------------------- account and leaderboards */
+.account-chip { position: absolute; top: calc(var(--s) * 16px); right: calc(var(--s) * 18px); z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: calc(var(--s) * 2px); max-width: calc(var(--s) * 260px); padding: calc(var(--s) * 7px) calc(var(--s) * 14px); border-radius: calc(var(--s) * 4px); border: 1px solid var(--iron); background: linear-gradient(180deg, rgba(40, 32, 22, 0.92), rgba(18, 14, 10, 0.92)); box-shadow: inset 0 0 0 1px rgba(200, 154, 69, 0.45); color: var(--text); text-align: right; }
+.account-chip:hover { filter: brightness(1.18); }
+.account-chip span { font-family: var(--serif); font-weight: 700; font-size: calc(var(--s) * 14px); color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.account-chip small { font-size: calc(var(--s) * 11px); color: var(--muted); }
+.account-chip.offline span { color: var(--muted); }
+#account, #boards { z-index: 70; }
+.acct-box { width: min(calc(var(--s) * 620px), 94vw); }
+#account-body, #boards-body { overflow-y: auto; padding-right: calc(var(--s) * 6px); display: flex; flex-direction: column; gap: calc(var(--s) * 14px); text-align: left; }
+#account-body h3 { margin: 0 0 calc(var(--s) * 6px); font-family: var(--serif); color: var(--gold); font-size: calc(var(--s) * 15px); letter-spacing: 0.08em; }
+#account-body section, #boards-body section { margin: 0; }
+#account-body .row, #boards-body .row { display: flex; flex-wrap: wrap; gap: calc(var(--s) * 8px); }
+.acct-head { display: flex; justify-content: space-between; align-items: center; padding: calc(var(--s) * 10px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 4px); background: rgba(0, 0, 0, 0.35); box-shadow: var(--socket); }
+.acct-head b { display: block; font-family: var(--serif); font-size: calc(var(--s) * 18px); color: var(--text); }
+.acct-head span { font-size: calc(var(--s) * 12px); color: var(--muted); }
+.acct-signin { display: flex; flex-direction: column; gap: calc(var(--s) * 10px); align-items: flex-start; }
+.acct-form { display: flex; gap: calc(var(--s) * 8px); width: 100%; }
+.acct-form input { flex: 1; min-width: 0; font: inherit; font-size: calc(var(--s) * 13px); color: var(--text); background: #1d1710; border: 1px solid var(--iron); border-radius: calc(var(--s) * 3px); padding: calc(var(--s) * 6px) calc(var(--s) * 8px); }
+.acct-msg { margin: 0; padding: calc(var(--s) * 8px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 4px); background: rgba(242, 199, 102, 0.12); color: var(--gold); font-size: calc(var(--s) * 12.5px); }
+.btn.small { padding: calc(var(--s) * 3px) calc(var(--s) * 10px); font-size: calc(var(--s) * 11.5px); }
+.end-tabs-row { display: flex; gap: calc(var(--s) * 4px); border-bottom: 1px solid rgba(200, 154, 69, 0.35); }
+.boards-pick { display: flex; flex-wrap: wrap; gap: calc(var(--s) * 8px); align-items: center; }
+.boards-pick .end-mod { font-size: calc(var(--s) * 11px); color: #ff9b7a; }
+.boards-weekly { display: flex; justify-content: space-between; align-items: center; gap: calc(var(--s) * 12px); padding: calc(var(--s) * 10px) calc(var(--s) * 12px); border-radius: calc(var(--s) * 4px); background: rgba(0, 0, 0, 0.35); box-shadow: var(--socket); }
+.boards-weekly b { display: block; font-family: var(--serif); color: var(--gold); font-size: calc(var(--s) * 15px); }
+.boards-weekly span { font-size: calc(var(--s) * 12px); color: var(--muted); }
+.boards-table td:first-child { color: var(--gold); font-family: var(--serif); width: calc(var(--s) * 32px); }
+.hall-history .hall-unverified { display: block; margin-left: 0; color: #ffb27a; }
+#end-meta .end-verify.pending { color: var(--muted); }
+#end-meta .end-verify.ok { color: var(--green); }
+#end-meta .end-verify.warn { color: #ffb27a; }
+#end-meta .end-verify.bad { color: #ff8a78; }
+.board-tag { color: var(--muted); font-size: calc(var(--s) * 10.5px); font-family: var(--sans, inherit); }

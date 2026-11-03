@@ -1,10 +1,43 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "youtd-reforged",
+  "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
-  // Static site only: Workers serves the Vite build straight from its asset store.
+  // The Vite build is served from the asset store; only /api/* runs the Worker first.
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "404-page"
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true },
+  // A replay of a long run needs far more than the default CPU allowance.
+  "limits": { "cpu_ms": 60000 },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "youtd",
+      // Local dev accepts any id; replace it with the id from `wrangler d1 create youtd` before deploying.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "LOGS", "bucket_name": "youtd-logs" }],
+  "queues": {
+    "producers": [{ "binding": "VERIFY", "queue": "youtd-verify" }],
+    // One replay per invocation keeps each job inside the CPU limit.
+    "consumers": [{ "queue": "youtd-verify", "max_batch_size": 1, "max_retries": 3, "max_concurrency": 2 }]
+  },
+  // Re-queues deferred runs once the monthly budget allows and prunes expired rows.
+  "triggers": { "crons": ["*/15 * * * *"] },
+  // Dev defaults. Set APP_ORIGIN to the public https origin when deploying.
+  // Secrets (TICKET_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, BREVO_API_KEY) are never put here:
+  // use `wrangler secret put` in production and .dev.vars locally.
+  "vars": {
+    "APP_ORIGIN": "http://localhost:8787",
+    "CPU_BUDGET_MS": "30000000",
+    "EMAIL_DAILY_CAP": "300",
+    "MAIL_FROM": "no-reply@example.com",
+    "MAIL_FROM_NAME": "YouTD Reforged"
   }
 }

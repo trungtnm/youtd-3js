@@ -304,19 +304,21 @@ export class FX {
 
   // ---------------------------------------------------------------- projectiles
 
-  syncProjectiles(list, dt = 1 / 60) {
+  syncProjectiles(list, dt = 1 / 60, alpha = 1) {
     const out = this._projOut;
     out.length = 0;
     for (const p of list) {
+      const x = p.px === undefined ? p.x : p.px + (p.x - p.px) * alpha;
+      const z = p.pz === undefined ? p.z : p.pz + (p.z - p.pz) * alpha;
       const st = PROJ[p.kind] || PROJ.bullet;
       const targetY = p.target.air ? 2.6 : 0.9;
       let y = p.y + (targetY - p.y) * p.t;
       if (p.arc) y += Math.sin(p.t * Math.PI) * Math.min(7, p.total * 0.45);
-      out.push({ uid: p.uid, x: p.x, y, z: p.z, style: st });
+      out.push({ uid: p.uid, x, y, z, style: st });
       // The ribbon trail carries the shape; a few sparks and smoke keep it alive.
-      if (Math.random() < 0.35) this.add.emit(this.time, p.x, y, p.z, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, tmpC.set(st.trail), 0.3, st.size * 1.1, 0);
+      if (Math.random() < 0.35) this.add.emit(this.time, x, y, z, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, tmpC.set(st.trail), 0.3, st.size * 1.1, 0);
       if (p.kind === 'magma' || p.kind === 'fireball' || p.kind === 'shell') {
-        this.smoke.emit(this.time, p.x, y, p.z, 0, 0.5, 0, tmpC.set(0x3a3330), 0.6, st.size * 2.2, -0.5);
+        this.smoke.emit(this.time, x, y, z, 0, 0.5, 0, tmpC.set(0x3a3330), 0.6, st.size * 2.2, -0.5);
       }
     }
     for (const s of this.shots) {
