@@ -1,0 +1,24 @@
+# Production service on the VPS. Layout under YOUTD_HOME (default /opt/youtd):
+#   .env          secrets and production vars (mode 600, never committed)
+#   data/         SQLite database, run logs, queue, backups (owned by uid 1000)
+#   releases/<sha>/  source of each deploy (tools/deploy-vps.sh)
+# nginx terminates TLS and proxies to 127.0.0.1:3200.
+name: youtd
+
+services:
+  youtd:
+    build: .
+    image: youtd-reforged:${YOUTD_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+    env_file: ${YOUTD_HOME:-/opt/youtd}/.env
+    environment:
+      TRUST_PROXY: "1"
+    ports:
+      - "127.0.0.1:3200:8787"
+    volumes:
+      - ${YOUTD_HOME:-/opt/youtd}/data:/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }

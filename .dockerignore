@@ -1,0 +1,15 @@
+.git
+node_modules
+dist
+.data
+data
+backups
+plans
+.wrangler
+.claude
+.codegraph
+.dev.vars
+.env
+.env.*
+*.log
+.DS_Store

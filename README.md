@@ -42,11 +42,10 @@ To open the game from another device on your network, run
 | `npm run check:sim` | Fail on non-deterministic code in `src/sim/` and `src/data/` |
 | `npm run test:replay` | Replay, ownership and tampered-log checks |
 | `npm run replay -- run.json` | Replay one run log |
-| `npm run api:migrate` | Apply D1 migrations to the local database |
-| `npm run api:dev` | Local Worker (game and `/api`) on port 8787; run `npm run build` first |
-| `npm run test:api` | End-to-end API tests against local Worker instances |
-| `npm run db:backup` | Export the local D1 database to `backups/` |
-| `npm run deploy` | Build and deploy the Worker (see [docs/online.md](docs/online.md#deploying)) |
+| `npm run api:dev` | Local server (game and `/api`) on port 8787, data in `.data/`; run `npm run build` first |
+| `npm run test:api` | End-to-end API tests against local server instances (`API_SERVER=wrangler` runs them under `wrangler dev`) |
+| `npm run db:backup` | Copy the local database to `.data/backups/` |
+| `npm run deploy:vps` | Deploy the committed HEAD to the VPS with Docker (see [docs/online.md](docs/online.md#deploying)) |
 | `npm run import:youtd` | Regenerate `src/data/youtd/generated.js` from `third_party/youtd2` |
 | `npm run import:models` | Download and compress the tower and creep models in `src/data/model-map.js`; with `MESHY_API_KEY`, generate missing tower models with Meshy |
 | `npm run import:icons` | Copy the icons chosen in `src/data/icon-map.js` from a game-icons clone (`GAME_ICONS_DIR`) |

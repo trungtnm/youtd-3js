@@ -14,13 +14,27 @@ network is only used to start a run and to upload it when it ends.
 | Profile fold | `src/meta/profile.js` | `applyRun`: the same rules locally and on the server |
 | Browser client | `src/online/online.js`, `src/online/api.js` | Account state, run tickets, upload outbox |
 | UI | `src/ui/account.js`, `src/ui/boards.js`, `src/ui/hall.js`, `src/ui/end-screen.js` | Account panel, leaderboards and weekly challenge, Hall account tab, verification status |
-| Server | `worker/` | Cloudflare Worker: static files plus `/api/*` |
-| Schema | `migrations/` | D1 tables: users, sessions, login tokens, runs, board (with review flags), rate windows, usage |
-| Config | `wrangler.jsonc`, `.dev.vars.example` | Bindings, vars, cron, limits |
+| API | `worker/` | Routes, auth, verification, boards; written as a Cloudflare Worker module (`fetch`, `queue`, `scheduled`) |
+| Host | `server/` | Node server that runs `worker/` unchanged and supplies its bindings |
+| Schema | `migrations/` | SQLite tables: users, sessions, login tokens, runs, board (with review flags), rate windows, usage |
+| Config | `wrangler.jsonc` (default vars), `.dev.vars.example`, `/opt/youtd/.env` on the VPS | Vars and secrets |
+| Deploy | `Dockerfile`, `compose.yaml`, `deploy/nginx/`, `tools/deploy-vps.sh` | Image, service, nginx site, deploy script |
 
-One Worker serves the Vite build from its asset store and runs first only for
-`/api/*`. Bindings: D1 `DB`, R2 `LOGS` (run logs), Queue `VERIFY`
-(`youtd-verify`, one replay per message), cron every 15 minutes.
+Production is one Docker container on the VPS behind nginx and the Cloudflare
+proxy (DNS, TLS to the browser, caching). `server/index.js` serves the Vite
+build and `/api/*`, and gives `worker/` what the Workers runtime used to:
+
+| Binding | Node implementation |
+|---|---|
+| `DB` (D1) | `server/sqlite-d1.js`: one SQLite file (WAL), D1's result shapes and `batch()` transactions |
+| `LOGS` (R2) | `server/fs-r2.js`: run logs as files under `data/logs/` |
+| `VERIFY` (Queue) | `server/queue.js`: a durable queue in `data/queue.sqlite`; `QUEUE_CONCURRENCY` verifier threads (default 2) replay one run each, off the HTTP thread; at most 4 deliveries per message |
+| `ASSETS` | `server/assets.js`: `dist/` with `_headers`, ETags and byte ranges |
+| `caches.default` | `server/cache.js`: in memory, for the 30 s board cache |
+| Cron | every 15 minutes in the main thread; also takes the daily backup |
+
+The same `worker/` code still runs under `wrangler dev` (`npm run api:dev:wrangler`,
+`API_SERVER=wrangler npm run test:api`).
 
 ## Trust model
 
@@ -59,7 +73,7 @@ review, not prevented.
 3. At the end the client queues the upload in the outbox (`localStorage`
    `youtd-reforged-outbox`) and sends it. Network errors, 429 and 5xx keep it for a
    retry (15 s, doubling to 10 minutes; also on the browser `online` event).
-4. The server checks the ticket and log, stores the log in R2 and enqueues it.
+4. The server checks the ticket and log, stores the log and queues it for a verifier.
    Statuses: `queued`, `verified`, `rejected` (replay disagreed; error and tick
    stored), `unverified` (budget guard or simulation updated since the ticket;
    history only), `deferred` (budget paused; replayed when the month resets).
@@ -124,11 +138,14 @@ player keeps the entry hidden. Only the owner unhides or hides entries, after
 looking at the runs. Review the top of a week (the example is week 45 of 2026) with:
 
 ```bash
-npx wrangler d1 execute DB --remote --command "SELECT b.user_id, u.name, b.score, b.hidden, b.note, b.run_id, r.log_ver, r.layout_hash FROM board b JOIN users u ON u.id = b.user_id JOIN runs r ON r.id = b.run_id WHERE b.key = 'weekly:2026-W45' ORDER BY b.score DESC LIMIT 20"
-npx wrangler r2 object get youtd-logs/logs/<user_id>/<run_id>-<log_ver>.json.gz --remote --file run.json.gz
+ssh ctb-1
+cd /opt/youtd/current
+docker compose exec youtd node server/sql.js "SELECT b.user_id, u.name, b.score, b.hidden, b.note, b.run_id, r.log_ver, r.layout_hash FROM board b JOIN users u ON u.id = b.user_id JOIN runs r ON r.id = b.run_id WHERE b.key = 'weekly:2026-W45' ORDER BY b.score DESC LIMIT 20"
+docker compose exec youtd node server/sql.js "UPDATE board SET hidden = 1, note = 'copied run' WHERE key = 'weekly:2026-W45' AND user_id = '<user_id>'"
+docker compose exec youtd node server/sql.js "UPDATE board SET hidden = 0, note = NULL WHERE key = 'weekly:2026-W45' AND user_id = '<user_id>'"
+# On your machine: fetch a log and replay it.
+scp ctb-1:/opt/youtd/data/logs/<user_id>/<run_id>-<log_ver>.json.gz run.json.gz
 gunzip run.json.gz && npm run replay -- run.json
-npx wrangler d1 execute DB --remote --command "UPDATE board SET hidden = 1, note = 'copied run' WHERE key = 'weekly:2026-W45' AND user_id = '<user_id>'"
-npx wrangler d1 execute DB --remote --command "UPDATE board SET hidden = 0, note = NULL WHERE key = 'weekly:2026-W45' AND user_id = '<user_id>'"
 ```
 
 Logs of runs holding a board entry (hidden or not) are kept for review. Boards are
@@ -136,7 +153,7 @@ cached for 30 s, so a change shows up within that time.
 
 ## Accounts and sessions
 
-- Session cookie `sid`: 32 random bytes; D1 stores its SHA-256. `HttpOnly`,
+- Session cookie `sid`: 32 random bytes; the database stores its SHA-256. `HttpOnly`,
   `SameSite=Lax`, 30 days, `Secure` on https. Rotated on every sign-in.
 - A new Google id or email upgrades the guest in the browser that signs in, so
   guest progress carries over. A Google id or email that already has an account
@@ -153,8 +170,8 @@ cached for 30 s, so a change shows up within that time.
 
 ## Limits and cost
 
-Everything is sized to stay inside the Workers Paid plan ($5/month) and free
-tiers, because Cloudflare bills usage above the included amounts automatically.
+The VPS costs the same however much it is used; the limits below protect its CPU
+and the free Brevo quota from abuse.
 
 | Limit | Value | Where |
 |---|---|---|
@@ -162,23 +179,25 @@ tiers, because Cloudflare bills usage above the included amounts automatically.
 | Log size | 50,000 commands, 4 hours of game time | `src/sim/replay.js` |
 | Rate limits per hour | 3 emails per address, 10 per IP; 30 run starts and 60 uploads per user; 20 guests per IP; 30 link lookups per IP (IPv6 counted per /64) | `worker/limits.js` |
 | Verification share per month | 2% of the CPU budget per user, 5% per IP (`USER_SHARE`, `IP_SHARE`); past it, runs are history only | `worker/budget.js` |
-| Replay CPU | `limits.cpu_ms` 60000 | `wrangler.jsonc` |
+| Replay concurrency | `QUEUE_CONCURRENCY` verifier threads (2); a replay is bounded by the log size limits | `server/index.js` |
+| Request body | 2 MB in the server, 1 MB in nginx | `server/index.js`, `deploy/nginx/` |
 
-Budget guard (`worker/budget.js`): Workers clocks do not advance during pure
-computation, so each replay's CPU is estimated from the work the replay did
+Budget guard (`worker/budget.js`): each replay's CPU is estimated from the work
+the replay did (the estimate was needed on Workers, whose clocks do not advance
+during pure computation, and keeps the guard independent of the host)
 (`replayLog` returns `work`: per tick, 1 plus its creeps, towers and
 projectiles) at 1 µs per unit, about 3x the measured 320-350 ns in Node, plus
 50 ms charged when the attempt starts (so replays killed by the CPU limit still
 count). A 65-wave run is ~3.9M units, ~4 s estimated, ~1.3 s measured. Idle
-ticks cost almost nothing, so long idle logs cannot drain the budget. With `CPU_BUDGET_MS` = 30,000,000 (the plan's included CPU), the month's
+ticks cost almost nothing, so long idle logs cannot drain the budget. With `CPU_BUDGET_MS` = 30,000,000 (about 8 CPU hours; raise it in `.env` if real players hit it), the month's
 estimate decides the mode: below 70% every run is replayed; 70 to 90% only runs
 whose claim would set the player's record, reach the top 50, are weekly, or claim
 a victory (others become unverified history); above 90% uploads are deferred
 until next month. Email sign-in pauses at 90% of `EMAIL_DAILY_CAP` (300, Brevo's
-free daily quota). Check real CPU in the Cloudflare dashboard after launch and
-adjust `TICK_COST_MS`.
+free daily quota). Compare with real CPU (`docker stats youtd-youtd-1`) after
+launch and adjust `TICK_COST_MS`.
 
-Retention (cron): R2 logs of finished runs are deleted after 90 days unless the
+Retention (cron): stored logs of finished runs are deleted after 90 days unless the
 run was rejected or holds a leaderboard entry. Logs are versioned per upload
 (`logs/<user>/<run>-<n>.json.gz`, written after the run row commits; older
 versions are deleted). Expired tokens, sessions older than 31 days, unused
@@ -189,13 +208,12 @@ runs are deleted.
 
 ```bash
 cp .dev.vars.example .dev.vars   # set TICKET_SECRET; DEV_MAIL_ECHO=1 returns links instead of mailing
-npm run build                    # the Worker serves dist/
-npm run api:migrate              # local D1
-npm run api:dev                  # http://localhost:8787 (game and API)
-npm run test:api                 # end-to-end API tests (own instances on 8787 and 8788)
+npm run build                    # the server serves dist/
+npm run api:dev                  # http://localhost:8787 (game and API); data in .data/, migrated on start
+npm run test:api                 # end-to-end API tests (own instances on 8787-8789)
 ```
 
-`npm run dev` (Vite, port 5317) proxies `/api` to 8787. For sign-in through the
+`api:dev` restarts when `worker/` or `server/` change. `npm run dev` (Vite, port 5317) proxies `/api` to 8787. For sign-in through the
 Vite server, set `APP_ORIGIN=http://localhost:5317` in `.dev.vars`, since the
 Origin check and the OAuth redirect use it. Rebuilding while `api:dev` runs
 replaces `dist/`; restart `api:dev` afterwards. With no server reachable the
@@ -203,27 +221,55 @@ game shows "Offline" and keeps progress in the browser.
 
 ## Deploying
 
-Nothing in the repo creates remote resources; run these once with the owner's
-Cloudflare account:
+Production runs on the VPS `ctb-1` (194.233.86.144, SSH alias in `~/.ssh/config`)
+at `https://youtd.0xtrungtran.com`. Requests go browser → Cloudflare proxy →
+nginx (`deploy/nginx/youtd.0xtrungtran.com.conf`, TLS with a Let's Encrypt
+certificate) → the container on `127.0.0.1:3200`.
 
-1. `npx wrangler d1 create youtd`; put the id in `wrangler.jsonc`
-   (`database_id`). `npx wrangler r2 bucket create youtd-logs`.
-   `npx wrangler queues create youtd-verify`.
-2. Set `vars` in `wrangler.jsonc`: `APP_ORIGIN` (the https origin), `MAIL_FROM`
-   (an address on the domain verified in Brevo), `MAIL_FROM_NAME`.
-3. Secrets: `npx wrangler secret put TICKET_SECRET` (64 random hex chars),
-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Google Cloud OAuth client, web
-   type, redirect URI `<APP_ORIGIN>/api/auth/google/callback`, scopes `openid`
-   and `email`), `BREVO_API_KEY` (transactional API key). Never set
-   `DEV_MAIL_ECHO` or `GOOGLE_TOKEN_URL` in production.
-4. `npx wrangler d1 migrations apply DB --remote`, then `npm run deploy`.
-5. In the Cloudflare dashboard, add billing notifications at 50% and 80% of
-   each included amount.
+Every deploy, from a clean working tree:
 
-Backups: D1 Time Travel restores any minute of the last 30 days. Before every
-migration, export: `npx wrangler d1 export DB --remote --output backups/youtd-<date>.sql`
-(`backups/` is gitignored). `npm run db:backup` does the same for the local
-database.
+```bash
+npm run test:replay && npm run test:api   # the image build runs check:sim
+npm run deploy:vps                        # ships HEAD (git archive), builds on the VPS, backs up, restarts
+```
+
+`tools/deploy-vps.sh` unpacks HEAD into `/opt/youtd/releases/<sha>`, builds the
+image `youtd-reforged:<sha>`, backs up the live database, starts the new container
+and waits for its health check, then points `/opt/youtd/current` at the release.
+Pending migrations run when the server starts, after their own backup. To roll
+back: `cd /opt/youtd/releases/<old sha> && YOUTD_TAG=<old sha> docker compose up -d`
+(a migration is not undone; restore a backup if one must be). Old releases are not
+deleted automatically.
+
+Logs: `cd /opt/youtd/current && docker compose logs -f`.
+
+First-time setup on the VPS (done once):
+
+1. `mkdir -p /opt/youtd/data && chown 1000:1000 /opt/youtd/data` (the container
+   runs as uid 1000).
+2. `/opt/youtd/.env`, mode 600, owned by root:
+   `APP_ORIGIN=https://youtd.0xtrungtran.com`, `MAIL_FROM` (an address on the
+   domain verified in Brevo), `MAIL_FROM_NAME`, `TICKET_SECRET` (64 random hex
+   chars: `openssl rand -hex 32`), and when available `GOOGLE_CLIENT_ID`,
+   `GOOGLE_CLIENT_SECRET` (Google Cloud OAuth client, web type, redirect URI
+   `<APP_ORIGIN>/api/auth/google/callback`, scopes `openid` and `email`) and
+   `BREVO_API_KEY` (transactional API key). Never set `DEV_MAIL_ECHO` or
+   `GOOGLE_TOKEN_URL` in production; the server refuses to start with them on an
+   https origin. After editing, `docker compose up -d` in `/opt/youtd/current`
+   recreates the container with the new values.
+3. Cloudflare DNS: `A youtd → 194.233.86.144`, proxied. SSL mode Full (strict).
+4. nginx: install the site's port-80 block, `certbot certonly --webroot -w
+   /var/www/letsencrypt -d youtd.0xtrungtran.com`, then the full file;
+   `nginx -t && systemctl reload nginx`. The certbot timer renews it.
+
+Backups (`/opt/youtd/data/backups/`): the cron copies the database once a day and
+keeps the newest 14 (`BACKUP_KEEP`); every deploy and every pending migration
+copies it first; `docker compose exec youtd node server/backup.js` makes one on
+demand. Copies are consistent while the server runs (`VACUUM INTO`). They are on
+the VPS's own disk, so copy them elsewhere for protection against losing the
+machine. Restore: stop the container, replace `data/youtd.sqlite` with a copy
+(and remove `youtd.sqlite-wal`/`-shm`), start it. `npm run db:backup` copies the
+local development database.
 
 ## Multiplayer readiness
 

@@ -17,11 +17,11 @@
     "import:youtd": "node tools/import-youtd2.mjs",
     "import:icons": "node tools/import-icons.mjs",
     "import:models": "node tools/import-models.mjs",
-    "api:dev": "wrangler dev --port 8787",
-    "api:migrate": "wrangler d1 migrations apply DB --local",
+    "api:dev": "node --watch-path=worker --watch-path=server --env-file-if-exists=.dev.vars --disable-warning=ExperimentalWarning server/index.js",
+    "api:dev:wrangler": "wrangler dev --port 8787",
     "test:api": "node tools/test-api.mjs",
-    "db:backup": "mkdir -p backups && wrangler d1 export DB --local --output backups/youtd-local.sql",
-    "deploy": "npm run build && npm run check:sim && wrangler deploy"
+    "db:backup": "node --disable-warning=ExperimentalWarning server/backup.js",
+    "deploy:vps": "tools/deploy-vps.sh"
   },
   "dependencies": {
     "three": "^0.186.1"

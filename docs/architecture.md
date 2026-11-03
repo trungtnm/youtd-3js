@@ -13,7 +13,7 @@ code is plain JavaScript ES modules with no framework.
 | Meta | `src/meta/` | Player profile in `localStorage` and achievement bookkeeping. Pure functions plus thin storage wrappers |
 | UI | `src/ui/` | DOM HUD (`hud.js`), end-of-run summary (`end-screen.js`), in-run scoreboard on Tab (`scoreboard.js`, reads `stats.groups` and per-tower `dmgBySize`), Hall of Records (`hall.js`), account panel (`account.js`), leaderboards (`boards.js`), shared helpers (`util.js`) |
 | Online | `src/online/` | Browser client of the game server: account state, run tickets, upload outbox (`online.js`), fetch helpers (`api.js`) |
-| Server | `worker/` | Cloudflare Worker: static files, accounts, run verification by replay, profiles, leaderboards. See [online.md](online.md) |
+| Server | `worker/`, `server/` | Accounts, run verification by replay, profiles, leaderboards (`worker/`, a Worker-style module) run by a Node server in Docker that also serves the static files (`server/`). See [online.md](online.md) |
 | Audio | `src/audio/audio.js` | Synthesized sound effects and the licensed music playlist |
 | Entry | `src/main.js` | Menu, settings, input routing, fixed-tick game loop, online run lifecycle |
 

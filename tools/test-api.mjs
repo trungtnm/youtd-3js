@@ -1,13 +1,15 @@
-// End-to-end test of the online API against local `wrangler dev` instances (local D1, R2
-// and Queue simulation). Starts and stops its own instances on ports 8787 and 8788 with
-// fresh state, and a mock Google token endpoint; no real network service is called.
+// End-to-end test of the online API. Starts and stops its own server instances on ports
+// 8787-8789 with fresh state, and a mock Google token endpoint; no real network service is
+// called. By default the instances are the Node server that runs in production
+// (server/index.js); API_SERVER=wrangler runs the same worker/ code under `wrangler dev`.
 // Usage: npm run build && node tools/test-api.mjs
 
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +25,8 @@ import { towerLayout } from '../worker/verify.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WRANGLER = join(ROOT, 'node_modules/wrangler/bin/wrangler.js');
+const SERVER = process.env.API_SERVER || 'node';
+if (!['node', 'wrangler'].includes(SERVER)) throw new Error(`API_SERVER must be node or wrangler, not ${SERVER}`);
 const SECRET = 'test-ticket-secret-not-for-production';
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 
@@ -94,11 +98,17 @@ const logOf = (g, build = SIM_BUILD) => JSON.parse(JSON.stringify(g.exportLog(bu
 
 // ---------------------------------------------------------------- server and client
 
-function startWrangler({ port, persist, vars }) {
-  const run = (args) => execFileSync(process.execPath, [WRANGLER, ...args], { cwd: ROOT, stdio: 'pipe' });
-  run(['d1', 'migrations', 'apply', 'DB', '--local', '--persist-to', persist]);
-  const varArgs = Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`]);
-  const child = spawn(process.execPath, [WRANGLER, 'dev', '--port', String(port), '--persist-to', persist, '--test-scheduled', ...varArgs], { cwd: ROOT, stdio: 'pipe' });
+function startServer({ port, persist, vars }) {
+  let child;
+  if (SERVER === 'node') {
+    const env = { ...process.env, ...Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, String(v)])), PORT: String(port), DATA_DIR: persist, TEST_SCHEDULED: '1' };
+    child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'server/index.js'], { cwd: ROOT, stdio: 'pipe', env });
+  } else {
+    const run = (args) => execFileSync(process.execPath, [WRANGLER, ...args], { cwd: ROOT, stdio: 'pipe' });
+    run(['d1', 'migrations', 'apply', 'DB', '--local', '--persist-to', persist]);
+    const varArgs = Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`]);
+    child = spawn(process.execPath, [WRANGLER, 'dev', '--port', String(port), '--persist-to', persist, '--test-scheduled', ...varArgs], { cwd: ROOT, stdio: 'pipe' });
+  }
   let log = '';
   child.stdout.on('data', (d) => { log += d; });
   child.stderr.on('data', (d) => { log += d; });
@@ -106,14 +116,28 @@ function startWrangler({ port, persist, vars }) {
   return child;
 }
 
+// Direct access to an instance's storage: SQL on its database, and a stored run log
+// (throws when the log is missing).
+function sqlAt(persist, q) {
+  if (SERVER === 'wrangler') return execFileSync(process.execPath, [WRANGLER, 'd1', 'execute', 'DB', '--local', '--persist-to', persist, '--command', q], { cwd: ROOT, stdio: 'pipe' });
+  const db = new DatabaseSync(join(persist, 'youtd.sqlite'));
+  try { db.exec('PRAGMA busy_timeout = 10000'); db.exec(q); } finally { db.close(); }
+}
+function logAt(persist, key) {
+  if (SERVER === 'wrangler') {
+    return execFileSync(process.execPath, [WRANGLER, 'r2', 'object', 'get', `youtd-logs/${key}`, '--local', '--persist-to', persist, '--file', join(persist, 'fetched.gz')], { cwd: ROOT, stdio: 'pipe' });
+  }
+  return readFileSync(join(persist, 'logs', ...key.split('/')));
+}
+
 async function waitReady(base, child, ms = 120_000) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
-    if (child.exitCode !== null) throw new Error(`wrangler exited early:\n${child.logs().slice(-2000)}`);
+    if (child.exitCode !== null) throw new Error(`${SERVER} server exited early:\n${child.logs().slice(-2000)}`);
     try { if ((await fetch(`${base}/api/me`)).ok) return; } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error(`wrangler did not start:\n${child.logs().slice(-2000)}`);
+  throw new Error(`${SERVER} server did not start:\n${child.logs().slice(-2000)}`);
 }
 
 const stop = (child) => new Promise((resolve) => {
@@ -209,14 +233,14 @@ process.on('SIGINT', async () => { await cleanup(); process.exit(130); });
 
 try {
   google = await mockGoogle();
-  const main = startWrangler({
+  const main = startServer({
     port: 8787, persist: join(tmp, 'main'),
     vars: { TICKET_SECRET: SECRET, DEV_MAIL_ECHO: 1, GOOGLE_CLIENT_ID: CLIENT_ID, GOOGLE_CLIENT_SECRET: 'test-google-secret', BOARD_CACHE_SECONDS: 0, GOOGLE_TOKEN_URL: `http://127.0.0.1:${google.port}/token` },
   });
   children.push(main);
   const C = client('http://localhost:8787');
   await waitReady(C.base, main);
-  console.log(`wrangler dev ready on ${C.base} (pid ${main.pid}), build ${SIM_BUILD}`);
+  console.log(`${SERVER} server ready on ${C.base} (pid ${main.pid}), build ${SIM_BUILD}`);
 
   // ---------------------------------------------------------------- basics and CSRF
   let A; // the main player, guest first
@@ -619,7 +643,7 @@ try {
   });
 
   await test('a continued run keeps only its newest log version in R2', async () => {
-    const get = (ver) => execFileSync(process.execPath, [WRANGLER, 'r2', 'object', 'get', `youtd-logs/logs/${A.user.id}/${run1.runId}-${ver}.json.gz`, '--local', '--persist-to', join(tmp, 'main'), '--file', join(tmp, `v${ver}.gz`)], { cwd: ROOT, stdio: 'pipe' });
+    const get = (ver) => logAt(join(tmp, 'main'), `logs/${A.user.id}/${run1.runId}-${ver}.json.gz`);
     get(2);
     assert.throws(() => get(1), undefined, 'superseded version removed');
   });
@@ -635,7 +659,7 @@ try {
   await test('an abandoned ticket counts as a run once it is old enough', async () => {
     const T = await newGuest(C);
     const s = await start(C, T.j);
-    const sql = (q) => execFileSync(process.execPath, [WRANGLER, 'd1', 'execute', 'DB', '--local', '--persist-to', join(tmp, 'main'), '--command', q], { cwd: ROOT, stdio: 'pipe' });
+    const sql = (q) => sqlAt(join(tmp, 'main'), q);
     sql(`UPDATE runs SET iat = ${Date.now() - 9 * 24 * 3600_000} WHERE id = '${s.data.runId}'`);
     assert.equal((await C.api(T.j, 'GET', '/api/profile')).data.profile.runs, 0);
     assert.equal((await fetch(`${C.base}/cdn-cgi/handler/scheduled?cron=*/15+*+*+*+*`)).status, 200);
@@ -650,9 +674,8 @@ try {
     const g = advance(startGame(CFG, s.data.seed), 2400);
     assert.equal((await submit(C, E.j, s.data.ticket, logOf(g), claimOf(g))).status, 200);
     assert.equal((await waitRun(C, E.j, s.data.runId, ['verified', 'rejected'])).status, 'verified');
-    const key = `youtd-logs/logs/${E.user.id}/${s.data.runId}-1.json.gz`;
-    const r2 = (args) => execFileSync(process.execPath, [WRANGLER, 'r2', 'object', ...args, key, '--local', '--persist-to', join(tmp, 'main')], { cwd: ROOT, stdio: 'pipe' });
-    r2(['get', '--file', join(tmp, 'log.gz')]); // throws when the log is missing
+    const key = `logs/${E.user.id}/${s.data.runId}-1.json.gz`;
+    logAt(join(tmp, 'main'), key); // throws when the log is missing
 
     const ex = await C.api(E.j, 'GET', '/api/account/export');
     assert.equal(ex.status, 200);
@@ -668,7 +691,7 @@ try {
     assert.equal((await C.api(E.j, 'GET', '/api/me')).data.user, null);
     const board = (await C.api(C.jar(), 'GET', '/api/leaderboard?key=easy/build/trial')).data;
     assert.ok(!board.entries.some((e) => e.name === name), 'board row removed');
-    assert.throws(() => r2(['get', '--file', join(tmp, 'log2.gz')]), undefined, 'log removed from R2');
+    assert.throws(() => logAt(join(tmp, 'main'), key), undefined, 'log removed from storage');
   });
 
   // ---------------------------------------------------------------- rate limits (last: they use up per-address budgets)
@@ -709,14 +732,14 @@ try {
     assert.ok(workCost(r.work) < 24000 * 0.02 / 4, 'far below a per-tick charge');
   });
 
-  const second = startWrangler({
+  const second = startServer({
     port: 8788, persist: join(tmp, 'budget'),
     vars: { TICKET_SECRET: SECRET, DEV_MAIL_ECHO: 1, APP_ORIGIN: 'http://localhost:8788', CPU_BUDGET_MS: budget, EMAIL_DAILY_CAP: 10, USER_SHARE: 1, IP_SHARE: 1 },
   });
   children.push(second);
   const B = client('http://localhost:8788');
   await waitReady(B.base, second);
-  console.log(`wrangler dev ready on ${B.base} (pid ${second.pid}), budget ${budget.toFixed(1)} ms`);
+  console.log(`${SERVER} server ready on ${B.base} (pid ${second.pid}), budget ${budget.toFixed(1)} ms`);
 
   await test('tight budget verifies only important runs, then defers', async () => {
     const P = await newGuest(B);
@@ -772,14 +795,14 @@ try {
   });
 
   // ---------------------------------------------------------------- per-user share (own instance)
-  const third = startWrangler({
+  const third = startServer({
     port: 8789, persist: join(tmp, 'share'),
     vars: { TICKET_SECRET: SECRET, APP_ORIGIN: 'http://localhost:8789', CPU_BUDGET_MS: cost * 10, USER_SHARE: 0.25, IP_SHARE: 1, BOARD_CACHE_SECONDS: 0 },
   });
   children.push(third);
   const S3 = client('http://localhost:8789');
   await waitReady(S3.base, third);
-  console.log(`wrangler dev ready on ${S3.base} (pid ${third.pid}), budget ${(cost * 10).toFixed(0)} ms, user share 25%`);
+  console.log(`${SERVER} server ready on ${S3.base} (pid ${third.pid}), budget ${(cost * 10).toFixed(0)} ms, user share 25%`);
 
   await test('a user past their monthly share keeps runs as unverified history', async () => {
     const P = await newGuest(S3);
