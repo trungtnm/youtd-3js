@@ -1,6 +1,7 @@
-# Production service on the VPS. Layout under YOUTD_HOME (default /opt/youtd):
+# Production service on the VPS. Layout under YOUTD_HOME (default /home/trungtran/projects/youtd):
 #   .env          secrets and production vars (mode 600, never committed)
-#   data/         SQLite database, run logs, queue, backups (owned by uid 1000)
+#   data/         SQLite database, run logs, queue, backups; the container runs as its owner
+#                 (YOUTD_UID/YOUTD_GID, set by tools/deploy-vps.sh)
 #   releases/<sha>/  source of each deploy (tools/deploy-vps.sh)
 # nginx terminates TLS and proxies to 127.0.0.1:3200.
 name: youtd
@@ -11,14 +12,15 @@ services:
     image: youtd-reforged:${YOUTD_TAG:-latest}
     restart: unless-stopped
     init: true
+    user: "${YOUTD_UID:-1000}:${YOUTD_GID:-1000}"
     stop_grace_period: 20s
-    env_file: ${YOUTD_HOME:-/opt/youtd}/.env
+    env_file: ${YOUTD_HOME:-/home/trungtran/projects/youtd}/.env
     environment:
       TRUST_PROXY: "1"
     ports:
       - "127.0.0.1:3200:8787"
     volumes:
-      - ${YOUTD_HOME:-/opt/youtd}/data:/data
+      - ${YOUTD_HOME:-/home/trungtran/projects/youtd}/data:/data
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "5" }

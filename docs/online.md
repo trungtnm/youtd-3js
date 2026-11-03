@@ -17,7 +17,7 @@ network is only used to start a run and to upload it when it ends.
 | API | `worker/` | Routes, auth, verification, boards; written as a Cloudflare Worker module (`fetch`, `queue`, `scheduled`) |
 | Host | `server/` | Node server that runs `worker/` unchanged and supplies its bindings |
 | Schema | `migrations/` | SQLite tables: users, sessions, login tokens, runs, board (with review flags), rate windows, usage |
-| Config | `wrangler.jsonc` (default vars), `.dev.vars.example`, `/opt/youtd/.env` on the VPS | Vars and secrets |
+| Config | `wrangler.jsonc` (default vars), `.dev.vars.example`, `/home/trungtran/projects/youtd/.env` on the VPS | Vars and secrets |
 | Deploy | `Dockerfile`, `compose.yaml`, `deploy/nginx/`, `tools/deploy-vps.sh` | Image, service, nginx site, deploy script |
 
 Production is one Docker container on the VPS behind nginx and the Cloudflare
@@ -139,12 +139,12 @@ looking at the runs. Review the top of a week (the example is week 45 of 2026) w
 
 ```bash
 ssh ctb-1
-cd /opt/youtd/current
+cd /home/trungtran/projects/youtd/current
 docker compose exec youtd node server/sql.js "SELECT b.user_id, u.name, b.score, b.hidden, b.note, b.run_id, r.log_ver, r.layout_hash FROM board b JOIN users u ON u.id = b.user_id JOIN runs r ON r.id = b.run_id WHERE b.key = 'weekly:2026-W45' ORDER BY b.score DESC LIMIT 20"
 docker compose exec youtd node server/sql.js "UPDATE board SET hidden = 1, note = 'copied run' WHERE key = 'weekly:2026-W45' AND user_id = '<user_id>'"
 docker compose exec youtd node server/sql.js "UPDATE board SET hidden = 0, note = NULL WHERE key = 'weekly:2026-W45' AND user_id = '<user_id>'"
 # On your machine: fetch a log and replay it.
-scp ctb-1:/opt/youtd/data/logs/<user_id>/<run_id>-<log_ver>.json.gz run.json.gz
+scp ctb-1:/home/trungtran/projects/youtd/data/logs/<user_id>/<run_id>-<log_ver>.json.gz run.json.gz
 gunzip run.json.gz && npm run replay -- run.json
 ```
 
@@ -233,21 +233,21 @@ npm run test:replay && npm run test:api   # the image build runs check:sim
 npm run deploy:vps                        # ships HEAD (git archive), builds on the VPS, backs up, restarts
 ```
 
-`tools/deploy-vps.sh` unpacks HEAD into `/opt/youtd/releases/<sha>`, builds the
+`tools/deploy-vps.sh` unpacks HEAD into `/home/trungtran/projects/youtd/releases/<sha>`, builds the
 image `youtd-reforged:<sha>`, backs up the live database, starts the new container
-and waits for its health check, then points `/opt/youtd/current` at the release.
+and waits for its health check, then points `/home/trungtran/projects/youtd/current` at the release.
 Pending migrations run when the server starts, after their own backup. To roll
-back: `cd /opt/youtd/releases/<old sha> && YOUTD_TAG=<old sha> docker compose up -d`
+back: `cd /home/trungtran/projects/youtd/releases/<old sha> && YOUTD_TAG=<old sha> docker compose up -d`
 (a migration is not undone; restore a backup if one must be). Old releases are not
 deleted automatically.
 
-Logs: `cd /opt/youtd/current && docker compose logs -f`.
+Logs: `cd /home/trungtran/projects/youtd/current && docker compose logs -f`.
 
 First-time setup on the VPS (done once):
 
-1. `mkdir -p /opt/youtd/data && chown 1000:1000 /opt/youtd/data` (the container
-   runs as uid 1000).
-2. `/opt/youtd/.env`, mode 600, owned by root:
+1. As user `trungtran`: `mkdir -p ~/projects/youtd/data ~/projects/youtd/releases`.
+   The container runs as the owner of `data/`, so every file stays the user's.
+2. `/home/trungtran/projects/youtd/.env`, mode 600, owned by `trungtran`:
    `APP_ORIGIN=https://youtd.0xtrungtran.com`, `MAIL_FROM` (an address on the
    domain verified in Brevo), `MAIL_FROM_NAME`, `TICKET_SECRET` (64 random hex
    chars: `openssl rand -hex 32`), and when available `GOOGLE_CLIENT_ID`,
@@ -255,14 +255,14 @@ First-time setup on the VPS (done once):
    `<APP_ORIGIN>/api/auth/google/callback`, scopes `openid` and `email`) and
    `BREVO_API_KEY` (transactional API key). Never set `DEV_MAIL_ECHO` or
    `GOOGLE_TOKEN_URL` in production; the server refuses to start with them on an
-   https origin. After editing, `docker compose up -d` in `/opt/youtd/current`
+   https origin. After editing, `docker compose up -d` in `/home/trungtran/projects/youtd/current`
    recreates the container with the new values.
 3. Cloudflare DNS: `A youtd → 194.233.86.144`, proxied. SSL mode Full (strict).
 4. nginx: install the site's port-80 block, `certbot certonly --webroot -w
    /var/www/letsencrypt -d youtd.0xtrungtran.com`, then the full file;
    `nginx -t && systemctl reload nginx`. The certbot timer renews it.
 
-Backups (`/opt/youtd/data/backups/`): the cron copies the database once a day and
+Backups (`/home/trungtran/projects/youtd/data/backups/`): the cron copies the database once a day and
 keeps the newest 14 (`BACKUP_KEEP`); every deploy and every pending migration
 copies it first; `docker compose exec youtd node server/backup.js` makes one on
 demand. Copies are consistent while the server runs (`VACUUM INTO`). They are on

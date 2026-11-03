@@ -15,9 +15,9 @@ D1, R2 and Queue are retired.
   (`DB`, `LOGS`, `VERIFY`, `ASSETS`, `caches.default`, `waitUntil`, cron).
 - Same trust model, limits and API contract as documented in `docs/online.md`.
 - Replays must not block HTTP: they run in worker threads.
-- Data lives in one host directory (`/opt/youtd/data`): SQLite database, run
+- Data lives in one host directory (`/home/trungtran/projects/youtd/data`): SQLite database, run
   logs, durable queue, daily backups. Backup before every migration.
-- Secrets only in `/opt/youtd/.env` on the VPS (mode 600), never in the repo.
+- Secrets only in `/home/trungtran/projects/youtd/.env` on the VPS (mode 600), never in the repo.
 - Follow the VPS's nginx pattern: Cloudflare-only gate, real IP from
   `CF-Connecting-IP`, Let's Encrypt via webroot.
 
