@@ -337,11 +337,11 @@ export const PORTS = {
         kind: 'debuff', stackVuln: { pct: 0.08, pctPerLevel: 0.001, max: 1, attacksOnly: true, key: 'torture' }, debuffDur: 2.5, debuffDurPerLevel: 0.05, quiet: true, fx: 'fire' }),
       // One more meteor for every 5 levels.
       ...[5, 10, 15, 20, 25].map((lv) => proc('Attraction', 'cast', { chance: 1, minLevel: lv, key: `attraction${lv}`, silent: true },
-        { kind: 'bolts', count: 1, flat: 200, flatPerLevel: 8, radius: R(220), range: R(1000), fx: 'fire' })),
+        { kind: 'bolts', count: 1, flat: 200, flatPerLevel: 8, radius: R(220), range: R(1000), fx: 'fire', fall: 0.6 })),
     ],
     // Nearby towers each pull down a meteor on their next attack; modelled as meteors on random creeps.
     actives: (row) => [autocast(row, 'attraction', '☄', 'Calls four meteors (one more every 5 levels) down on random creeps, each dealing 200 spell damage (+8 per level) in a small area.', 'self',
-      { kind: 'bolts', count: 4, interval: 0.3, flat: 200, flatPerLevel: 8, radius: R(220), range: R(1000), fx: 'fire' }, { range: row.range / UNIT })],
+      { kind: 'bolts', count: 4, interval: 0.3, flat: 200, flatPerLevel: 8, radius: R(220), range: R(1000), fx: 'fire', fall: 0.6 }, { range: row.range / UNIT })],
   },
 
   burning_watchtower: {

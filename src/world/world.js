@@ -27,6 +27,7 @@ import { mulberry32 } from '../sim/rng.js';
 import { CreepOverlays } from './creep-overlays.js';
 import { CreepCrowd } from './creep-crowd.js';
 import { TowerBatcher } from './tower-batcher.js';
+import { InstanceProxies } from './instance-proxies.js';
 import { setCreepCrowd } from './glb-models.js';
 
 const WHITE = new THREE.Color(1, 1, 1);
@@ -66,11 +67,14 @@ const STREAKS = [
 ];
 
 // Render quality presets. Shadow-map casting by creeps and the bloom buffer size are
-// the largest costs that scale with crowd size and screen size.
+// the largest costs that scale with crowd size and screen size. shadowEvery redraws
+// the shadow map every Nth frame: towers and props stand still, so only moving
+// creeps and tower animations show the lag, and the shadow pass is about a third of
+// all draw calls.
 export const QUALITY = {
-  low:    { pixelRatioCap: 1,    creepShadows: false, bloomScale: 0.25 },
-  medium: { pixelRatioCap: 1.25, creepShadows: false, bloomScale: 0.5 },
-  high:   { pixelRatioCap: 1.5,  creepShadows: true,  bloomScale: 0.5 },
+  low:    { pixelRatioCap: 1,    creepShadows: false, bloomScale: 0.25, shadowEvery: 4 },
+  medium: { pixelRatioCap: 1.25, creepShadows: false, bloomScale: 0.5, shadowEvery: 3 },
+  high:   { pixelRatioCap: 1.5,  creepShadows: true,  bloomScale: 0.5, shadowEvery: 2 },
 };
 
 const easeOutBack = (k) => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
@@ -89,6 +93,8 @@ export class World {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.shadowMap.autoUpdate = false; // redrawn on the preset's cadence in render()
+    this.frame = 0;
     container.appendChild(renderer.domElement);
     this.renderer = renderer;
 
@@ -122,6 +128,7 @@ export class World {
     this.fx = new FX(scene, this.camera, overlay);
     this.overlays = new CreepOverlays(scene);
     this.towerBatcher = new TowerBatcher(scene);
+    this.proxies = new InstanceProxies(scene);
 
     // Post-processing
     const composer = new EffectComposer(renderer);
@@ -547,7 +554,7 @@ export class World {
     });
     game.on('spellFx', ({ kind, x, z, radius, quiet }) => {
       fx.ring(x, z, radius, col(kind), 0.45, 0.2, quiet ? 0.5 : 1);
-      if (!quiet) fx.flashDisc(x, z, radius * 0.9, col(kind), 0.3);
+      if (!quiet) { fx.flashDisc(x, z, radius * 0.9, col(kind), 0.3); fx.spellFlavor(kind, x, z, radius); }
       fx.burst(x, 1, z, col(kind), quiet ? 6 : 18, 4, 0.5, 0.28, 3);
     });
     game.on('spellChain', ({ points, fx: kind }) => fx.lightning(points.map((p) => ({ ...p, y: p.y ?? 1.1 })), col(kind), 0.07));
@@ -593,7 +600,9 @@ export class World {
     this.scene.add(group);
     const view = { group, hit, anim: group.userData.anim, muzzleY: group.userData.muzzleY, born: animate ? 0 : 1, recoil: 0, yaw: t.aim || 0, beamCd: 0 };
     view.batch = this.towerBatcher.add(group);
-    group.addEventListener('modelswap', () => { view.muzzleY = group.userData.muzzleY; });
+    // Moving parts and curated model meshes draw through shared instanced meshes.
+    this.proxies.track(view, group);
+    group.addEventListener('modelswap', () => { view.muzzleY = group.userData.muzzleY; this.proxies.track(view, group); });
     this.towerViews.set(t.uid, view);
   }
 
@@ -606,6 +615,7 @@ export class World {
       v.crest = want ? buildCrest(want) : null;
       v.crestStyle = want;
       if (v.crest) { v.crest.position.y = v.muzzleY + 1.3; v.group.add(v.crest); }
+      this.proxies.track(v, v.group);
     }
     if (!v.crest) return;
     v.crest.rotation.y += dt * 0.8;
@@ -645,8 +655,9 @@ export class World {
       phase: Math.random() * 6, lastHp: c.hp + c.shield, dmgAcc: 0, hitCd: 0, flash: 0, squash: 0, yaw: Math.atan2(c.dx, c.dz),
     };
     // A curated model that finishes loading late replaces the meshes the hit flash and shimmer swap.
-    group.addEventListener('modelswap', () => { collect(); v.look = undefined; this._look(v); this._creepShadow(v); if (v.unseen) this._setUnseen(v, true); });
+    group.addEventListener('modelswap', () => { collect(); v.look = undefined; this._look(v); this._creepShadow(v); if (v.unseen) this._setUnseen(v, true); this.proxies.track(v, group); });
     this._creepShadow(v);
+    this.proxies.track(v, group);
     this.creepViews.set(c.uid, v);
     return v;
   }
@@ -763,7 +774,9 @@ export class World {
     nx.crystal.position.y = nx.crystalY + Math.sin(T * 1.3) * 0.2;
     nx.ring1.rotation.x = T * 0.7; nx.ring2.rotation.y = T * 0.5; nx.ring2.rotation.x = 1.2;
     this.nexusHit = Math.max(0, (this.nexusHit || 0) - dt * 2);
-    const integrity = this.game ? Math.max(0, this.game.lives) / this.game.maxLives : 1;
+    // Clamped: lives above the maximum (scripted runs, the render bench) would push the
+    // crystal's glow into the millions and white out the bloom pass.
+    const integrity = this.game ? Math.min(1, Math.max(0, this.game.lives) / this.game.maxLives) : 1;
     // The map's portal colour at full integrity, draining toward its low colour; hits flash white.
     nx.crystalMat.emissive.copy(this.nexusLow).lerp(this.nexusFull, integrity).lerp(WHITE, this.nexusHit * 0.5);
     nx.crystalMat.emissiveIntensity = 2.0 + this.nexusHit * 4 + (integrity < 0.3 ? Math.sin(T * 8) * 0.8 : 0);
@@ -783,6 +796,7 @@ export class World {
     this.showSelection(sel);
     this._updateCamera(realDt);
     this.fx.update(vdt, window.innerWidth, window.innerHeight, realDt);
+    this.renderer.shadowMap.needsUpdate = this.frame++ % this.quality.shadowEvery === 0;
     this.composer.render(dt);
   }
 
@@ -918,7 +932,7 @@ export class World {
     }
 
     this.crowd.end();
-    this.fx.syncProjectiles(g.projectiles);
+    this.fx.syncProjectiles(g.projectiles, dt);
   }
 
   _addRaider(v, c) {

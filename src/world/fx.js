@@ -2,8 +2,12 @@
 // meteors, item beacons and floating combat text.
 
 import * as THREE from 'three';
-import { glow, mat } from './models.js';
 import { terrainHeight } from './environment.js';
+import { LightningBolts } from './fx-lightning.js';
+import { GroundEffects, GROUND } from './fx-ground.js';
+import { ProjectileBatch } from './fx-projectiles.js';
+import { Spikes } from './fx-spikes.js';
+import { meteorGeometry, meteorMaterial, moltenCracks } from './fx-meteor.js';
 
 // Relative visual weight of each creep size for death effects.
 export const SIZE_WEIGHT = { mass: 0.7, normal: 1, air: 1.1, champion: 1.6, boss: 2.6, challenge: 3, challengeMass: 0.8 };
@@ -241,15 +245,6 @@ const PROJ = {
   spore: { color: 0xb6ff6a, size: 0.25, trail: 0x8fbf3a, glow: 2 },
 };
 
-const sphereGeo = new THREE.SphereGeometry(1, 10, 8);
-const ringGeo = new THREE.RingGeometry(0.85, 1, 48);
-ringGeo.rotateX(-Math.PI / 2);
-const discGeo = new THREE.CircleGeometry(1, 32);
-discGeo.rotateX(-Math.PI / 2);
-const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
-boltGeo.translate(0, 0.5, 0);
-boltGeo.rotateX(Math.PI / 2);
-for (const g of [sphereGeo, ringGeo, discGeo, boltGeo]) g.userData.shared = true;
 
 const tmpV = new THREE.Vector3();
 const tmpC = new THREE.Color();
@@ -264,13 +259,21 @@ export class FX {
     this.add = new Particles(9000, THREE.AdditiveBlending);
     this.smoke = new Particles(2500, THREE.NormalBlending);
     scene.add(this.add.points, this.smoke.points);
-    this.projMeshes = new Map();
+    this.projectiles = new ProjectileBatch(scene, camera, 768);
+    this._projOut = [];
+    this.shots = []; // fx-owned shots (raiders at the nexus), see bolt()
+    this.shotId = 0;
     this.temp = []; // {obj, t, life, update(k), dispose}
     this.texts = [];
     this.shake = 0;
     this.textEnabled = true;
     this.gibs = new Gibs(scene, 500);
     this.decals = new Decals(scene, 160);
+    this.bolts = new LightningBolts(scene, 320);
+    this.ground = new GroundEffects(scene, 256);
+    this.ice = new Spikes(scene, 256, { roughness: 0.2, metalness: 0.15, emissive: 0x3d8ec0, emissiveIntensity: 0.9 });
+    this.roots = new Spikes(scene, 128, { roughness: 0.9 });
+    this.tickers = []; // {t, life, fn(k)}: per-frame work with nothing of its own to draw
     this.timers = []; // {t, fn} run on real time
     this.coinEls = [];
     this.flash = 0; // white screen flash, read by the world's grade pass
@@ -301,35 +304,33 @@ export class FX {
 
   // ---------------------------------------------------------------- projectiles
 
-  syncProjectiles(list) {
-    const seen = new Set();
+  syncProjectiles(list, dt = 1 / 60) {
+    const out = this._projOut;
+    out.length = 0;
     for (const p of list) {
-      seen.add(p.uid);
-      let m = this.projMeshes.get(p.uid);
       const st = PROJ[p.kind] || PROJ.bullet;
-      if (!m) {
-        m = new THREE.Mesh(sphereGeo, glow(st.color, st.glow));
-        m.scale.setScalar(st.size * 1.5);
-        if (st.stretch) m.scale.z = st.size * 1.5 * st.stretch;
-        this.scene.add(m);
-        this.projMeshes.set(p.uid, m);
-      }
       const targetY = p.target.air ? 2.6 : 0.9;
       let y = p.y + (targetY - p.y) * p.t;
       if (p.arc) y += Math.sin(p.t * Math.PI) * Math.min(7, p.total * 0.45);
-      const prev = tmpV.copy(m.position);
-      m.position.set(p.x, y, p.z);
-      if (st.stretch && prev.lengthSq() > 0) m.lookAt(prev.multiplyScalar(-1).add(m.position).add(m.position));
-      tmpC.set(st.trail);
-      const tr = this.add;
-      tr.emit(this.time, p.x, y, p.z, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, tmpC, 0.25, st.size * 1.4, 0);
+      out.push({ uid: p.uid, x: p.x, y, z: p.z, style: st });
+      // The ribbon trail carries the shape; a few sparks and smoke keep it alive.
+      if (Math.random() < 0.35) this.add.emit(this.time, p.x, y, p.z, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, tmpC.set(st.trail), 0.3, st.size * 1.1, 0);
       if (p.kind === 'magma' || p.kind === 'fireball' || p.kind === 'shell') {
         this.smoke.emit(this.time, p.x, y, p.z, 0, 0.5, 0, tmpC.set(0x3a3330), 0.6, st.size * 2.2, -0.5);
       }
     }
-    for (const [uid, m] of this.projMeshes) {
-      if (!seen.has(uid)) { this.scene.remove(m); this.projMeshes.delete(uid); }
+    for (const s of this.shots) {
+      s.k += dt / s.travel;
+      if (s.k >= 1) {
+        this.burst(s.to.x, s.to.y, s.to.z, s.color, 10, 3.5, 0.4, s.size * 1.4, 5);
+        s.onHit?.();
+        continue;
+      }
+      const { from: a, to: b, k } = s;
+      out.push({ uid: s.uid, x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k + Math.sin(k * Math.PI) * s.arc, z: a.z + (b.z - a.z) * k, style: s.style });
     }
+    if (this.shots.length) this.shots = this.shots.filter((s) => s.k < 1);
+    this.projectiles.sync(out, dt);
   }
 
   impact(p) {
@@ -354,6 +355,8 @@ export class FX {
 
   // ---------------------------------------------------------------- one-shot effects
 
+  _tick(life, fn) { this.tickers.push({ t: 0, life, fn }); }
+
   _temp(obj, life, update) {
     this.scene.add(obj);
     this.temp.push({ obj, t: 0, life, update });
@@ -362,61 +365,29 @@ export class FX {
   // A glowing shot with a trail; onHit runs when it lands. arc lifts it mid-flight
   // (0 flies straight, like a bullet).
   bolt(from, to, color, size = 0.22, travel = 0.35, onHit = null, arc = 0.8) {
-    const m = new THREE.Mesh(sphereGeo, glow(color, 3));
-    m.scale.setScalar(size);
-    const c = new THREE.Color(color);
-    this._temp(m, travel, (k) => {
-      m.position.set(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k + Math.sin(k * Math.PI) * arc, from.z + (to.z - from.z) * k);
-      this.add.emit(this.time, m.position.x, m.position.y, m.position.z, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, c, 0.25, size * 1.3, 0);
-    });
-    this.after(travel, () => {
-      this.burst(to.x, to.y, to.z, color, 10, 3.5, 0.4, size * 1.4, 5);
-      onHit?.();
-    });
+    // Flown by syncProjectiles through the projectile batch, like tower shots.
+    this.shots.push({ uid: `shot${this.shotId++}`, from, to, travel, arc, onHit, color, size, k: 0,
+      style: { color, trail: color, size: size / 1.5, glow: 3 } });
   }
 
+  // Expanding shockwave ring; `width` scales its strength (0.6 for a splash).
   ring(x, z, radius, color, life = 0.5, y = 0.15, width = 1) {
-    const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    m.position.set(x, y, z);
-    this._temp(m, life, (k) => {
-      const s = radius * (0.2 + 0.8 * Math.sqrt(k));
-      m.scale.set(s, 1, s);
-      m.material.opacity = (1 - k) * 0.9 * width;
-    });
+    this.ground.add(this.time, GROUND.RING, x, y, z, radius, tmpC.set(color), life, width);
   }
 
   flashDisc(x, z, radius, color, life = 0.35) {
-    const m = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    m.position.set(x, 0.12, z);
-    m.scale.set(radius, 1, radius);
-    this._temp(m, life, (k) => { m.material.opacity = (1 - k) * 0.32; });
+    this.ground.add(this.time, GROUND.FLASH, x, 0.12, z, radius, tmpC.set(color), life);
   }
 
+  // A bolt through each pair of points (a chain is several hops fired at once).
   lightning(points, color = 0xc8b0ff, width = 0.06, height = 1.2) {
-    const pts = points.map((p) => new THREE.Vector3(p.x, p.y ?? height, p.z));
-    const group = new THREE.Group();
-    const material = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-    const core = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      const segs = 6;
-      let prev = a.clone();
-      for (let s = 1; s <= segs; s++) {
-        const p = a.clone().lerp(b, s / segs);
-        if (s < segs) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7));
-        for (const [m, w] of [[material, width * 2.5], [core, width]]) {
-          const seg = new THREE.Mesh(boltGeo, m);
-          seg.position.copy(prev);
-          seg.lookAt(p);
-          seg.scale.set(w, w, prev.distanceTo(p));
-          group.add(seg);
-        }
-        prev = p;
-      }
-      tmpC.set(color);
-      for (let k = 0; k < 5; k++) this.add.emit(this.time, b.x, b.y, b.z, (Math.random() - 0.5) * 6, Math.random() * 4, (Math.random() - 0.5) * 6, tmpC, 0.3, 0.18, 8);
+    tmpC.set(color);
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i], b = points[i + 1];
+      this.bolts.add(this.time, { x: a.x, y: a.y ?? height, z: a.z }, { x: b.x, y: b.y ?? height, z: b.z }, tmpC, width);
+      const by = b.y ?? height;
+      for (let k = 0; k < 5; k++) this.add.emit(this.time, b.x, by, b.z, (Math.random() - 0.5) * 6, Math.random() * 4, (Math.random() - 0.5) * 6, tmpC, 0.3, 0.18, 8);
     }
-    this._temp(group, 0.18, (k) => { material.opacity = 1 - k; core.opacity = 1 - k; });
   }
 
   strike(x, z) {
@@ -426,18 +397,12 @@ export class FX {
     this.shake = Math.max(this.shake, 0.15);
   }
 
+  // A held beam, refreshed every few frames by its caller: a straight bundle in
+  // the bolt batch, with a faint tight fan so it shimmers.
   beam(from, to, color, widthScale) {
-    const a = new THREE.Vector3(from.x, from.y, from.z), b = new THREE.Vector3(to.x, to.y, to.z);
-    const group = new THREE.Group();
-    const outer = new THREE.Mesh(boltGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
-    const inner = new THREE.Mesh(boltGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
-    for (const [m, w] of [[outer, 0.16 * widthScale], [inner, 0.05 * widthScale]]) {
-      m.position.copy(a); m.lookAt(b); m.scale.set(w, w, a.distanceTo(b));
-      group.add(m);
-    }
     tmpC.set(color);
-    this.add.emit(this.time, b.x, b.y, b.z, (Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3, tmpC, 0.3, 0.2 * widthScale, 4);
-    this._temp(group, 0.09, (k) => { outer.material.opacity = 0.6 * (1 - k); inner.material.opacity = 0.9 * (1 - k); });
+    this.bolts.add(this.time, from, to, tmpC, 0.05 * widthScale, 0.1, 0.02, 0.15);
+    this.add.emit(this.time, to.x, to.y, to.z, (Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3, tmpC, 0.3, 0.2 * widthScale, 4);
   }
 
   nova(x, z, radius, fx) {
@@ -447,13 +412,9 @@ export class FX {
     this.ring(x, z, radius * 0.6, color, 0.5, 0.25);
     this.flashDisc(x, z, radius * 0.8, color, 0.3);
     if (fx === 'roots') {
-      for (let i = 0; i < 14; i++) {
-        const a = Math.random() * Math.PI * 2, r = Math.random() * radius;
-        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1.8, 5), mat(0x5a3e28, { flat: true }));
-        spike.position.set(x + Math.cos(a) * r, -1, z + Math.sin(a) * r);
-        spike.rotation.set((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5);
-        this._temp(spike, 0.9, (k) => { spike.position.y = -1 + Math.sin(Math.min(1, k * 2.2) * Math.PI) * 1.5; });
-      }
+      this.roots.burst(x, z, radius, 0x6b5a34, { count: 16, height: 1.8, width: 0.25, speed: 10, life: 0.9 });
+    } else if (fx === 'nova') {
+      this.ice.burst(x, z, radius, 0x9fd8f5, { count: Math.min(40, Math.round(radius * 5)), height: 1.7, width: 0.3, speed: 16, life: 1.1 });
     } else if (fx === 'starfall') {
       for (let i = 0; i < 6; i++) {
         const a = Math.random() * Math.PI * 2, r = Math.random() * radius;
@@ -470,16 +431,43 @@ export class FX {
     }
   }
 
+  // Element touches on top of a spell's ring and flash.
+  spellFlavor(kind, x, z, radius) {
+    if (kind === 'frost') {
+      this.ice.burst(x, z, radius, 0x9fd8f5, { count: Math.min(16, Math.round(radius * 3)), height: 1.0, width: 0.22, speed: 14, life: 0.8 });
+    } else if (kind === 'nature') {
+      this.roots.burst(x, z, radius, 0x6b5a34, { count: Math.min(12, Math.round(radius * 2.5)), height: 1.2, width: 0.2, speed: 10, life: 0.8 });
+    } else if (kind === 'fire') {
+      this.scorch(x, z, radius * 0.7);
+    } else if (kind === 'storm') {
+      // Short arcs crawling over the ground from the centre.
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2, r = radius * (0.5 + Math.random() * 0.5);
+        this.bolts.add(this.time, { x, y: 0.3, z }, { x: x + Math.cos(a) * r, y: 0.25, z: z + Math.sin(a) * r }, tmpC.set(0xc8a8ff), 0.04, 0.25, 0.3);
+      }
+    } else if (kind === 'shadow') {
+      tmpC.set(0xc04dff);
+      for (let i = 0; i < 24; i++) {
+        const a = Math.random() * Math.PI * 2, r = radius * (0.6 + Math.random() * 0.4);
+        this.add.emit(this.time, x + Math.cos(a) * r, 0.4 + Math.random(), z + Math.sin(a) * r, -Math.cos(a) * r * 1.6, 0.5, -Math.sin(a) * r * 1.6, tmpC, 0.5, 0.3, 0);
+      }
+    }
+  }
+
   meteorCast(x, z, delay, radius) {
     const start = new THREE.Vector3(x - 12, 30, z - 8), end = new THREE.Vector3(x, 0.5, z);
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.9, 0), mat(0x2a1a14, { emissive: 0xff4a0a, ei: 3, flat: true }));
-    const marker = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff5a1a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    marker.position.set(x, 0.15, z);
-    marker.scale.set(radius, 1, radius);
-    this._temp(marker, delay, (k) => { marker.material.opacity = 0.3 + 0.5 * Math.sin(k * 20) ** 2; });
+    const rock = new THREE.Mesh(meteorGeometry(), meteorMaterial());
+    rock.scale.setScalar(1.35);
+    const ru = rock.material.userData.uniforms;
+    ru.uHeading.value.subVectors(end, start).normalize();
+    // Target marker: the zone shader's rotating dashed rim.
+    this.ground.add(this.time, GROUND.ZONE, x, 0.15, z, radius, tmpC.set(0xff5a1a), delay, 1.6);
     this._temp(rock, delay, (k) => {
       rock.position.lerpVectors(start, end, k * k);
-      rock.rotation.x += 0.2; rock.rotation.y += 0.13;
+      rock.rotation.x += 0.06; rock.rotation.y += 0.04;
+      // The seams prise open and the nose heats up as it comes in.
+      ru.uCharge.value = Math.pow(k, 1.6);
+      ru.uTime.value = this.time;
       tmpC.set(0xff6a1a);
       for (let i = 0; i < 3; i++) this.add.emit(this.time, rock.position.x, rock.position.y, rock.position.z, (Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5), tmpC, 0.5, 0.8, 0);
       this.smoke.emit(this.time, rock.position.x, rock.position.y, rock.position.z, 0, 0.5, 0, tmpC.set(0x2a2220), 1.2, 1.2, -0.3);
@@ -493,33 +481,26 @@ export class FX {
     this.ring(x, z, radius * 1.4, 0xff8a3a, 0.6, 0.2);
     this.flashDisc(x, z, radius, 0xff6a1a, 0.5);
     this.scorch(x, z, radius * 0.8);
+    const cracks = moltenCracks(x, z, radius * 1.3);
+    this._temp(cracks.group, cracks.life, (k) => cracks.update(k * cracks.life));
     this.shake = Math.max(this.shake, 0.45);
   }
 
   // Lingering ground field (storm cloud, frost field, poison bog...).
   zone(x, z, radius, color, dur) {
-    const m = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    m.position.set(x, 0.14, z);
-    m.scale.set(radius, 1, radius);
-    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    ring.position.set(x, 0.16, z);
-    ring.scale.set(radius, 1, radius);
-    this._temp(ring, dur, (k) => { ring.material.opacity = 0.6 * (1 - k * 0.5); ring.rotation.y += 0.02; });
-    this._temp(m, dur, (k) => {
-      m.material.opacity = (0.12 + 0.06 * Math.sin(k * dur * 6)) * (k > 0.85 ? (1 - k) / 0.15 : 1);
+    this.ground.add(this.time, GROUND.ZONE, x, 0.15, z, radius, tmpC.set(color), dur);
+    const c = new THREE.Color(color);
+    this._tick(dur, () => {
       if (Math.random() < 0.5) {
         const a = Math.random() * Math.PI * 2, r = Math.random() * radius;
-        tmpC.set(color);
-        this.add.emit(this.time, x + Math.cos(a) * r, 0.3, z + Math.sin(a) * r, 0, 1.5 + Math.random(), 0, tmpC, 0.8, 0.25, -0.5);
+        this.add.emit(this.time, x + Math.cos(a) * r, 0.3, z + Math.sin(a) * r, 0, 1.5 + Math.random(), 0, c, 0.8, 0.25, -0.5);
       }
     });
   }
 
+  // Charred splat that fades over six seconds.
   scorch(x, z, r) {
-    const m = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false }));
-    m.position.set(x, 0.09, z);
-    m.scale.set(r, 1, r);
-    this._temp(m, 6, (k) => { m.material.opacity = 0.5 * (1 - k); });
+    this.decals.add(this.time, x, z, r, 0x0c0806, 6, 0.55);
   }
 
   // colors: { body, accent, dark } from RACE_COLORS. Effects scale with creep size.
@@ -729,6 +710,14 @@ export class FX {
     this.time += dt;
     this.decals.material.uniforms.uTime.value = this.time;
     this.gibs.update(dt);
+    this.ice.update(dt);
+    this.roots.update(dt);
+    this.bolts.update(this.time);
+    this.ground.update(this.time);
+    if (this.tickers.length) {
+      for (const tk of this.tickers) { tk.t += dt; tk.fn(Math.min(1, tk.t / tk.life)); }
+      this.tickers = this.tickers.filter((tk) => tk.t < tk.life);
+    }
     if (this.timers.length) {
       for (const tm of this.timers) tm.t -= realDt;
       const due = this.timers.filter((tm) => tm.t <= 0);
@@ -755,7 +744,7 @@ export class FX {
         this.scene.remove(e.obj);
         e.obj.traverse((o) => {
           if (!o.isMesh) return;
-          if (o.material.type !== 'MeshStandardMaterial') o.material.dispose();
+          if (o.material.type !== 'MeshStandardMaterial' || o.material.userData.owned) o.material.dispose();
           if (!o.geometry.userData.shared) o.geometry.dispose();
         });
       }

@@ -142,7 +142,8 @@ document.querySelectorAll('.open-hall').forEach((b) => b.addEventListener('click
     + `. Each model's title, author and licence are listed in <a href="https://github.com/trungtnm/youtd-3js/blob/main/docs/model-credits.md" target="_blank" rel="noopener">docs/model-credits.md</a>.`
     + `<br><br>Music: ${MUSIC_TRACKS.map((t) => `"<a href="${t.source}" target="_blank" rel="noopener">${t.title}</a>" by ${t.artist}`).join(', ')}
     (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>; re-encoded to 128 kbps.
-    Sound effects are synthesised in-game with Web Audio.<br><br>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT license).
+    Sound effects are synthesised in-game with Web Audio.<br><br>Lightning bolts, the meteor's burning rock, its molten ground cracks and the erupting ice crystals are adapted from
+    <a href="https://github.com/achrefelouafi/LinearAbiltyCastingThreeJS" target="_blank" rel="noopener">LinearAbiltyCastingThreeJS</a> by mohamedachrefelouafi (MIT license).<br><br>Built with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT license).
     Fonts <a href="https://fonts.google.com/specimen/Cinzel" target="_blank" rel="noopener">Cinzel</a>, Cinzel Decorative and
     <a href="https://fonts.google.com/specimen/Inter" target="_blank" rel="noopener">Inter</a> via Google Fonts, licensed under the
     <a href="https://openfontlicense.org" target="_blank" rel="noopener">SIL Open Font License</a>.`;

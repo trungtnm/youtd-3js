@@ -115,8 +115,11 @@ factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap o
   low-DPI screens only, RTS camera with velocity-based panning and grab-pan,
   picking, per-frame sync of towers, creeps and projectiles. `QUALITY` presets
   (Settings, Graphics quality) set the pixel-ratio cap (1 / 1.25 / 1.5), the bloom
-  buffer scale and whether creeps cast shadow-map shadows (High only; Low and
-  Medium draw blob shadows instead). `World.setQuality(name)` applies one live.
+  buffer scale, whether creeps cast shadow-map shadows (High only; Low and
+  Medium draw blob shadows instead) and how often the shadow map is redrawn
+  (`shadowEvery`: every 2nd / 3rd / 4th frame on High / Medium / Low; towers and
+  props stand still, so only moving parts show the lag). `World.setQuality(name)`
+  applies one live. The nexus glow reads portal integrity clamped to 0..1.
 - `creep-crowd.js`: draws every creep that uses a curated model. Each model's move
   clip is baked once (when the model loads) into half-float vertex textures, and
   all creeps of that model draw as one `InstancedMesh` per material whose shader
@@ -132,10 +135,24 @@ factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap o
 - `tower-batcher.js`: `models.js` merges each tower's static meshes per material
   (`mergeStatic`, cached per tower kind) and the batcher moves those into one
   shared `BatchedMesh` per material, so all daises and static tower bodies cost a
-  handful of draw calls. Animated parts stay ordinary meshes in the tower group.
+  handful of draw calls. Animated parts stay ordinary meshes in the tower group
+  and are drawn through `instance-proxies.js`.
+- `instance-proxies.js`: towers and creeps register their group; every plain
+  (non-skinned) mesh in it is taken off the render layers but keeps animating in
+  the scene graph, and just before each render (`scene.onBeforeRender`) its world
+  matrix is copied into one `InstancedMesh` per geometry, current material and
+  shadow setting. Covers spinning gems and runes, halos, curated tower model
+  meshes, crests and champion/boss rings, crowns and halos. A group that leaves
+  the scene is dropped automatically. `world.proxies.setEnabled(false)` draws them
+  one by one again, for visual comparison.
 - `environment.js`: registry of map themes (`MAPS`, `DEFAULT_MAP`). Builds the
   chosen map plus the shared placement grid, disposes it on a switch, animates it
   each frame, and exposes the active map's `terrainHeight` for effects.
+  `mergeStaticProps` runs once per map build: it samples the map's own `update`
+  at several times, merges props whose world matrix never changes into one mesh
+  per material, and merges props that only ride along with their top-level map
+  object (bobbing islets, drifting rocks) in that object's space. Shader,
+  transparent and skinned meshes and the nexus crystal and rings are left alone.
   `World.setMap(id)` swaps the scenery and applies the map's lighting, fog,
   exposure, grade tints and portal colours; the player picks the map on the
   setup screen and the menu backdrop follows the choice.
@@ -158,8 +175,30 @@ factor of `0.35 + 0.13 * level` (plus `0.05` per level above 20, up to the cap o
   would stand. Towers play their idle clip and an attack clip on each shot;
   creeps play a walk or fly clip at their current speed. The procedural model
   stands in until a file arrives.
-- `fx.js`: GPU particle systems, projectiles, lightning, beams, rings, meteors,
-  zones and floating combat text.
+- `fx.js`: the effects facade the world calls (`ring`, `zone`, `lightning`,
+  `beam`, `nova`, `spellFlavor`, `meteorCast`, ...), GPU particle systems, gibs,
+  decals and floating combat text. Nearly everything draws through one of the
+  batches below, so effects cost a fixed handful of draw calls however many play.
+- `fx-projectiles.js`: every projectile head in one lit `InstancedMesh` (glowing
+  in its own colour, stretched along the path for darts) and every trail in one
+  camera-facing ribbon mesh. A landed shot's trail lingers and fades. Raider shots
+  at the nexus (`fx.bolt`) fly through the same batch.
+- `fx-ground.js`: shockwave rings, flash discs and lingering zones (and the
+  meteor's target marker) as one instanced shader on ground quads; the kind
+  picks the shape. Scorch marks go to the decal batch.
+- `fx-spikes.js`: instanced shards that erupt outward from a point, wait for the
+  wave front, overshoot, hold and sink. One pool for ice (novas, frost spells),
+  one for roots (root novas, nature spells).
+- `fx-lightning.js`: every live lightning bolt in one instanced batch (two draw
+  calls). The bolt's shape, strand fan and flicker are computed in the vertex
+  shader from each instance's endpoints, birth time and colour. Beams use the
+  same batch with no kinks and a tight fan.
+- `fx-meteor.js`: the meteor's cratered rock with lava seams that open as it
+  falls, and the molten crack network left on the ground at impact.
+- `fx-noise.js`: GLSL hashes, simplex noise and fbm shared by those shaders.
+  `fx-lightning.js`, `fx-meteor.js`, `fx-noise.js` and the eruption in
+  `fx-spikes.js` adapt code from LinearAbiltyCastingThreeJS (MIT,
+  `third_party/linear-ability-casting/LICENSE`).
 
 ## UI scaling
 

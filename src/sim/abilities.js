@@ -5,6 +5,7 @@
 import { RARITIES } from '../data/constants.js';
 import { UNIT } from '../data/youtd/ports/helpers.js';
 import { ECON } from '../data/constants.js';
+import { sampleRoute } from './map-layout.js';
 
 // ------------------------------------------------------------------ tower buffs
 
@@ -483,6 +484,21 @@ export function applyEffect(game, t, e, target, ctx = {}) {
           const list = creepsNear(game, t.x, t.z, e.range ?? t.stats.range);
           if (!list.length) return;
           const c = list[Math.floor(game.rng() * list.length)];
+          if (e.fall) {
+            // Falls from the sky instead of flying from the tower: aimed where the
+            // creep will be when it lands, and hits whatever stands there then.
+            // Same speed the movement step uses: stunned creeps stay put, slows cap at 80%.
+            const speed = c.stun > 0 ? 0 : c.speed * (1 - Math.min(0.8, Math.max(c.slow, c.auraSlow || 0)));
+            const lead = sampleRoute(c.route, c.dist + speed * e.fall, {});
+            const pos = { x: lead.x, z: lead.z }, radius = e.radius || 1;
+            game.emit('meteorCast', { tower: t, x: pos.x, z: pos.z, delay: e.fall, radius });
+            game.delayed.push({ at: game.time + e.fall, fn: () => {
+              if (!game.towers.has(t.uid)) return;
+              game.emit('meteorImpact', { x: pos.x, z: pos.z, radius });
+              for (const h of creepsNear(game, pos.x, pos.z, radius, false)) { game.damage(t, h, base, { spell: !e.attack }); if (h.alive) debuffCreep(game, t, h, e); }
+            } });
+            return;
+          }
           game.emit('spellChain', { tower: t, points: [{ x: t.x, z: t.z, y: 3 }, { x: c.x, z: c.z }], fx });
           const hits = e.radius ? creepsNear(game, c.x, c.z, e.radius, false) : [c];
           for (const h of hits) { game.damage(t, h, base, { spell: !e.attack }); if (h.alive) debuffCreep(game, t, h, e); }
