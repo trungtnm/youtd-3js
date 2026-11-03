@@ -142,6 +142,3 @@ are in [docs/game-design.md](docs/game-design.md#balance-targets).
 ## Contact
 
 Questions, bug reports or feedback: [0xtrungtran@gmail.com](mailto:0xtrungtran@gmail.com).
-
-The game's Contact section shows the server's `CONTACT_EMAIL` (default in
-`wrangler.jsonc`, set it in the server's `.env` to change it).
