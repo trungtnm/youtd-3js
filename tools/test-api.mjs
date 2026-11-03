@@ -236,7 +236,7 @@ try {
   google = await mockGoogle();
   const main = startServer({
     port: 8787, persist: join(tmp, 'main'),
-    vars: { TICKET_SECRET: SECRET, DEV_MAIL_ECHO: 1, GOOGLE_CLIENT_ID: CLIENT_ID, GOOGLE_CLIENT_SECRET: 'test-google-secret', BOARD_CACHE_SECONDS: 0, GOOGLE_TOKEN_URL: `http://127.0.0.1:${google.port}/token` },
+    vars: { TICKET_SECRET: SECRET, DEV_MAIL_ECHO: 1, CONTACT_EMAIL: 'help@example.com', GOOGLE_CLIENT_ID: CLIENT_ID, GOOGLE_CLIENT_SECRET: 'test-google-secret', BOARD_CACHE_SECONDS: 0, GOOGLE_TOKEN_URL: `http://127.0.0.1:${google.port}/token` },
   });
   children.push(main);
   const C = client('http://localhost:8787');
@@ -245,6 +245,12 @@ try {
 
   // ---------------------------------------------------------------- basics and CSRF
   let A; // the main player, guest first
+  await test('/api/config reports the contact address from the environment', async () => {
+    const r = await C.api(C.jar(), 'GET', '/api/config');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.data, { contact: 'help@example.com' });
+  });
+
   await test('guest creation sets a session and /api/me reports it', async () => {
     const anon = await C.api(C.jar(), 'GET', '/api/me');
     assert.deepEqual(anon.data, { user: null });

@@ -136,4 +136,4 @@ are in [docs/game-design.md](docs/game-design.md#balance-targets).
 
 ## Contact
 
-Questions, bug reports or feedback: [0xtrungtran@saigonmedik.com](mailto:0xtrungtran@saigonmedik.com).
+Questions, bug reports or feedback: [0xtrungtran@gmail.com](mailto:0xtrungtran@gmail.com).

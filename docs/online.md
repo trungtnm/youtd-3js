@@ -101,6 +101,7 @@ All responses are JSON with `Cache-Control: no-store` (boards are cached 30 s),
 | Route | Purpose |
 |---|---|
 | `GET /api/me` | Current user (or null), budget mode, simulation build |
+| `GET /api/config` | `{ contact }`: the `CONTACT_EMAIL` shown in the game's Contact section (null hides it) |
 | `POST /api/auth/guest` | Create a guest account and session if there is none |
 | `GET /api/auth/google`, `GET /api/auth/google/callback` | Google sign-in (code flow, PKCE, state cookie). With `?popup=1` the callback answers with a page that posts `{ type: 'signin', result }` on the `youtd-auth` BroadcastChannel and closes; otherwise it redirects to `/?signin=google` or `/?signin=error` |
 | `POST /api/auth/email` | Email a sign-in link (always answers ok) |
@@ -260,7 +261,8 @@ First-time setup on the VPS (done once):
    chars: `openssl rand -hex 32`), and when available `GOOGLE_CLIENT_ID`,
    `GOOGLE_CLIENT_SECRET` (Google Cloud OAuth client, web type, redirect URI
    `<APP_ORIGIN>/api/auth/google/callback`, scopes `openid` and `email`) and
-   `BREVO_API_KEY` (transactional API key). Never set `DEV_MAIL_ECHO` or
+   `BREVO_API_KEY` (transactional API key). Optional: `CONTACT_EMAIL`, the address in
+   the game's Contact section (default in `wrangler.jsonc`; empty hides it). Never set `DEV_MAIL_ECHO` or
    `GOOGLE_TOKEN_URL` in production; the server refuses to start with them on an
    https origin. After editing, `docker compose up -d` in `/home/trungtran/projects/youtd/current`
    recreates the container with the new values.

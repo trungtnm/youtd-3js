@@ -210,6 +210,9 @@ export class Online extends Emitter {
     await this.init();
   }
 
+  // Server settings the page shows: { contact }.
+  config() { return api('/config'); }
+
   leaderboard(key) { return api(`/leaderboard?key=${encodeURIComponent(key)}`); }
   weekly() { return api('/leaderboard/weekly'); }
 }

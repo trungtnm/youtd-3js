@@ -170,6 +170,14 @@ const signinParam = new URLSearchParams(window.location.search).get('signin');
 if (signinParam) history.replaceState(null, '', window.location.pathname);
 renderAccountChip();
 online.init().then(() => { if (signinParam) signedIn(signinParam); });
+// The Contact section shows the server's CONTACT_EMAIL; it stays hidden offline or when unset.
+online.config().then(({ contact }) => {
+  if (!contact) return;
+  const link = $('#contact-link');
+  link.href = `mailto:${contact}?subject=${encodeURIComponent('YouTD Reforged')}`;
+  link.textContent = contact;
+  $('#contact').hidden = false;
+}).catch(() => {});
 
 // Tower and item icons are CC BY 3.0 and must be credited where players can see it.
 // With hundreds of icons, credit each author with a count; docs/icon-credits.md lists every icon.

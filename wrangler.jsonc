@@ -35,6 +35,8 @@
   // use `wrangler secret put` in production and .dev.vars locally.
   "vars": {
     "APP_ORIGIN": "http://localhost:8787",
+    // Shown in the game's Contact section (GET /api/config); empty hides the section.
+    "CONTACT_EMAIL": "0xtrungtran@gmail.com",
     "CPU_BUDGET_MS": "30000000",
     "EMAIL_DAILY_CAP": "300",
     "MAIL_FROM": "no-reply@example.com",

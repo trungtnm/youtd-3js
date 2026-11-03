@@ -13,6 +13,7 @@ import { handleQueue, handleScheduled } from './verify.js';
 // [method, path pattern, handler, needs a signed-in user]
 const ROUTES = [
   ['GET', '/api/me', async (c) => json(await auth.meBody(c.env, c.user)), false],
+  ['GET', '/api/config', async (c) => json(publicConfig(c.env)), false],
   ['POST', '/api/auth/guest', auth.guest, false],
   ['GET', '/api/auth/google', auth.googleStart, false],
   ['GET', '/api/auth/google/callback', auth.googleCallback, false],
@@ -36,6 +37,13 @@ const ROUTES = [
   method, handler, needsUser,
   re: new RegExp(`^${path.replace(/:[a-z]+/g, '([^/]+)')}$`), names: [...path.matchAll(/:([a-z]+)/g)].map((m) => m[1]),
 }));
+
+// Settings the page shows that come from the server's environment.
+const CONTACT_RE = /^[^\s@<>"'()]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+function publicConfig(env) {
+  const contact = typeof env.CONTACT_EMAIL === 'string' ? env.CONTACT_EMAIL.trim() : '';
+  return { contact: CONTACT_RE.test(contact) && contact.length <= 254 ? contact : null };
+}
 
 async function revoke(ctx) {
   const hash = await revokeSession(ctx.env, ctx.user.id, ctx.params.id);
