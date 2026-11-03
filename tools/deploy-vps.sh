@@ -31,7 +31,8 @@ export YOUTD_HOME=$home YOUTD_UID=$(stat -c %u "$home/data") YOUTD_GID=$(stat -c
 YOUTD_TAG=$sha docker compose build
 if [ -n "$(docker compose ps -q --status running youtd)" ]; then
   echo "Backing up the live database"
-  docker compose exec -T youtd node --disable-warning=ExperimentalWarning server/backup.js
+  # </dev/null: this script arrives on stdin, and exec would swallow the rest of it.
+  docker compose exec -T youtd node --disable-warning=ExperimentalWarning server/backup.js </dev/null
 fi
 YOUTD_TAG=$sha docker compose up -d --wait --wait-timeout 90
 docker tag "youtd-reforged:$sha" youtd-reforged:latest

@@ -157,6 +157,8 @@ const server = http.createServer(async (req, res) => {
     await send(res, response, req.method);
     await ctx.settle();
   } catch (err) {
+    // The client went away mid-response (a cancelled download or seek): nothing to report.
+    if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
     console.error('request failed:', err?.stack || err);
     if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' }).end('{"error":"internal","message":"Internal error."}');
     else res.destroy();
