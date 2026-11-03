@@ -24,6 +24,7 @@ export class AccountPanel {
     this.msg = '';
     this.sessions = null;
     this.confirmDelete = false;
+    this.naming = false; // the first-sign-in name prompt is showing
     const box = $('#account');
     box.addEventListener('click', (e) => this.click(e));
     box.addEventListener('submit', (e) => { e.preventDefault(); this.submit(e.target); });
@@ -33,7 +34,7 @@ export class AccountPanel {
   isOpen() { return !$('#account').classList.contains('hidden'); }
 
   open() {
-    this.msg = ''; this.confirmDelete = false; this.sessions = null;
+    this.msg = ''; this.confirmDelete = false; this.sessions = null; this.naming = false;
     $('#account').classList.remove('hidden');
     this.render();
     if (this.online.ready) this.loadSessions();
@@ -41,12 +42,33 @@ export class AccountPanel {
 
   close() { $('#account').classList.add('hidden'); }
 
+  // After signing in to an account that has no chosen name: ask for one first.
+  openNamePrompt() {
+    this.open();
+    this.naming = true;
+    this.render();
+  }
+
   async loadSessions() {
     try { this.sessions = (await this.online.sessions()).sessions; } catch { this.sessions = null; }
     if (this.isOpen()) this.render();
   }
 
+  // Redraws the panel. Late updates (the device list, account changes) redraw while the
+  // player may be typing, so the focused field keeps its text and focus; the name prompt
+  // starts with its field focused.
   render() {
+    const body = $('#account-body');
+    const active = document.activeElement;
+    const typing = body.contains(active) && active.name && active.form?.id ? { form: active.form.id, name: active.name, value: active.value } : null;
+    this.draw();
+    const field = typing ? body.querySelector(`#${typing.form} [name="${typing.name}"]`) : this.naming ? body.querySelector('#acct-name [name="name"]') : null;
+    if (!field) return;
+    if (typing) field.value = typing.value;
+    field.focus();
+  }
+
+  draw() {
     const o = this.online, u = o.user;
     const msg = this.msg ? `<p class="acct-msg">${esc(this.msg)}</p>` : '';
     if (o.status === 'checking') { $('#account-body').innerHTML = '<p class="hall-note">Connecting…</p>'; return; }
@@ -54,6 +76,16 @@ export class AccountPanel {
       $('#account-body').innerHTML = `${msg}<p class="hall-note">The game server cannot be reached. You can keep playing: runs are saved in this browser
         ${u ? `and runs already started online upload when you reconnect` : ''}.</p>
         <div class="row"><button class="btn" data-act="retry">Try again</button></div>`;
+      return;
+    }
+    if (this.naming && !u.guest) {
+      $('#account-body').innerHTML = `${msg}<section class="acct-welcome"><h3>Choose your name</h3>
+        <p class="hall-note">You are signed in${u.email ? ` as ${esc(u.email)}` : ''}. Pick the name shown on leaderboards:
+          3 to 20 letters, digits, spaces, _ or -. You can change it later here.</p>
+        <form id="acct-name" class="acct-form"><input name="name" required minlength="3" maxlength="20" pattern="[A-Za-z0-9 _\\-]{3,20}"
+          placeholder="${esc(u.name)}" autocomplete="nickname" />
+        <button class="btn gold" type="submit">Save name</button></form>
+        <div class="row"><button class="btn" data-act="keep-name">Keep ${esc(u.name)}</button></div></section>`;
       return;
     }
     const how = u.guest ? 'Guest account on this browser' : [u.google ? 'Google' : '', u.email ? esc(u.email) : ''].filter(Boolean).join(' · ');
@@ -93,7 +125,8 @@ export class AccountPanel {
     if (revoke) { this.run(async () => { await this.online.revokeSession(revoke); await this.loadSessions(); }, 'Device signed out.'); return; }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'retry') this.online.init();
-    if (act === 'google') this.online.signInGoogle();
+    if (act === 'google' && this.online.signInGoogle()) { this.msg = 'Finish signing in with Google in the window that opened.'; this.render(); }
+    if (act === 'keep-name') this.run(async () => { await this.online.updateProfile({ name: this.online.user.name }); this.naming = false; }, 'Name kept.');
     if (act === 'logout') this.run(async () => { await this.online.signOut(); this.onChange?.(); }, 'Signed out.');
     if (act === 'keep') { this.confirmDelete = false; this.render(); }
     if (act === 'delete') {
@@ -124,7 +157,7 @@ export class AccountPanel {
     } else if (form.id === 'acct-name') {
       const name = form.name.value.trim();
       if (!NAME.test(name)) { this.msg = 'Use 3 to 20 letters, digits, spaces, _ or -.'; this.render(); return; }
-      this.run(() => this.online.updateProfile({ name }), 'Name saved.');
+      this.run(async () => { await this.online.updateProfile({ name }); this.naming = false; }, 'Name saved.');
     }
   }
 }

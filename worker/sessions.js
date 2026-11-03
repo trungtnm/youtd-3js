@@ -12,7 +12,7 @@ export async function userTag(id) {
   return (await sha256Hex(`tag:${id}`)).slice(0, 4);
 }
 
-export const userView = (u) => ({ id: u.id, name: u.name, guest: !!u.guest, email: u.email || null, google: !!u.google_sub });
+export const userView = (u) => ({ id: u.id, name: u.name, named: !!u.named, guest: !!u.guest, email: u.email || null, google: !!u.google_sub });
 
 export async function createUser(env, { name, email = null, googleSub = null, guest }) {
   const id = randomId();

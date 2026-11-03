@@ -32,6 +32,18 @@ export class Online extends Emitter {
     const cache = read(CACHE_KEY, null);
     if (cache?.user && cache.profile) { this.user = cache.user; this.profile = sanitize(cache.profile); }
     window.addEventListener('online', () => this.init());
+    // Sign-ins finished in another window: the Google popup, or an emailed link opened in a
+    // new tab. Both are same-origin pages that post { type: 'signin', result }.
+    try {
+      this.authChannel = new BroadcastChannel('youtd-auth');
+      this.authChannel.onmessage = (e) => this.signedInElsewhere(e.data);
+    } catch { /* no BroadcastChannel: the redirect flow still signs in */ }
+  }
+
+  async signedInElsewhere(msg) {
+    if (msg?.type !== 'signin' || typeof msg.result !== 'string') return;
+    if (msg.result !== 'error') await this.init();
+    this.emit('signin', msg.result);
   }
 
   // True when the account can be used right now.
@@ -39,6 +51,8 @@ export class Online extends Emitter {
   // True when new runs can be verified: a tab left open across a deploy runs an older
   // simulation than the server and has to reload first.
   get canStartRuns() { return this.ready && !this.outdated; }
+  // A signed-in account that has not chosen its display name yet.
+  get needsName() { return this.ready && !this.user.guest && !this.user.named; }
 
   async init() {
     this.status = 'checking';
@@ -154,7 +168,17 @@ export class Online extends Emitter {
 
   // ---------------------------------------------------------------- account
 
-  signInGoogle() { window.location.href = '/api/auth/google'; }
+  // Opens Google sign-in in a popup centred on the game; the game keeps running. Falls back
+  // to a full-page redirect when the browser blocks popups. Returns true for the popup.
+  signInGoogle() {
+    const w = 480, h = 640;
+    const left = Math.round(Math.max(0, window.screenX + (window.outerWidth - w) / 2));
+    const top = Math.round(Math.max(0, window.screenY + (window.outerHeight - h) / 2));
+    const popup = window.open('/api/auth/google?popup=1', 'youtd-google', `popup,width=${w},height=${h},left=${left},top=${top}`);
+    if (!popup) { window.location.href = '/api/auth/google'; return false; }
+    popup.focus();
+    return true;
+  }
 
   async emailLink(email) { return api('/auth/email', { method: 'POST', body: { email } }); }
 

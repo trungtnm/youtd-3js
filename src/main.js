@@ -157,17 +157,19 @@ online.on('change', refreshMenu);
 online.on('profile', refreshMenu);
 // The end screen follows the upload and verification of the run it shows.
 online.on('runStatus', (r) => { if (runTicket && r.runId === runTicket.runId) hud.setRunVerify(r.status); });
-{
-  // Coming back from Google sign-in or an emailed link.
-  const params = new URLSearchParams(window.location.search);
-  const signin = params.get('signin');
-  if (signin) {
-    history.replaceState(null, '', window.location.pathname);
-    if (signin === 'error') setTimeout(() => { account.open(); account.msg = 'Sign-in did not complete. Please try again.'; account.render(); }, 0);
-  }
+// A sign-in finished: in the Google popup, by redirect (`?signin=`), through an emailed link,
+// or in another tab ('elsewhere', which only refreshes the account). New accounts pick a name.
+function signedIn(result) {
+  if (result === 'error') { account.open(); account.msg = 'Sign-in did not complete. Please try again.'; account.render(); return; }
+  if (result === 'elsewhere') return;
+  if (online.needsName) account.openNamePrompt();
+  else if (account.isOpen()) { account.msg = 'Signed in.'; account.render(); }
 }
+online.on('signin', signedIn);
+const signinParam = new URLSearchParams(window.location.search).get('signin');
+if (signinParam) history.replaceState(null, '', window.location.pathname);
 renderAccountChip();
-online.init();
+online.init().then(() => { if (signinParam) signedIn(signinParam); });
 
 // Tower and item icons are CC BY 3.0 and must be credited where players can see it.
 // With hundreds of icons, credit each author with a count; docs/icon-credits.md lists every icon.

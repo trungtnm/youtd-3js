@@ -209,10 +209,11 @@ function mockGoogle() {
     req.on('end', () => {
       const form = Object.fromEntries(new URLSearchParams(data));
       state.last = form;
-      const claims = { iss: 'https://accounts.google.com', aud: CLIENT_ID, sub: form.code === 'other-sub-code' ? 'google-sub-2' : 'google-sub-1', email: 'Gee@Example.com', email_verified: true, exp: Math.floor(Date.now() / 1000) + 3600 };
+      const fresh = form.code === 'new-sub-code'; // a Google account the server has never seen
+      const claims = { iss: 'https://accounts.google.com', aud: CLIENT_ID, sub: fresh ? 'google-sub-3' : form.code === 'other-sub-code' ? 'google-sub-2' : 'google-sub-1', email: fresh ? 'New@Example.com' : 'Gee@Example.com', email_verified: true, exp: Math.floor(Date.now() / 1000) + 3600 };
       const part = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
       res.setHeader('Content-Type', 'application/json');
-      if (!['good-code', 'other-sub-code'].includes(form.code)) { res.statusCode = 400; res.end('{"error":"invalid_grant"}'); return; }
+      if (!['good-code', 'other-sub-code', 'new-sub-code'].includes(form.code)) { res.statusCode = 400; res.end('{"error":"invalid_grant"}'); return; }
       res.end(JSON.stringify({ id_token: `${part({ alg: 'none' })}.${part(claims)}.sig`, access_token: 'x' }));
     });
   });
@@ -611,12 +612,41 @@ try {
     assert.equal(me.guest, false);
     assert.equal(me.google, true);
     assert.equal(me.email, 'gee@example.com');
+    assert.equal(me.named, false, 'an upgraded guest has not chosen a name yet');
+    const kept = await C.api(G.j, 'PUT', '/api/profile', { body: { name: me.name } });
+    assert.equal(kept.data.user.named, true, 'keeping the generated name counts as choosing it');
+    assert.equal((await C.api(G.j, 'GET', '/api/me')).data.user.named, true);
     // signing in again from a fresh browser lands on the same account
     const H = C.jar();
     const s2 = await C.api(H, 'GET', '/api/auth/google', { redirect: 'manual' });
     const st2 = new URL(s2.headers.get('location')).searchParams.get('state');
     await C.api(H, 'GET', `/api/auth/google/callback?code=good-code&state=${st2}`, { redirect: 'manual' });
     assert.equal((await C.api(H, 'GET', '/api/me')).data.user.id, G.user.id);
+  });
+
+  await test('Google sign-in in a popup answers with a page that tells the game and closes', async () => {
+    const N = C.jar();
+    const s = await C.api(N, 'GET', '/api/auth/google?popup=1', { redirect: 'manual' });
+    const state = new URL(s.headers.get('location')).searchParams.get('state');
+    assert.ok(state.startsWith('p.'), 'popup flows are marked in the state');
+    const cb = await C.api(N, 'GET', `/api/auth/google/callback?code=new-sub-code&state=${state}`, { redirect: 'manual' });
+    assert.equal(cb.status, 200);
+    assert.equal(cb.headers.get('location'), null);
+    assert.match(cb.headers.get('content-type'), /text\/html/);
+    assert.match(cb.headers.get('content-security-policy'), /script-src 'nonce-/);
+    assert.ok(cb.data.includes("new BroadcastChannel('youtd-auth')") && cb.data.includes('result: "google"'));
+    assert.ok(N.sid, 'session set by the popup');
+    const me = (await C.api(N, 'GET', '/api/me')).data.user;
+    assert.equal(me.email, 'new@example.com');
+    assert.equal(me.guest, false);
+    assert.equal(me.named, false, 'a new account is asked for a name');
+    const named = await C.api(N, 'PUT', '/api/profile', { body: { name: 'New Hero' } });
+    assert.equal(named.data.user.name, 'New Hero');
+    assert.equal(named.data.user.named, true);
+    // a refused popup sign-in also answers with the page, reporting the error
+    const bad = await C.api(C.jar(), 'GET', '/api/auth/google/callback?code=good-code&state=p.nope', { redirect: 'manual' });
+    assert.equal(bad.status, 200);
+    assert.ok(bad.data.includes('result: "error"'));
   });
 
   await test('Google refuses an email that belongs to an account with another Google id', async () => {

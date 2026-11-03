@@ -38,9 +38,11 @@ export async function putProfile(ctx) {
       profile[field] = body[field];
     }
     const name = body.name ?? row.name;
-    const res = await env.DB.prepare('UPDATE users SET name = ?, profile = ?, rev = rev + 1 WHERE id = ? AND rev = ?')
-      .bind(name, JSON.stringify(profile), user.id, row.rev).run();
-    if (res.meta.changes === 1) return json({ profile, user: userView({ ...row, name }) });
+    // Saving a name, even the generated one, counts as choosing it.
+    const named = body.name !== undefined || !!row.named;
+    const res = await env.DB.prepare('UPDATE users SET name = ?, named = ?, profile = ?, rev = rev + 1 WHERE id = ? AND rev = ?')
+      .bind(name, named ? 1 : 0, JSON.stringify(profile), user.id, row.rev).run();
+    if (res.meta.changes === 1) return json({ profile, user: userView({ ...row, name, named }) });
   }
   return fail(409, 'conflict', 'Profile changed while saving. Try again.');
 }

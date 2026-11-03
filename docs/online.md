@@ -102,7 +102,7 @@ All responses are JSON with `Cache-Control: no-store` (boards are cached 30 s),
 |---|---|
 | `GET /api/me` | Current user (or null), budget mode, simulation build |
 | `POST /api/auth/guest` | Create a guest account and session if there is none |
-| `GET /api/auth/google`, `GET /api/auth/google/callback` | Google sign-in (code flow, PKCE, state cookie) |
+| `GET /api/auth/google`, `GET /api/auth/google/callback` | Google sign-in (code flow, PKCE, state cookie). With `?popup=1` the callback answers with a page that posts `{ type: 'signin', result }` on the `youtd-auth` BroadcastChannel and closes; otherwise it redirects to `/?signin=google` or `/?signin=error` |
 | `POST /api/auth/email` | Email a sign-in link (always answers ok) |
 | `GET /api/auth/email/verify#token=` | Confirm page. The token is in the fragment, so it never reaches the server's logs; the page shows the masked address and its button POSTs, so mail scanners do not use up the link |
 | `POST /api/auth/email/peek` | The masked address of a link's token (no side effects) |
@@ -165,6 +165,13 @@ cached for 30 s, so a change shows up within that time.
   requested it.
 - Display names are 3 to 20 characters `[A-Za-z0-9 _-]`; the Google name is never
   used.
+- The game opens Google sign-in in a popup so the page keeps its state, and falls
+  back to a full-page redirect when the browser blocks popups. Popup flows prefix
+  their OAuth `state` with `p.`. The email confirm page also posts on the
+  `youtd-auth` channel, so other open game tabs pick up the new session.
+- `users.named` is set the first time a name is saved (keeping the generated one
+  counts). After a sign-in, an account that is not a guest and has no chosen name
+  is asked to choose one.
 - Online profiles start empty; the profile stored in a browser is never uploaded.
   It stays on the Hall's "This browser" tab.
 

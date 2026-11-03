@@ -67,10 +67,39 @@ async function resolveUser(env, identity, guestHint) {
 
 // ---------------------------------------------------------------- Google
 
+// The game opens Google sign-in in a popup (`?popup=1`) so the page keeps its state; the
+// redirect flow remains for browsers that block the popup. Popup flows mark their state
+// with `p.`, which Google returns even when the oauth cookie is gone, so the callback
+// knows how to answer either way.
+const POPUP_STATE = 'p.';
+
+// Ends a popup sign-in: tells the game tabs (same origin, BroadcastChannel) and closes.
+// window.opener is not used: Google's pages may sever it (Cross-Origin-Opener-Policy).
+function popupDonePage(result) {
+  const nonce = randomToken(12);
+  const csp = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+  const ok = result !== 'error';
+  const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YouTD Reforged</title>
+<style>body{font:16px system-ui,sans-serif;background:#10131a;color:#e8ecf4;display:grid;place-items:center;min-height:100vh;margin:0}main{text-align:center;padding:2rem}a{color:#8fb4ff}</style></head>
+<body><main><p id="msg" role="status">${ok ? 'Signed in. Returning to the game…' : 'Sign-in did not complete.'}</p>
+<p><a href="/?signin=${ok ? 'google' : 'error'}" id="back" hidden>Open the game</a></p></main>
+<script nonce="${nonce}">
+try { const ch = new BroadcastChannel('youtd-auth'); ch.postMessage({ type: 'signin', result: ${JSON.stringify(ok ? 'google' : 'error')} }); ch.close(); } catch {}
+setTimeout(() => window.close(), 150);
+// Still open: the browser did not let the page close itself.
+setTimeout(() => { document.getElementById('msg').textContent = ${JSON.stringify(ok ? 'Signed in. You can close this window and return to the game.' : 'Sign-in did not complete. Close this window and try again.')}; document.getElementById('back').hidden = false; }, 800);
+</script></body></html>`;
+  return html(page, { headers: { 'Content-Security-Policy': csp } });
+}
+
+const signinDone = (popup, result) => (popup ? popupDonePage(result) : redirect(`/?signin=${result}`));
+
 export async function googleStart(ctx) {
   const { env } = ctx;
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return redirect('/?signin=error');
-  const state = randomToken(24);
+  const popup = ctx.url.searchParams.get('popup') === '1';
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return signinDone(popup, 'error');
+  const state = (popup ? POPUP_STATE : '') + randomToken(24);
   const verifier = randomToken(32);
   const challenge = b64url(await sha256Bytes(verifier));
   const blob = await signBlob(await subkey(env.TICKET_SECRET, 'oauth'), { state, verifier, exp: Date.now() + OAUTH_TTL * 1000 });
@@ -92,7 +121,8 @@ function idTokenClaims(idToken) {
 export async function googleCallback(ctx) {
   const { env, req, url } = ctx;
   const clear = clearCookie(env, 'oauth', '/api/auth/google');
-  const bad = () => withCookies(redirect('/?signin=error'), [clear]);
+  const popup = (url.searchParams.get('state') || '').startsWith(POPUP_STATE);
+  const bad = () => withCookies(signinDone(popup, 'error'), [clear]);
   try {
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
@@ -120,7 +150,7 @@ export async function googleCallback(ctx) {
     const user = await resolveUser(env, { email, googleSub: claims.sub }, ctx.user);
     if (!user) return bad();
     const setCookie = await startSession(env, req, user.id, ctx.session);
-    return withCookies(redirect('/?signin=google'), [setCookie, clear]);
+    return withCookies(signinDone(popup, 'google'), [setCookie, clear]);
   } catch (err) {
     console.error('google callback failed:', err?.message);
     return bad();
@@ -187,7 +217,11 @@ btn.addEventListener('click', async () => {
   btn.disabled = true;
   try {
     const r = await call('verify');
-    if (r.ok) { location.href = '/?signin=email'; return; }
+    if (r.ok) {
+      try { const ch = new BroadcastChannel('youtd-auth'); ch.postMessage({ type: 'signin', result: 'elsewhere' }); ch.close(); } catch {}
+      location.href = '/?signin=email';
+      return;
+    }
     msg.textContent = 'This link has expired or was already used. Request a new one.';
   } catch { msg.textContent = 'Network error. Try again.'; }
   btn.disabled = false;
