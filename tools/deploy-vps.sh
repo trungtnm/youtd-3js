@@ -36,5 +36,6 @@ fi
 YOUTD_TAG=$sha docker compose up -d --wait --wait-timeout 90
 docker tag "youtd-reforged:$sha" youtd-reforged:latest
 ln -sfn "$home/releases/$sha" "$home/current"
+chown -h "$owner" "$home/current"
 curl -fsS http://127.0.0.1:3200/api/me >/dev/null && echo "Healthy: $sha is live"
 REMOTE
