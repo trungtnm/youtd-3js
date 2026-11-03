@@ -27,14 +27,18 @@ cd "$home/releases/$sha"
 # Everything under $home belongs to its owner; the container runs as the owner of data/.
 owner=$(stat -c %u:%g "$home")
 chown -R "$owner" "$home/releases/$sha"
-export YOUTD_HOME=$home YOUTD_UID=$(stat -c %u "$home/data") YOUTD_GID=$(stat -c %g "$home/data")
-YOUTD_TAG=$sha docker compose build
+export YOUTD_HOME=$home YOUTD_UID=$(stat -c %u "$home/data") YOUTD_GID=$(stat -c %g "$home/data") YOUTD_TAG=$sha
+# Compose reads .env beside compose.yaml, so a plain `docker compose up -d` in this release
+# (after editing $home/.env) keeps the same image, user and paths. No secrets here.
+printf 'YOUTD_HOME=%s\nYOUTD_TAG=%s\nYOUTD_UID=%s\nYOUTD_GID=%s\n' "$home" "$sha" "$YOUTD_UID" "$YOUTD_GID" > .env
+chown "$owner" .env
+docker compose build
 if [ -n "$(docker compose ps -q --status running youtd)" ]; then
   echo "Backing up the live database"
   # </dev/null: this script arrives on stdin, and exec would swallow the rest of it.
   docker compose exec -T youtd node --disable-warning=ExperimentalWarning server/backup.js </dev/null
 fi
-YOUTD_TAG=$sha docker compose up -d --wait --wait-timeout 90
+docker compose up -d --wait --wait-timeout 90
 docker tag "youtd-reforged:$sha" youtd-reforged:latest
 ln -sfn "$home/releases/$sha" "$home/current"
 chown -h "$owner" "$home/current"

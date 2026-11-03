@@ -108,7 +108,12 @@ are in [docs/game-design.md](docs/game-design.md#balance-targets).
 | `src/ui/` | DOM HUD |
 | `src/audio/` | Synthesized sound effects and music playlist |
 | `src/main.js` | Menu, settings, input and the fixed-step game loop |
-| `tools/` | Balance bot and YouTD 2 data importer |
+| `src/online/`, `src/meta/` | Account client, run uploads; profile, records and achievements |
+| `worker/` | Online API: accounts, run verification by replay, leaderboards |
+| `server/` | Node server that runs `worker/` in production (SQLite, run logs, verify queue) |
+| `migrations/` | Database schema |
+| `Dockerfile`, `compose.yaml`, `deploy/` | Production image, service and nginx site |
+| `tools/` | Balance bot, data importers, API tests and the deploy script |
 | `third_party/youtd2/` | MIT-licensed YouTD 2 data tables |
 
 ## Documentation
@@ -137,3 +142,6 @@ are in [docs/game-design.md](docs/game-design.md#balance-targets).
 ## Contact
 
 Questions, bug reports or feedback: [0xtrungtran@gmail.com](mailto:0xtrungtran@gmail.com).
+
+The game's Contact section shows the server's `CONTACT_EMAIL` (default in
+`wrangler.jsonc`, set it in the server's `.env` to change it).
